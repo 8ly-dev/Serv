@@ -51,6 +51,74 @@ class ResponseBuilder:
         self._has_content_type = True # Explicitly set true by this method
         return self
 
+    def set_cookie(
+        self,
+        key: str,
+        value: str = "",
+        max_age: int | None = None,
+        expires: int | None = None, # Timestamp
+        path: str = "/",
+        domain: str | None = None,
+        secure: bool = False,
+        httponly: bool = False,
+        samesite: str = "lax",  # "lax", "strict", or "none"
+    ):
+        if self._headers_sent:
+            raise RuntimeError("Cannot set cookie after headers have been sent.")
+
+        cookie_parts = [f"{key}={value}"]
+        if domain is not None:
+            cookie_parts.append(f"Domain={domain}")
+        if path is not None:
+            cookie_parts.append(f"Path={path}")
+        if max_age is not None:
+            cookie_parts.append(f"Max-Age={max_age}")
+        if expires is not None:
+            # This expects a pre-formatted string or a timestamp. 
+            # For robust formatting from timestamp, datetime.strftime would be needed.
+            # Example: datetime.datetime.utcfromtimestamp(expires).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            cookie_parts.append(f"Expires={expires}")
+        if secure:
+            cookie_parts.append("Secure")
+        if httponly:
+            cookie_parts.append("HttpOnly")
+        if samesite and samesite.lower() in ["lax", "strict", "none"]:
+            cookie_parts.append(f"SameSite={samesite.capitalize()}")
+        
+        self.add_header("Set-Cookie", "; ".join(cookie_parts))
+        return self
+
+    def delete_cookie(self, key: str, path: str = "/", domain: str | None = None, secure: bool = False, httponly: bool = False, samesite: str = "lax"):
+        """Instructs the client to delete a cookie by setting its Max-Age to 0 and an expiry date in the past."""
+        # Setting Max-Age=0 is the primary method. Expires is a fallback.
+        # Use a known past date string for Expires for robustness.
+        past_expiry_date = "Thu, 01 Jan 1970 00:00:00 GMT"
+        self.set_cookie(
+            key, value="", 
+            max_age=0, 
+            path=path, 
+            domain=domain, 
+            expires=past_expiry_date,
+            secure=secure,
+            httponly=httponly,
+            samesite=samesite
+        )
+        return self
+
+    def redirect(self, url: str, status_code: int = 302):
+        if self._headers_sent:
+            raise RuntimeError("Cannot redirect after headers have been sent.")
+        self.set_status(status_code)
+        self.add_header("Location", url)
+        # According to RFC 7231, a 301/302 response to POST should be followed by GET.
+        # For 303, the method *must* be GET. For others, it's a bit more ambiguous historically.
+        # Browsers typically convert POST to GET for 301/302 as well.
+        # We don't need to send a body for redirects, but can ensure content type is minimal.
+        if not self._has_content_type:
+            self.content_type("text/plain") # Minimal body if any is expected by client
+        self.body(f"Redirecting to {url}") # Minimal body
+        return self
+
     def body(self, component):
         self._body_components.append(component)
         return self

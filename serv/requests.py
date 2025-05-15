@@ -40,6 +40,21 @@ class Request:
         }
 
     @property
+    def cookies(self) -> dict:
+        cookie_header = self.headers.get("cookie")
+        if not cookie_header:
+            return {}
+        cookies = {}
+        for cookie_pair in cookie_header.split(";"):
+            cookie_pair = cookie_pair.strip()
+            if "=" in cookie_pair:
+                name, value = cookie_pair.split("=", 1)
+                cookies[name.strip()] = value.strip()
+            elif cookie_pair: # handles cookies with no value
+                cookies[cookie_pair.strip()] = ""
+        return cookies
+
+    @property
     def client(self):
         return self.scope.get("client")
 
