@@ -157,6 +157,7 @@ class ResponseBuilder:
     async def send_response(self):
         await self._send_headers_if_not_sent() # Ensures headers are sent even for empty body
         for component in self._body_components:
+            print("SENDING COMPONENT", component)
             await self._stream_component(component)
         
         # Final empty body chunk

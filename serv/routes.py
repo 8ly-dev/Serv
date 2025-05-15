@@ -68,7 +68,7 @@ class Jinja2Response(Response):
     def render(self) -> AsyncGenerator[bytes, None]:
         from jinja2 import Environment, FileSystemLoader
 
-        env = Environment(loader=FileSystemLoader(Path.cwd() / "templates"))
+        env = Environment(loader=FileSystemLoader(Path.cwd() / "templates"), enable_async=True)
         template = env.get_template(self.template)
         return template.generate_async(**self.context)
 
@@ -177,13 +177,17 @@ class Form:
                 return False
             
             allowed_types = get_args(value)
+            if not allowed_types:
+                allowed_types = [value]
+
             if (
                 get_origin(value) is list and
                 not all(_is_valid_type(item, allowed_types) for item in form_data[key])
             ):
                 return False
 
-            if not _is_valid_type(form_data[key], allowed_types):
+            if not _is_valid_type(form_data[key][0], allowed_types):
+                print("Invalid type", form_data[key][0], allowed_types)
                 return False
 
         return True # All fields match 
@@ -208,20 +212,40 @@ class Route:
                 continue
 
             sig = signature(handler)
-            first_arg = next(iter(sig.parameters.values())).annotation
-            match first_arg:
-                case Request():
-                    method = MethodMapping.get(first_arg)
+            second_arg = list(sig.parameters.values())[1].annotation
+            match second_arg:
+                case type() as request if issubclass(request, Request):
+                    method = MethodMapping.get(request)
                     cls.__method_handlers__[method] = name
-                case Form() as form_type:
+                case type() as form_type if issubclass(form_type, Form):
                     cls.__form_handlers__[form_type.__form_method__][form_type].append(name)
-                case Exception():
-                    cls.__error_handlers__[first_arg] = name
+                case type() as exception if issubclass(exception, Exception):
+                    cls.__error_handlers__[exception] = name
 
-    async def __call__(self, request: Request, container: Container = dependency()) -> Response:
+    async def __call__(
+        self, 
+        request: Request = dependency(), 
+        container: Container = dependency(),
+        response_builder: ResponseBuilder = dependency(),
+    ):
+        response = await self._handle_request(request, container)
+        response_builder.set_status(response.status_code)
+        for header, value in response.headers.items():
+            response_builder.add_header(header, value)
+
+        response_builder.body(response.render())
+        
+
+    async def _handle_request(self, request: Request, container: Container) -> Response:
         method = request.method
-        if method not in self.__method_handlers__.keys() + self.__form_handlers__.keys():
-            return await container.call(self._error_handler, HTTPMethodNotAllowedException(method))
+        if method not in self.__method_handlers__.keys() | self.__form_handlers__.keys():
+            return await container.call(
+                self._error_handler,
+                HTTPMethodNotAllowedException(
+                    f"{type(self).__name__} does not support {method}", 
+                    list(self.__method_handlers__.keys() | self.__form_handlers__.keys())
+                )
+            )
         
         if self.__form_handlers__[method]:
             form_data = await request.form()
@@ -233,10 +257,12 @@ class Route:
                     for handler_name in form_handlers:
                         try:
                             handler = getattr(self, handler_name)
-                            form = request.form(form_type, data=form_data)
+                            form = await request.form(form_type, data=form_data)
                             return await container.call(handler, form)
                         except Exception as e:
                             return await container.call(self._error_handler, e)
+                        
+            print("No match")
 
         handler_name = self.__method_handlers__[method]
         try:
