@@ -7,7 +7,6 @@ from serv.responses import ResponseBuilder
 from bevy import dependency
 from bevy.containers import Container
 from typing import Annotated, AsyncIterator # For middleware
-import urllib.parse
 
 # --- Application Setup ---
 app = App()
