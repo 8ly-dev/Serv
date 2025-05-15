@@ -118,6 +118,38 @@ class Request:
         text = await self.text(max_size=max_size)
         return json.loads(text) if text else None
 
+    async def form(self, max_size: int = 10*1024*1024, encoding: str = "utf-8") -> dict:
+        """
+        Parses form data from the request body (application/x-www-form-urlencoded).
+
+        Args:
+            max_size: Maximum size of the request body to read (default 10MB).
+            encoding: The encoding to use for decoding the request body.
+
+        Returns:
+            A dictionary of form fields. Values are single strings if only one value
+            is present for a key, otherwise a list of strings.
+
+        Raises:
+            RuntimeError: If the Content-Type is not application/x-www-form-urlencoded.
+        """
+        content_type_header = self.headers.get("content-type", "")
+        if not content_type_header.startswith("application/x-www-form-urlencoded"):
+            # You might want to handle multipart/form-data differently or raise a more specific error.
+            # For now, strict check.
+            raise RuntimeError(
+                f"Cannot parse form data for Content-Type '{content_type_header}'. "
+                f"Expected 'application/x-www-form-urlencoded'."
+            )
+
+        form_data_bytes = await self.body(max_size=max_size)
+        if not form_data_bytes:
+            return {}
+            
+        form_data_str = form_data_bytes.decode(encoding)
+        parsed_form = parse_qs(form_data_str, keep_blank_values=True)
+        return parsed_form
+
     def __repr__(self):
         return (
             f"<Request {self.method} {self.scheme}://"
