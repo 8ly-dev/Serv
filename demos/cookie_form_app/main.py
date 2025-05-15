@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from serv.app import App
 from serv.injectors import Cookie
 from serv.routing import Router
@@ -14,6 +15,12 @@ app = App()
 # --- Routers Instances (these will be selected by middleware) ---
 form_router = Router()
 welcome_router = Router()
+
+# --- Model Definitions ---
+
+@dataclass
+class NameForm:
+    username: str
 
 # --- Handler Definitions ---
 
@@ -37,15 +44,11 @@ async def show_name_form_handler(response: ResponseBuilder = dependency()):
     )
 
 async def handle_name_submission_handler(request: Request = dependency(), response: ResponseBuilder = dependency()):
-    form_data_bytes = await request.body()
-    form_data_str = form_data_bytes.decode()
-    parsed_form = urllib.parse.parse_qs(form_data_str)
-    
-    username = parsed_form.get("username", [None])[0]
+    form = await request.form(NameForm)
 
-    if username:
-        response.set_cookie("username", username, path="/", httponly=True, samesite="lax")
-        print(f"Username submitted: {username}. Cookie set.")
+    if form.username:
+        response.set_cookie("username", form.username, path="/", httponly=True, samesite="lax")
+        print(f"Username submitted: {form.username}. Cookie set.")
     else:
         print("No username submitted in form.")
     
