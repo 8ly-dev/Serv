@@ -39,10 +39,10 @@ class Router:
             >>> router.add_route("/items", ItemRoute)
         """
         match handler:
-            case routes.Route() as route:
-                route_instance = route(path, self)
-                for method in route.__method_handlers__.keys() + route.__form_handlers__.keys():
-                    self.add_route(method, route_instance)
+            case type() as route if issubclass(route, routes.Route):
+                route_instance = route()
+                methods = route.__method_handlers__.keys() | route.__form_handlers__.keys()
+                self.add_route(path, route_instance.__call__, methods)
                 
             case _:
                 normalized_methods = frozenset(m.upper() for m in methods) if methods else None
