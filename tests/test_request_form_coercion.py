@@ -281,4 +281,46 @@ class UntypedListModel:
 async def test_form_coercion_untyped_list_defaults_to_str():
     request = await create_request_with_form_data({"stuff": ["text", "123"]})
     model_instance = await request.form(model=UntypedListModel)
-    assert model_instance.stuff == ["text", "123"] 
+    assert model_instance.stuff == ["text", "123"]
+
+@dataclass
+class ListAnyModel:
+    items: List[Any]
+
+@pytest.mark.asyncio
+async def test_form_coercion_list_any_type():
+    form_values = {"items": ["text", "123", "True", "0.5"]}
+    request = await create_request_with_form_data(form_values)
+    model_instance = await request.form(model=ListAnyModel)
+    # For List[Any], items should remain strings as received from the form
+    assert model_instance.items == ["text", "123", "True", "0.5"]
+
+@dataclass
+class AnyFieldModel:
+    field_a: Any
+    field_b: Optional[Any] = None
+
+@pytest.mark.asyncio
+async def test_form_coercion_any_field_type():
+    form_values = {"field_a": "any_string_value", "field_b": "12345"}
+    request = await create_request_with_form_data(form_values)
+    model_instance = await request.form(model=AnyFieldModel)
+    assert model_instance.field_a == "any_string_value"
+    assert model_instance.field_b == "12345"
+
+@pytest.mark.asyncio
+async def test_form_coercion_any_field_type_empty_optional():
+    form_values = {"field_a": "another", "field_b": ""}
+    request = await create_request_with_form_data(form_values)
+    model_instance = await request.form(model=AnyFieldModel)
+    assert model_instance.field_a == "another"
+    # Optional[Any] with empty string should become None due to _coerce_value Union logic first
+    assert model_instance.field_b is None
+
+@pytest.mark.asyncio
+async def test_form_coercion_any_field_type_missing_optional():
+    form_values = {"field_a": "last_one"}
+    request = await create_request_with_form_data(form_values)
+    model_instance = await request.form(model=AnyFieldModel)
+    assert model_instance.field_a == "last_one"
+    assert model_instance.field_b is None 

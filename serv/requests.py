@@ -145,6 +145,9 @@ class Request:
 
             raise ValueError(f"Cannot coerce {value_str!r} to any type in Union {target_type}")
 
+        if target_type is Any: # If type is Any, return the string value directly
+            return value_str
+
         if target_type is str:
             return value_str
 
