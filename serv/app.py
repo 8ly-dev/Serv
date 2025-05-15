@@ -27,6 +27,7 @@ class App:
     def __init__(self):
         self._registry = get_registry()
         self._container = self._registry.create_container()
+        self._main_router = Router()  # Main router for the application
         self._plugins = []
         self._async_exit_stack = contextlib.AsyncExitStack()
         self._middleware = []
@@ -40,6 +41,7 @@ class App:
         self._container.instances[App] = self
         self._container.instances[Container] = self._container
         self._container.instances[Registry] = self._registry
+        self._container.instances[Router] = self._main_router # Register main router
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
@@ -54,6 +56,14 @@ class App:
 
     def add_plugin(self, plugin: Observer):
         self._plugins.append(plugin)
+
+    def add_route(self, path: str, methods: list[str] | None = None):
+        """Decorator to add a route to the application's main router."""
+        def decorator(handler_func: Callable[..., Awaitable[None]]):
+            self._main_router.add_route(path, handler_func, methods=methods)
+            return handler_func
+        return decorator
+
     async def emit(self, event: str, *, container: Container | None = None, **kwargs):
         container = container or self._container
         async with asyncio.TaskGroup() as tg:
@@ -82,10 +92,27 @@ class App:
 
         response.body(f"<html><body><h1>Error {status_code}</h1>")
         response.body(f"<p>{type(error).__name__}: {str(error)}</p>")
-        if status_code == 500:
-            response.body(b"<p>Traceback:</p><pre>")
-            response.body(traceback.format_exc().encode(response._default_encoding))
-            response.body(b"</pre>")
+        
+        current_exc = error
+        # Traverse the chain of exceptions (context/cause)
+        chain_count = 0
+        while current_exc and chain_count < 10: # Limit depth to prevent infinite loops
+            if chain_count > 0: # For subsequent errors in the chain
+                response.body(f"<hr><p>Caused by / Context: {type(current_exc).__name__}: {str(current_exc)}</p>")
+
+            if status_code == 500 or chain_count > 0: # Show traceback for 500 or any chained errors
+                response.body(b"<p>Traceback:</p><pre>")
+                # traceback.format_exception returns a list of strings
+                formatted_tb = "".join(traceback.format_exception(type(current_exc), current_exc, current_exc.__traceback__))
+                response.body(formatted_tb.encode(response._default_encoding))
+                response.body(b"</pre>")
+            
+            next_exc = current_exc.__context__ or current_exc.__cause__
+            if next_exc is current_exc: # Break if we're in a loop
+                break
+            current_exc = next_exc
+            chain_count += 1
+            
         response.body(b"</body></html>")
 
     @inject
@@ -150,18 +177,23 @@ class App:
             response_builder = ResponseBuilder(send)
             container.instances[ResponseBuilder] = response_builder
             container.instances[Container] = container
-            container.instances[Router] = Router()
+            
+            # Use the app's main router and make it available in the request container
+            container.instances[Router] = self._main_router 
+            the_router_for_this_request = self._main_router
 
             error_occurred_in_stack = False
             try:
-                await self.emit("app.request.begin", container=container, scope=scope, request=request)
-                await self._run_middleware_stack(container=container, request_instance=request)
-                await self.emit("app.request.end", container=container, scope=scope, request=request, error=None)
+                # Pass the specific router instance to emit if plugins need it
+                await self.emit("app.request.begin", container=container, scope=scope, request=request, router_instance=the_router_for_this_request)
+                # Pass the specific router instance to the middleware stack
+                await self._run_middleware_stack(container=container, request_instance=request, router_instance=the_router_for_this_request)
+                await self.emit("app.request.end", container=container, scope=scope, request=request, error=None, router_instance=the_router_for_this_request)
             except Exception as e:
                 error_occurred_in_stack = True
                 logger.exception("Unhandled exception during request processing", exc_info=e)
                 await container.call(self._run_error_handler, e)
-                await self.emit("app.request.end", container=container, scope=scope, request=request, error=e)
+                await self.emit("app.request.end", container=container, scope=scope, request=request, error=e, router_instance=the_router_for_this_request)
             finally:
                 # Ensure response is sent. ResponseBuilder.send_response() should be robust
                 # enough to handle being called if headers were already sent by an error handler,
@@ -171,14 +203,13 @@ class App:
                 except Exception as final_send_exc:
                     logger.error("Exception during final send_response", exc_info=final_send_exc)
 
-    @inject
-    async def _run_middleware_stack(self, container: Container, request_instance: Request):
+    async def _run_middleware_stack(self, container: Container, request_instance: Request, router_instance: Router):
         stack = []
         error_to_propagate = None
 
         for middleware_factory in self._middleware:
             try:
-                middleware_iterator = await container.call(middleware_factory)
+                middleware_iterator = container.call(middleware_factory)
                 await anext(middleware_iterator)
             except Exception as e:
                 logger.exception(f"Error during setup of middleware {getattr(middleware_factory, '__name__', str(middleware_factory))}", exc_info=True)
@@ -188,10 +219,9 @@ class App:
                 stack.append(middleware_iterator)
 
         if not error_to_propagate:
-            await self.emit("app.request.before_router", container=container, request=request_instance)
+            await self.emit("app.request.before_router", container=container, request=request_instance, router_instance=router_instance)
             try:
-                router = container.get(Router)
-                resolved_route_info = router.resolve_route(request_instance.path, request_instance.method)
+                resolved_route_info = router_instance.resolve_route(request_instance.path, request_instance.method)
                 if not resolved_route_info:
                     raise HTTPNotFoundException(f"No route found for {request_instance.method} {request_instance.path}")
                 
@@ -202,12 +232,12 @@ class App:
             else:
                 handler_callable, path_params = resolved_route_info
                 try:
-                    await container.call(handler_callable, request_instance, **path_params)
+                    await container.call(handler_callable, **path_params)
                 except Exception as e:
                     logger.info(f"Handler execution resulted in exception: {type(e).__name__}: {e}")
                     error_to_propagate = e
 
-            await self.emit("app.request.after_router", container=container, request=request_instance, error=error_to_propagate)
+            await self.emit("app.request.after_router", container=container, request=request_instance, error=error_to_propagate, router_instance=router_instance)
 
         for middleware_iterator in reversed(stack):
             try:
