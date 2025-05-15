@@ -10,13 +10,14 @@ from bevy.containers import Container
 
 from serv.exceptions import HTTPMethodNotAllowedException
 from serv.requests import Request
+from serv.responses import ResponseBuilder
 
 
 class Response:
     def __init__(self, status_code: int, body: str | bytes | None = None, headers: dict[str, str] | None = None):
         self.status_code = status_code
-        self.body = body
-        self.headers = headers
+        self.body = body or bytes()
+        self.headers = headers or {}
 
     async def render(self) -> AsyncGenerator[bytes, None]:
         yield self.body
