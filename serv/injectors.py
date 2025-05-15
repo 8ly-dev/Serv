@@ -43,5 +43,3 @@ def inject_request_object(container: Container, annotation: Any) -> Optional[Any
                 return Optional.Some(request.query_params.get(name, default))
 
     return Optional.Nothing()
-
-
