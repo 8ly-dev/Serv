@@ -165,7 +165,14 @@ class Request:
         except Exception as e:
             raise ValueError(f"Unsupported coercion for type {target_type} from value {value_str!r}: {e}")
 
-    async def form(self, model: type = dict, max_size: int = 10*1024*1024, encoding: str = "utf-8") -> Any:
+    async def form(
+        self, 
+        model: type = dict,
+        max_size: int = 10*1024*1024, 
+        encoding: str = "utf-8", 
+        *, 
+        data: dict[str, Any] | None = None
+    ) -> Any:
         content_type_header = self.headers.get("content-type", "")
         if not content_type_header.startswith("application/x-www-form-urlencoded"):
             raise RuntimeError(
@@ -173,19 +180,24 @@ class Request:
                 f"Expected 'application/x-www-form-urlencoded'."
             )
 
-        form_data_bytes = await self.body(max_size=max_size)
-        if not form_data_bytes:
-            if model is dict:
-                return {}
-            # Try to return an empty model instance. If it requires arguments,
-            # this will raise a TypeError, which should propagate.
-            return model()
-            # except TypeError: # model might require arguments
-            #      return {} # Fallback for models that can't be empty-instantiated easily and no data
+        if data:
+            raw_form_values = data
+        
+        else:
+            form_data_bytes = await self.body(max_size=max_size)
+            if not form_data_bytes:
+                if model is dict:
+                    return {}
+                # Try to return an empty model instance. If it requires arguments,
+                # this will raise a TypeError, which should propagate.
+                return model()
+                # except TypeError: # model might require arguments
+                #      return {} # Fallback for models that can't be empty-instantiated easily and no data
 
-        form_data_str = form_data_bytes.decode(encoding)
-        # parse_qs returns dict[str, list[str]]
-        raw_form_values = parse_qs(form_data_str, keep_blank_values=True)
+            form_data_str = form_data_bytes.decode(encoding)
+            # parse_qs returns dict[str, list[str]]
+            raw_form_values = parse_qs(form_data_str, keep_blank_values=True)
+
         print(f"\n\n\n\n{raw_form_values}\n\n\n\n")
 
         if model is dict:

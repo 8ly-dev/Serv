@@ -1,10 +1,11 @@
 import inspect
-from typing import Callable, Awaitable, List, Dict, Any, Sequence
+from typing import Callable, Awaitable, List, Dict, Any, Sequence, Type, overload
 from bevy import dependency, inject
 from bevy.containers import Container
 
 from serv.requests import Request
 from serv.exceptions import HTTPNotFoundException, HTTPMethodNotAllowedException
+import serv.routes as routes
 
 
 class Router:
@@ -13,16 +14,39 @@ class Router:
         self._routes: List[tuple[str, frozenset[str] | None, Callable]] = []
         self._sub_routers: List[Router] = []
 
-    def add_route(self, path: str, handler: Callable[..., Awaitable[Any]], methods: Sequence[str] | None = None):
+    @overload
+    def add_route(self, path: str, handler: "Type[routes.Route]"):
+        ...
+
+    @overload
+    def add_route(self, path: str, handler: "Callable[..., Awaitable[Any]]", methods: Sequence[str] | None = None):
+        ...
+
+    def add_route(self, path: str, handler: "Callable[..., Awaitable[Any]] | Type[routes.Route]", methods: Sequence[str] | None = None):
         """Adds a route to this router.
+
+        This method can handle both direct route handlers and Route objects. For Route objects,
+        it will automatically register all method and form handlers defined in the route.
 
         Args:
             path: The path pattern for the route.
-            handler: The asynchronous handler function for the route.
-            methods: A list of HTTP methods (e.g., ['GET', 'POST']). If None, allows all methods.
+            handler: Either a Route object or an async handler function.
+            methods: A list of HTTP methods (e.g., ['GET', 'POST']). Only used when handler is a function.
+                    If None, allows all methods.
+
+        Examples:
+            >>> router.add_route("/users", user_handler, ["GET", "POST"])
+            >>> router.add_route("/items", ItemRoute)
         """
-        normalized_methods = frozenset(m.upper() for m in methods) if methods else None
-        self._routes.append((path, normalized_methods, handler))
+        match handler:
+            case routes.Route() as route:
+                route_instance = route(path, self)
+                for method in route.__method_handlers__.keys() + route.__form_handlers__.keys():
+                    self.add_route(method, route_instance)
+                
+            case _:
+                normalized_methods = frozenset(m.upper() for m in methods) if methods else None
+                self._routes.append((path, normalized_methods, handler))
 
     def add_router(self, router: "Router"):
         """Adds a sub-router. Sub-routers are checked before the current router's own routes.
