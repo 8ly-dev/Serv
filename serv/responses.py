@@ -48,6 +48,15 @@ class ResponseBuilder:
         # as send_response() is the terminal operation that sends headers.
         self._body_components.append(component)
         return self
+    
+    def clear(self):
+        """Clears the response body and headers. This is useful for error handlers. It cannot change
+        anything that has already been sent, it only affects future sends and is intended to be used
+        before send_response() has been called."""
+        self._body_components = []
+        self._headers = []
+        self._status = 200
+        return self
 
     async def _send_headers_if_not_sent(self):
         if not self._headers_sent:
