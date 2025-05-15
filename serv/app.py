@@ -92,7 +92,7 @@ class App:
                 response.body(f"<hr><p>Caused by / Context: {type(current_exc).__name__}: {str(current_exc)}</p>")
 
             if status_code == 500 or chain_count > 0: # Show traceback for 500 or any chained errors
-                response.body(b"<p>Traceback:</p><pre>")
+                response.body(b"<pre>")
                 # traceback.format_exception returns a list of strings
                 formatted_tb = "".join(traceback.format_exception(type(current_exc), current_exc, current_exc.__traceback__))
                 response.body(formatted_tb.encode(response._default_encoding))
