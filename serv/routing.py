@@ -38,11 +38,15 @@ class Router:
 
         Returns:
             A tuple of (handler_callable, path_parameters_dict) if a match is found.
-            None if no route matches the path.
+            None if no route matches the path (results in a 404).
         
         Raises:
-            HTTPMethodNotAllowedException: If a route matches the path but not the method.
+            HTTPMethodNotAllowedException: If one or more routes match the path but not the method,
+                                           and no route matches both path and method.
         """
+        collected_allowed_methods: set[str] = set()
+        found_path_match_but_not_method = False
+
         # 1. Check sub-routers in reverse order of addition (LIFO for matching)
         for sub_router in reversed(self._sub_routers):
             try:
@@ -50,27 +54,54 @@ class Router:
                 if resolved_in_sub:
                     return resolved_in_sub  # Handler found and method matched in sub-router
             except HTTPMethodNotAllowedException as e:
-                # If a sub-router definitively says "Method Not Allowed" for a path it matched,
-                # this decision is final for that branch of the routing tree.
-                raise e
+                # Sub-router matched the path but not the method.
+                # Collect its allowed methods and mark that a path match occurred.
+                collected_allowed_methods.update(e.allowed_methods)
+                found_path_match_but_not_method = True
+                # Continue searching other sub-routers or parent's direct routes.
+            except HTTPNotFoundException:
+                # Sub-router did not find the path at all. Continue search.
+                pass
 
         # 2. Check own routes
-        for path_pattern, allowed_methods, handler_callable in self._routes:
+        for path_pattern, route_specific_methods, handler_callable in self._routes:
             match_info = self._match_path(request_path, path_pattern)
             if match_info is not None:  # Path matches
-                if allowed_methods is None or request_method.upper() in allowed_methods:
+                found_path_match_but_not_method = True # Mark that we at least matched the path
+                if route_specific_methods is None or request_method.upper() in route_specific_methods:
                     # Path and method match
                     return handler_callable, match_info
                 else:
                     # Path matches, but method is not allowed for this specific route.
-                    # This is a definitive 405 for this path if no other route (e.g. in other sub-routers
-                    # that were not tried yet, or sibling routers if this was a sub-router call) matches.
-                    raise HTTPMethodNotAllowedException(
-                        f"Method {request_method} not allowed for path matching pattern {path_pattern}",
-                        allowed_methods=list(allowed_methods) if allowed_methods else []
-                    )
+                    # Collect allowed methods.
+                    if route_specific_methods:
+                        collected_allowed_methods.update(route_specific_methods)
         
-        # 3. If no route matched the path in this router or its sub-routers (that didn't raise 405)
+        # 3. After checking all sub-routers and own routes:
+        if found_path_match_but_not_method and collected_allowed_methods:
+            # We found one or more path matches, but no method matches for that path.
+            # And we have a list of methods that *would* have been allowed.
+            raise HTTPMethodNotAllowedException(
+                f"Method {request_method} not allowed for {request_path}",
+                allowed_methods=list(collected_allowed_methods)
+            )
+        
+        # If no path match was found at all, or if path matched but no methods were ever defined for it
+        # (e.g. route_specific_methods was None and it wasn't a match, which is unlikely with current logic
+        # but covering bases if collected_allowed_methods is empty despite found_path_match_but_not_method)
+        if found_path_match_but_not_method and not collected_allowed_methods:
+             # This case implies a path was matched by a route that allows ALL methods (None),
+             # but the request_method somehow didn't trigger the "return handler_callable, match_info"
+             # This shouldn't happen if request_method.upper() is in route_specific_methods when it's None.
+             # For safety, if we matched a path but have no specific allowed methods to suggest,
+             # it's still a method not allowed situation, but without specific 'Allow' header.
+             # However, current logic means if route_specific_methods is None, it's an immediate match.
+             # This path should ideally not be hit frequently.
+             # To be safe, we will treat it as a 404 if no specific methods were collected.
+             pass
+
+
+        # No route matched the path at all, or a path was matched but it didn't lead to a 405 (e.g. ill-defined route).
         return None
 
     def _match_path(self, request_path: str, path_pattern: str) -> Dict[str, Any] | None:

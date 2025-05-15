@@ -27,7 +27,6 @@ class App:
     def __init__(self):
         self._registry = get_registry()
         self._container = self._registry.create_container()
-        self._main_router = Router()  # Main router for the application
         self._plugins = []
         self._async_exit_stack = contextlib.AsyncExitStack()
         self._middleware = []
@@ -41,7 +40,6 @@ class App:
         self._container.instances[App] = self
         self._container.instances[Container] = self._container
         self._container.instances[Registry] = self._registry
-        self._container.instances[Router] = self._main_router # Register main router
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
@@ -56,13 +54,6 @@ class App:
 
     def add_plugin(self, plugin: Observer):
         self._plugins.append(plugin)
-
-    def add_route(self, path: str, methods: list[str] | None = None):
-        """Decorator to add a route to the application's main router."""
-        def decorator(handler_func: Callable[..., Awaitable[None]]):
-            self._main_router.add_route(path, handler_func, methods=methods)
-            return handler_func
-        return decorator
 
     async def emit(self, event: str, *, container: Container | None = None, **kwargs):
         container = container or self._container
@@ -173,27 +164,27 @@ class App:
     async def _handle_request(self, scope: Scope, receive: Receive, send: Send):
         with self._container.branch() as container:
             request = Request(scope, receive)
-            container.instances[Request] = request
             response_builder = ResponseBuilder(send)
+            router_instance_for_request = Router()
+
+            container.instances[Request] = request
             container.instances[ResponseBuilder] = response_builder
             container.instances[Container] = container
+            container.instances[Router] = router_instance_for_request
             
-            # Use the app's main router and make it available in the request container
-            container.instances[Router] = self._main_router 
-            the_router_for_this_request = self._main_router
-
             error_occurred_in_stack = False
             try:
-                # Pass the specific router instance to emit if plugins need it
-                await self.emit("app.request.begin", container=container, scope=scope, request=request, router_instance=the_router_for_this_request)
-                # Pass the specific router instance to the middleware stack
-                await self._run_middleware_stack(container=container, request_instance=request, router_instance=the_router_for_this_request)
-                await self.emit("app.request.end", container=container, scope=scope, request=request, error=None, router_instance=the_router_for_this_request)
+                # Pass the newly created router_instance to the event
+                await self.emit("app.request.begin", container=container, scope=scope, request=request, router_instance=router_instance_for_request)
+                
+                await self._run_middleware_stack(container=container, request_instance=request)
+                
+                await self.emit("app.request.end", container=container, scope=scope, request=request, error=None)
             except Exception as e:
                 error_occurred_in_stack = True
                 logger.exception("Unhandled exception during request processing", exc_info=e)
                 await container.call(self._run_error_handler, e)
-                await self.emit("app.request.end", container=container, scope=scope, request=request, error=e, router_instance=the_router_for_this_request)
+                await self.emit("app.request.end", container=container, scope=scope, request=request, error=e)
             finally:
                 # Ensure response is sent. ResponseBuilder.send_response() should be robust
                 # enough to handle being called if headers were already sent by an error handler,
@@ -203,9 +194,11 @@ class App:
                 except Exception as final_send_exc:
                     logger.error("Exception during final send_response", exc_info=final_send_exc)
 
-    async def _run_middleware_stack(self, container: Container, request_instance: Request, router_instance: Router):
+    async def _run_middleware_stack(self, container: Container, request_instance: Request):
         stack = []
         error_to_propagate = None
+        # The router instance is now fetched from the container where it was set earlier.
+        router_instance = container.get(Router)
 
         for middleware_factory in self._middleware:
             try:
