@@ -8,6 +8,7 @@ from bevy.containers import Container
 from bevy.registries import Registry
 from starlette.types import Scope, Receive, Send
 
+from serv.observers import Observer
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.injectors import inject_request_object
@@ -51,6 +52,8 @@ class App:
     def add_middleware(self, middleware: Callable[[], AsyncIterator[None]]):
         self._middleware.append(middleware)
 
+    def add_plugin(self, plugin: Observer):
+        self._plugins.append(plugin)
     async def emit(self, event: str, *, container: Container | None = None, **kwargs):
         container = container or self._container
         async with asyncio.TaskGroup() as tg:
