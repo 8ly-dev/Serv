@@ -23,11 +23,7 @@ if __name__ == "__main__":
         import uvicorn
     except ImportError:
         print("Uvicorn is not installed. Please install it with: pip install uvicorn")
-        print("You might also need bevy: pip install bevy")
     else:
         print("Starting Serv basic demo on http://127.0.0.1:8000")
-        print("Access it at:")
-        print("  http://127.0.0.1:8000/")
-        print("  http://127.0.0.1:8000/about")
         print("Press Ctrl+C to stop.")
         uvicorn.run(app, host="127.0.0.1", port=8000) 
