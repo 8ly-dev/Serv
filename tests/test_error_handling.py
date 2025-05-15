@@ -11,15 +11,14 @@ from bevy import dependency
 # Custom exceptions for testing
 class MyCustomError(ServException):
     status_code = 418 # I'm a teapot
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
+    message = "This is a custom error."
 
 class AnotherCustomError(ServException):
-    status_code = 419 # Another custom status
-    pass
+    status_code = 419 # Authentication Timeout (unofficial)
+    message = "Another type of custom error."
 
-class YetAnotherError(Exception): # Not inheriting from ServException
+class YetAnotherError(Exception):
+    # Not a ServException, so should be handled by the generic 500 handler
     pass
 
 @pytest.mark.asyncio
@@ -35,7 +34,7 @@ async def test_custom_error_handler_invoked(app: App, client: AsyncClient):
 
     app.add_error_handler(MyCustomError, my_error_handler)
 
-    async def route_that_raises(request: Request):
+    async def route_that_raises(request: Request = dependency()):
         raise MyCustomError("Something custom went wrong")
 
     plugin = RouteAddingPlugin("/custom_error", route_that_raises, methods=["GET"])
@@ -43,14 +42,15 @@ async def test_custom_error_handler_invoked(app: App, client: AsyncClient):
 
     response = await client.get("/custom_error")
     assert response.status_code == 418
-    assert response.json() == {"error": "Custom handled: Something custom went wrong"}
+    assert custom_handler_called_with is not None
     assert isinstance(custom_handler_called_with, MyCustomError)
     assert custom_handler_called_with.message == "Something custom went wrong"
+    assert response.json() == {"error": "Custom handled: Something custom went wrong"}
 
 @pytest.mark.asyncio
 async def test_default_handler_for_serv_exception_subclass(app: App, client: AsyncClient):
     # This error type does not have a specific handler registered
-    async def route_that_raises_another(request: Request):
+    async def route_that_raises_another(request: Request = dependency()):
         raise AnotherCustomError("This is another custom error")
 
     plugin = RouteAddingPlugin("/another_custom_error", route_that_raises_another, methods=["GET"])
@@ -58,13 +58,14 @@ async def test_default_handler_for_serv_exception_subclass(app: App, client: Asy
 
     response = await client.get("/another_custom_error")
     assert response.status_code == 419 # Status from the exception itself
-    # Default error handler produces HTML
+    # Default handler for ServException should use its status code and message (or type name)
+    # The current _default_error_handler produces HTML, so check for key parts
     assert "<h1>Error 419</h1>" in response.text
-    assert "<p>AnotherCustomError: This is another custom error</p>" in response.text 
+    assert "<p>AnotherCustomError: This is another custom error</p>" in response.text
 
 @pytest.mark.asyncio
 async def test_default_handler_for_generic_exception(app: App, client: AsyncClient):
-    async def route_that_raises_generic(request: Request):
+    async def route_that_raises_generic(request: Request = dependency()):
         raise YetAnotherError("A generic problem")
 
     plugin = RouteAddingPlugin("/generic_error", route_that_raises_generic, methods=["GET"])
@@ -74,7 +75,7 @@ async def test_default_handler_for_generic_exception(app: App, client: AsyncClie
     assert response.status_code == 500 # Default for non-ServException
     assert "<h1>Error 500</h1>" in response.text
     assert "<p>YetAnotherError: A generic problem</p>" in response.text
-    assert "<p>Traceback:</p>" in response.text # Should include traceback for 500
+    assert "<p>Traceback:</p>" in response.text # Default 500 handler includes traceback
 
 @pytest.mark.asyncio
 async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncClient):
@@ -84,11 +85,11 @@ async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncCl
     async def faulty_error_handler(error: MyCustomError, response: ResponseBuilder = dependency()):
         nonlocal error_handler_one_called
         error_handler_one_called = True
-        raise ValueError("Error inside the error handler!")
+        raise ValueError("Error inside the error handler!") # This error will be caught
 
     app.add_error_handler(MyCustomError, faulty_error_handler)
 
-    async def route_that_raises(request: Request):
+    async def route_that_raises(request: Request = dependency()):
         raise MyCustomError(original_error_message)
 
     plugin = RouteAddingPlugin("/faulty_handler_error", route_that_raises, methods=["GET"])
@@ -96,13 +97,14 @@ async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncCl
 
     response = await client.get("/faulty_handler_error")
     assert error_handler_one_called
-    assert response.status_code == 500 # Should fall back to the ultimate default 500 handler
-    assert "<h1>Error 500</h1>" in response.text
-    # Check that the new error (from the faulty handler) is shown
-    assert "<p>ValueError: Error inside the error handler!</p>" in response.text
-    # And it should also show the traceback for this new 500 error
-    assert "<p>Traceback:</p>" in response.text
-    # Optionally, one could check for chained exceptions if your logger/formatter shows __context__
+    assert response.status_code == 500 # Should fall to the ultimate default handler
+    # Check that the response indicates the error from faulty_error_handler AND the original error context
+    text = response.text
+    assert "<h1>Error 500</h1>" in text
+    assert "<p>ValueError: Error inside the error handler!</p>" in text
+    # Check for the specific format of the chained exception display
+    assert "<hr><p>Caused by / Context: MyCustomError: Initial problem</p>" in text
+    assert "Traceback:" in text
 
 @pytest.mark.asyncio
 async def test_request_end_event_on_handled_error(app: App, client: AsyncClient):
@@ -110,9 +112,9 @@ async def test_request_end_event_on_handled_error(app: App, client: AsyncClient)
     app.add_plugin(event_watcher)
 
     custom_error_message = "Test handled error event"
-    async def route_that_raises_my_error(request: Request):
+    async def route_that_raises_my_error(request: Request = dependency()):
         raise MyCustomError(custom_error_message)
-    
+
     # No custom handler for MyCustomError, so _default_error_handler will be used via fallback
     # for ServException subclasses, but it will use MyCustomError.status_code (418)
 
@@ -126,8 +128,8 @@ async def test_request_end_event_on_handled_error(app: App, client: AsyncClient)
         if name == "app.request.end":
             end_event_data = kwargs_evt
             break
-    
+
     assert end_event_data is not None, "app.request.end event was not seen"
     assert "error" in end_event_data
     assert isinstance(end_event_data["error"], MyCustomError)
-    assert str(end_event_data["error"]) == custom_error_message 
+    assert end_event_data["error"].message == custom_error_message 

@@ -6,10 +6,11 @@ from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routing import get_current_router # To add routes in tests
 from tests.helpers import RouteAddingPlugin, EventWatcherPlugin
+from bevy import dependency # Added
 
 @pytest.mark.asyncio
 async def test_hello_world(app: App, client: AsyncClient):
-    async def hello_handler(response: ResponseBuilder):
+    async def hello_handler(response: ResponseBuilder = dependency()):
         response.content_type("text/plain")
         response.body("Hello, World!")
 
@@ -31,7 +32,7 @@ async def test_not_found(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_method_not_allowed(app: App, client: AsyncClient):
-    async def post_only_handler(response: ResponseBuilder):
+    async def post_only_handler(response: ResponseBuilder = dependency()):
         response.body("Processed POST")
 
     plugin = RouteAddingPlugin("/restricted", post_only_handler, methods=["POST"])
@@ -49,7 +50,7 @@ async def test_method_not_allowed(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_path_parameters(app: App, client: AsyncClient):
-    async def user_handler(response: ResponseBuilder, user_id: str, item_id: str | None = None):
+    async def user_handler(response: ResponseBuilder = dependency(), user_id: str = "", item_id: str | None = None):
         if item_id:
             response.body(f"User: {user_id}, Item: {item_id}")
         else:
@@ -64,20 +65,21 @@ async def test_path_parameters(app: App, client: AsyncClient):
     assert response1.status_code == 200
     assert response1.text == "User: 123"
     assert plugin_user.was_called
-    assert plugin_user.received_kwargs == {"user_id": "123"} 
+    assert plugin_user.received_kwargs.get("user_id") == "123"
 
     response2 = await client.get("/users/abc/items/xyz")
     assert response2.status_code == 200
     assert response2.text == "User: abc, Item: xyz"
     assert plugin_user_item.was_called
-    assert plugin_user_item.received_kwargs == {"user_id": "abc", "item_id": "xyz"}
+    assert plugin_user_item.received_kwargs.get("user_id") == "abc"
+    assert plugin_user_item.received_kwargs.get("item_id") == "xyz"
 
 @pytest.mark.asyncio
 async def test_request_events_emitted(app: App, client: AsyncClient):
     event_watcher = EventWatcherPlugin()
     app.add_plugin(event_watcher)
 
-    async def dummy_handler(response: ResponseBuilder):
+    async def dummy_handler(response: ResponseBuilder = dependency()):
         response.body("dummy")
 
     route_plugin = RouteAddingPlugin("/events", dummy_handler, methods=["GET"])

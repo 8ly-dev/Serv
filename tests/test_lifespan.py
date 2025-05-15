@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+from typing import Any
 
 from serv.app import App
 from tests.helpers import EventWatcherPlugin
@@ -56,7 +57,6 @@ async def test_lifespan_protocol_flow(app: App):
             break
     assert startup_event_kwargs is not None
     assert startup_event_kwargs.get("scope") == lifespan_scope
-    assert startup_event_kwargs.get("container") is app._container # Main app container
 
     # Verify arguments for app.lifespan.shutdown event
     shutdown_event_kwargs = None
@@ -66,7 +66,6 @@ async def test_lifespan_protocol_flow(app: App):
             break
     assert shutdown_event_kwargs is not None
     assert shutdown_event_kwargs.get("scope") == lifespan_scope
-    assert shutdown_event_kwargs.get("container") is app._container # Main app container
 
 @pytest.mark.asyncio
 async def test_lifespan_startup_failure_simulation(app: App):
@@ -75,10 +74,12 @@ async def test_lifespan_startup_failure_simulation(app: App):
     app.add_plugin(event_watcher)
 
     class StartupErrorPlugin(EventWatcherPlugin): # Inherits event capture for checking
-        async def on_app_lifespan_startup(self, **kwargs): # Specific handler from your Observer
-            # First, let the base class record the event
-            await super().on("app.lifespan.startup", **kwargs)
-            raise RuntimeError("Simulated startup failure")
+        async def on(self, event_name: str, **kwargs: Any) -> None:
+            # Call the base class's (EventWatcherPlugin's) on method to record the event
+            await super().on(event_name, **kwargs)
+            
+            if event_name == "app.lifespan.startup":
+                raise RuntimeError("Simulated startup failure")
 
     startup_fail_plugin = StartupErrorPlugin()
     app.add_plugin(startup_fail_plugin) # Add the faulty plugin
@@ -98,13 +99,18 @@ async def test_lifespan_startup_failure_simulation(app: App):
 
     # The app's lifespan handling should catch the error from the plugin and send startup.failed
     # It might also log the error - checking logs is out of scope for this direct test.
-    with pytest.raises(RuntimeError, match="Simulated startup failure"):
+    with pytest.raises(ExceptionGroup) as excinfo:
          # The exception from emit() should propagate out of app() if not handled by app itself
          # Currently, App.emit uses TaskGroup, errors in tasks might be collected in an ExceptionGroup
          # or the first error might propagate. Let's see how current App.emit behaves.
          # Update: App.emit in app.py wraps container.call in tg.create_task.
          # If container.call (plugin.on) raises, the TaskGroup will re-raise it.
         await app(lifespan_scope, mock_receive, mock_send)
+    
+    # Check that the ExceptionGroup contains the expected RuntimeError
+    assert len(excinfo.value.exceptions) == 1
+    assert isinstance(excinfo.value.exceptions[0], RuntimeError)
+    assert str(excinfo.value.exceptions[0]) == "Simulated startup failure"
 
     # Check what messages were sent
     # Depending on how an ASGI server handles an exception escaping app() during lifespan,

@@ -1,18 +1,29 @@
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+import asyncio # Import asyncio
+from httpx import AsyncClient, ASGITransport # Import ASGITransport
 
 from serv.app import App
 from serv.responses import ResponseBuilder # For ResponseBuilder.clear() check
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Force pytest-asyncio to use the same event loop for all tests."""
-    # This is a common pattern if you encounter issues with event loops across test files.
-    # For simple cases, pytest-asyncio might handle it automatically.
-    # For now, let's try without explicitly setting the policy, as pytest-asyncio usually manages it.
-    # If issues arise, we can reinstate: policy = asyncio.get_event_loop_policy(); loop = policy.new_event_loop(); policy.set_event_loop(loop); yield loop; loop.close()
-    pass
+# @pytest.fixture(scope="session")
+# def event_loop():
+#     """Force pytest-asyncio to use the same event loop for all tests."""
+#     # policy = asyncio.get_event_loop_policy()
+#     # loop = policy.new_event_loop()
+#     # yield loop
+#     # loop.close()
+#     # The above is one way, but pytest-asyncio might prefer a different setup.
+#     # Let's try to use the recommended way for newer pytest-asyncio versions:
+#     # By default, pytest-asyncio provides an event_loop fixture. 
+#     # If we redefine it, we must ensure it actually yields a running loop.
+#     # The issue is that other fixtures might be trying to get the loop before this one runs or in a different way.
+#
+#     # Let's try yielding a new loop and setting it as the current loop.
+#     loop = asyncio.new_event_loop()
+#     asyncio.set_event_loop(loop)
+#     yield loop
+#     loop.close()
 
 @pytest_asyncio.fixture
 async def app() -> App:
@@ -36,5 +47,7 @@ async def app() -> App:
 
 @pytest_asyncio.fixture
 async def client(app: App) -> AsyncClient:
-    async with AsyncClient(app=app, base_url="http://testserver") as c:
+    # Use ASGITransport for the app
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as c:
         yield c 
