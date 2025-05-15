@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "asgiref>=3.8.1",
     "bevy>=3.0.0b2",
     "nubby>=0.1.2",
     "tramp>=2025.3.2",

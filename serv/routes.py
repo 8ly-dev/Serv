@@ -3,14 +3,13 @@ from datetime import datetime, date
 from inspect import get_annotations, signature
 from pathlib import Path
 from types import NoneType, UnionType
-from typing import Any, AsyncGenerator, Awaitable, Callable, Type, Union, get_args, get_origin
+from typing import Any, AsyncGenerator, Type, get_args, get_origin
 
 from bevy import dependency
 from bevy.containers import Container
 
 from serv.exceptions import HTTPMethodNotAllowedException
 from serv.requests import Request
-from serv.routing import Router
 
 
 class Response:

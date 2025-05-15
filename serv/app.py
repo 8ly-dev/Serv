@@ -6,7 +6,7 @@ from typing import AsyncIterator, Awaitable, Callable
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
 from bevy.registries import Registry
-from starlette.types import Scope, Receive, Send
+from asgiref.typing import Scope, ASGIReceiveCallable as Receive, ASGISendCallable as Send
 
 from serv.observers import Observer
 from serv.requests import Request
