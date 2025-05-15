@@ -5,6 +5,7 @@ function names like 'set_role_on_user_create' or 'create_annotations_on_form_sub
 
 from collections import defaultdict
 import re
+from typing import Any
 
 from bevy import get_container
 from bevy.containers import Container
@@ -34,7 +35,17 @@ class Observer:
             event_name = event.group(1)
             cls.__observers__[event_name].append(name)
 
-    async def on(self, event_name: str, container: Container | None = None, *args, **kwargs):
+    async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:
+        """Receives event notifications.
+        
+        This method will be called by the application when an event this observer
+        is registered for occurs. Subclasses should implement this method to handle
+        specific events.
+
+        Args:
+            event_name: The name of the event that occurred.
+            **kwargs: Arbitrary keyword arguments associated with the event.
+        """
         for observer in self.__observers__[event_name]:
             callback = getattr(self, observer)
             await get_container(container).call(callback, *args, **kwargs)

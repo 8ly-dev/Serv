@@ -33,19 +33,25 @@ class ResponseBuilder:
     def add_header(self, name: str, value: str):
         if self._headers_sent:
             raise RuntimeError("Cannot add headers after they have been sent.")
+        # Ensure we don't re-add default content-type if _has_content_type was from a previous add
+        # This check needs to be robust if clear() is called.
+        if name.lower() == "content-type":
+            self._has_content_type = True
         self._headers.append((name.lower().encode("latin-1"), value.encode("latin-1")))
-        self._has_content_type = self._has_content_type or name.lower() == "content-type"
         return self
 
     def content_type(self, ctype: str, charset: str | None = None):
+        if self._headers_sent:
+            raise RuntimeError("Cannot set content_type after headers have been sent.")
         if charset is None:
             charset = self._default_encoding
+        # Remove existing Content-Type headers before adding the new one to avoid duplicates
+        self._headers = [h for h in self._headers if h[0] != b'content-type']
         self.add_header("Content-Type", f"{ctype}; charset={charset}")
+        self._has_content_type = True # Explicitly set true by this method
         return self
 
     def body(self, component):
-        # It's generally fine to add body components before headers are finalized,
-        # as send_response() is the terminal operation that sends headers.
         self._body_components.append(component)
         return self
     
@@ -71,7 +77,7 @@ class ResponseBuilder:
             self._headers_sent = True
 
     async def _send_body_chunk(self, chunk: bytes):
-        if not chunk: # Avoid sending empty \'\'\'body\'\'\' messages if a component resolves to empty
+        if not chunk: 
             return
         
         await self._send({
@@ -85,11 +91,14 @@ class ResponseBuilder:
         for component in self._body_components:
             await self._stream_component(component)
         
+        # Final empty body chunk
         await self._send({
             "type": "http.response.body",
             "body": b"",
             "more_body": False,
         })
+        # Ensure _headers_sent is true, even if body was empty and _send_headers_if_not_sent was the one setting it.
+        self._headers_sent = True 
 
     async def _stream_component(self, component):
         match component:
