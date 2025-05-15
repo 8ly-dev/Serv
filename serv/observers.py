@@ -4,6 +4,7 @@ function names like 'set_role_on_user_create' or 'create_annotations_on_form_sub
 
 
 from collections import defaultdict
+from inspect import isawaitable
 import re
 from typing import Any
 
@@ -46,6 +47,9 @@ class Observer:
             event_name: The name of the event that occurred.
             **kwargs: Arbitrary keyword arguments associated with the event.
         """
+        event_name = re.sub(r"[^a-z0-9]+", "_", event_name.lower())
         for observer in self.__observers__[event_name]:
             callback = getattr(self, observer)
-            await get_container(container).call(callback, *args, **kwargs)
+            result = get_container(container).call(callback, *args, **kwargs)
+            if isawaitable(result):
+                await result
