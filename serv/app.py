@@ -175,16 +175,16 @@ class App:
             error_occurred_in_stack = False
             try:
                 # Pass the newly created router_instance to the event
-                await self.emit("app.request.begin", container=container, scope=scope, request=request, router_instance=router_instance_for_request)
+                await self.emit("app.request.begin")
                 
                 await self._run_middleware_stack(container=container, request_instance=request)
                 
-                await self.emit("app.request.end", container=container, scope=scope, request=request, error=None)
+                await self.emit("app.request.end", error=None)
             except Exception as e:
                 error_occurred_in_stack = True
                 logger.exception("Unhandled exception during request processing", exc_info=e)
                 await container.call(self._run_error_handler, e)
-                await self.emit("app.request.end", container=container, scope=scope, request=request, error=e)
+                await self.emit("app.request.end", error=e)
             finally:
                 # Ensure response is sent. ResponseBuilder.send_response() should be robust
                 # enough to handle being called if headers were already sent by an error handler,
