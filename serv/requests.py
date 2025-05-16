@@ -174,35 +174,31 @@ class Request:
         data: dict[str, Any] | None = None
     ) -> Any:
         content_type_header = self.headers.get("content-type", "")
-        if not content_type_header.startswith("application/x-www-form-urlencoded"):
+        if data:
+            raw_form_values = data
+        
+        elif content_type_header.startswith("application/x-www-form-urlencoded"):
+            raw_form_values = await self._parse_form_data(max_size=max_size, encoding=encoding)
+        else:
             raise RuntimeError(
                 f"Cannot parse form data for Content-Type '{content_type_header}'. "
                 f"Expected 'application/x-www-form-urlencoded'."
             )
 
-        if data:
-            raw_form_values = data
-        
-        else:
-            form_data_bytes = await self.body(max_size=max_size)
-            if not form_data_bytes:
-                if model is dict:
-                    return {}
-                # Try to return an empty model instance. If it requires arguments,
-                # this will raise a TypeError, which should propagate.
-                return model()
-                # except TypeError: # model might require arguments
-                #      return {} # Fallback for models that can't be empty-instantiated easily and no data
-
-            form_data_str = form_data_bytes.decode(encoding)
-            # parse_qs returns dict[str, list[str]]
-            raw_form_values = parse_qs(form_data_str, keep_blank_values=True)
-
-        print(f"\n\n\n\n{raw_form_values}\n\n\n\n")
-
         if model is dict:
             return raw_form_values
+        
+        if not raw_form_values:
+            return model()
 
+        return self._build_model(model, raw_form_values)
+        
+    async def _parse_form_data(self, max_size: int = 10*1024*1024, encoding: str = "utf-8") -> dict[str, Any]:
+        form_data_bytes = await self.body(max_size=max_size)
+        form_data_str = form_data_bytes.decode(encoding)
+        return parse_qs(form_data_str, keep_blank_values=True)
+    
+    def _build_model(self, model: type, raw_form_values: dict[str, Any]) -> Any:
         coerced_data = {}
         annotations = getattr(model, '__annotations__', {})
 
