@@ -12,14 +12,14 @@ from bevy import get_container
 from bevy.containers import Container
 
 
-type ObserverMapping = dict[str, list[str]]
+type PluginMapping = dict[str, list[str]]
 
 
-class Observer:
-    __observers__: ObserverMapping
+class Plugin:
+    __plugins__: PluginMapping
 
     def __init_subclass__(cls, **kwargs) -> None:
-        cls.__observers__ = defaultdict(list)
+        cls.__plugins__ = defaultdict(list)
 
         for name in dir(cls):
             if name.startswith("_"):
@@ -34,12 +34,12 @@ class Observer:
                 continue
             
             event_name = event.group(1)
-            cls.__observers__[event_name].append(name)
+            cls.__plugins__[event_name].append(name)
 
     async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:
         """Receives event notifications.
         
-        This method will be called by the application when an event this observer
+        This method will be called by the application when an event this plugin
         is registered for occurs. Subclasses should implement this method to handle
         specific events.
 
@@ -48,8 +48,8 @@ class Observer:
             **kwargs: Arbitrary keyword arguments associated with the event.
         """
         event_name = re.sub(r"[^a-z0-9]+", "_", event_name.lower())
-        for observer in self.__observers__[event_name]:
-            callback = getattr(self, observer)
+        for plugin_handler_name in self.__plugins__[event_name]:
+            callback = getattr(self, plugin_handler_name)
             result = get_container(container).call(callback, *args, **kwargs)
             if isawaitable(result):
                 await result

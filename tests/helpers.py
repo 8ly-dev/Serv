@@ -2,13 +2,13 @@ from typing import Any, Awaitable, Callable
 from bevy import dependency
 from bevy.containers import Container
 
-from serv.observers import Observer
+from serv.plugins import Plugin
 from serv.routing import Router, get_current_router
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
 
-class RouteAddingPlugin(Observer):
+class RouteAddingPlugin(Plugin):
     def __init__(self, path: str, handler: Callable[..., Awaitable[None]], methods: list[str] | None = None):
         self.path = path
         self.handler = handler
@@ -29,7 +29,7 @@ class RouteAddingPlugin(Observer):
         # in self.handler's signature with ` = dependency()` if needed.
         await container.call(self.handler, **path_params)
 
-class EventWatcherPlugin(Observer):
+class EventWatcherPlugin(Plugin):
     def __init__(self):
         self.events_seen = []
 

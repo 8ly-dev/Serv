@@ -1,5 +1,5 @@
 from serv.app import App
-from serv.observers import Observer
+from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
 from bevy import dependency
 
@@ -17,7 +17,7 @@ async def about_page(response: ResponseBuilder = dependency()):
     response.body("<h1>About Us</h1><p>This is a simple demo of the Serv framework.</p>")
 
 
-class BasicAppPlugin(Observer):
+class BasicAppPlugin(Plugin):
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route("/", homepage)
         router.add_route("/about", about_page)

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from serv.app import App
 from serv.requests import FileUpload
 from serv.routes import Route, Form, Response, TextResponse
-from serv.observers import Observer
+from serv.plugins import Plugin
 from serv.routing import Router
 from bevy import dependency
 
@@ -52,7 +52,7 @@ class MultipartRoute(Route):
 
         return TextResponse("\n".join(response_parts))
 
-class MultipartTestRoutePlugin(Observer):
+class MultipartTestRoutePlugin(Plugin):
     def __init__(self, path: str, route_class: Type[Route]):
         self.path = path
         self.route_class = route_class

@@ -7,11 +7,11 @@ from serv.requests import Request, FileUpload
 from serv.responses import ResponseBuilder
 from serv.routes import JsonResponse
 from serv.routing import Router
-from serv.observers import Observer
+from serv.plugins import Plugin
 from bevy import dependency
 
 # Plugin to add simple handlers
-class DirectHandlerPlugin(Observer):
+class DirectHandlerPlugin(Plugin):
     def __init__(self, path: str, handler, methods: list[str]):
         self.path = path
         self.handler = handler

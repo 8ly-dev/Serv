@@ -5,7 +5,7 @@ from typing import Any, Type
 
 from serv.app import App
 from serv.routes import Route, Form, GetRequest, Response, TextResponse
-from serv.observers import Observer
+from serv.plugins import Plugin
 from serv.routing import Router # For type hinting if needed, actual router comes from event
 from bevy import dependency
 
@@ -48,7 +48,7 @@ class UnhandledErrorRoute(Route):
 
 # --- Test Plugin for adding Route classes ---
 
-class RouteTestPlugin(Observer):
+class RouteTestPlugin(Plugin):
     def __init__(self, path: str, route_class: Type[Route]):
         self.path = path
         self.route_class = route_class

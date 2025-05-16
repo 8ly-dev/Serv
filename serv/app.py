@@ -8,7 +8,7 @@ from bevy.containers import Container
 from bevy.registries import Registry
 from asgiref.typing import Scope, ASGIReceiveCallable as Receive, ASGISendCallable as Send
 
-from serv.observers import Observer
+from serv.plugins import Plugin
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.injectors import inject_request_object
@@ -52,7 +52,7 @@ class App:
     def add_middleware(self, middleware: Callable[[], AsyncIterator[None]]):
         self._middleware.append(middleware)
 
-    def add_plugin(self, plugin: Observer):
+    def add_plugin(self, plugin: Plugin):
         self._plugins.append(plugin)
 
     async def emit(self, event: str, *, container: Container | None = None, **kwargs):
