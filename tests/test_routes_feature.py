@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 import pytest
 from httpx import AsyncClient
-from typing import Any, Type
+from typing import Any, Type, Annotated
 
 from serv.app import App
-from serv.routes import Route, Form, GetRequest, Response, TextResponse
+from serv.routes import Route, Form, GetRequest, Response, TextResponse, JsonResponse
 from serv.plugins import Plugin
 from serv.routing import Router # For type hinting if needed, actual router comes from event
 from bevy import dependency
@@ -45,6 +45,32 @@ class CustomErrorRoute(Route):
 class UnhandledErrorRoute(Route):
     async def unhandled_error_route(self, _: GetRequest) -> Response: # Assuming a GET
         raise ValueError("This is an unhandled error.")
+
+# --- New Routes for Annotated Response Tests ---
+
+class JsonAnnotatedRoute(Route):
+    async def handle_get(self, _: GetRequest) -> Annotated[list[dict[str, Any]], JsonResponse]:
+        return [{"id": 1, "name": "Test User"}, {"id": 2, "name": "Another User"}]
+
+class TextAnnotatedRoute(Route):
+    async def handle_get(self, _: GetRequest) -> Annotated[str, TextResponse]:
+        return "Hello from annotated text!"
+
+class RawDictRoute(Route): # For testing error case
+    async def handle_get(self, _: GetRequest) -> dict[str, str]:
+        return {"message": "This is a raw dict"}
+
+class RawStringRoute(Route):
+    async def handle_get(self, _: GetRequest) -> str:
+        return "This is a raw string."
+
+class DirectResponseInstanceRoute(Route):
+    async def handle_get(self, _: GetRequest) -> Response:
+        return TextResponse("Direct Response instance.", status_code=201)
+
+class JsonAnnotatedCustomStatusRoute(Route):
+    async def handle_get(self, _: GetRequest) -> Annotated[dict[str, str], JsonResponse]:
+        return {"custom_status_test": "data"}
 
 # --- Test Plugin for adding Route classes ---
 
@@ -196,6 +222,87 @@ async def test_route_method_not_allowed_no_override(app: App, client: AsyncClien
     # The app's default 405 handler will use this.
     assert "Method Not Allowed" in response.text # Generic check
     assert "GET" in response.headers.get("Allow", "") # Default handler should set Allow header
+    assert plugin.plugin_registered_route
+
+# --- Tests for Annotated Responses ---
+
+@pytest.mark.asyncio
+async def test_annotated_json_response(app: App, client: AsyncClient):
+    plugin = RouteTestPlugin("/test_json_annotated", JsonAnnotatedRoute)
+    app.add_plugin(plugin)
+
+    response = await client.get("/test_json_annotated")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == [{"id": 1, "name": "Test User"}, {"id": 2, "name": "Another User"}]
+    assert plugin.plugin_registered_route
+
+@pytest.mark.asyncio
+async def test_annotated_text_response(app: App, client: AsyncClient):
+    plugin = RouteTestPlugin("/test_text_annotated", TextAnnotatedRoute)
+    app.add_plugin(plugin)
+
+    response = await client.get("/test_text_annotated")
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"] # Allow for charset
+    assert response.text == "Hello from annotated text!"
+    assert plugin.plugin_registered_route
+
+@pytest.mark.asyncio
+async def test_raw_dict_handler_without_response_type_errors(app: App, client: AsyncClient):
+    """
+    Tests that a handler returning a raw dict without an Annotated response type
+    or returning a Response instance causes a 500 error.
+    """
+    plugin = RouteTestPlugin("/test_raw_dict_error", RawDictRoute)
+    app.add_plugin(plugin)
+
+    response = await client.get("/test_raw_dict_error")
+    assert response.status_code == 500
+    # Check for the app's default error handler output, which should include the TypeError info
+    text = response.text
+    assert "Error 500" in text
+    assert "TypeError" in text 
+    assert "returned a \'dict\' but was expected to return a Response instance" in text
+    assert plugin.plugin_registered_route
+
+@pytest.mark.asyncio
+async def test_raw_string_handler_without_response_type_errors(app: App, client: AsyncClient):
+    """
+    Tests that a handler returning a raw string without an Annotated response type
+    or returning a Response instance causes a 500 error.
+    """
+    plugin = RouteTestPlugin("/test_raw_string_error", RawStringRoute)
+    app.add_plugin(plugin)
+
+    response = await client.get("/test_raw_string_error")
+    assert response.status_code == 500
+    text = response.text
+    assert "Error 500" in text
+    assert "TypeError" in text
+    assert "returned a \'str\' but was expected to return a Response instance" in text
+    assert plugin.plugin_registered_route
+
+@pytest.mark.asyncio
+async def test_direct_response_instance_response(app: App, client: AsyncClient):
+    plugin = RouteTestPlugin("/test_direct_response", DirectResponseInstanceRoute)
+    app.add_plugin(plugin)
+
+    response = await client.get("/test_direct_response")
+    assert response.status_code == 201 # Status code from TextResponse instance
+    assert "text/plain" in response.headers["content-type"]
+    assert response.text == "Direct Response instance."
+    assert plugin.plugin_registered_route
+
+@pytest.mark.asyncio
+async def test_annotated_json_response_custom_status_check(app: App, client: AsyncClient):
+    plugin = RouteTestPlugin("/test_json_annotated_custom_status", JsonAnnotatedCustomStatusRoute)
+    app.add_plugin(plugin)
+
+    response = await client.get("/test_json_annotated_custom_status")
+    assert response.status_code == 200 # JsonResponse default
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == {"custom_status_test": "data"}
     assert plugin.plugin_registered_route
 
 # Removed </rewritten_file> tag that was causing a syntax error 

@@ -4,7 +4,7 @@ from inspect import get_annotations, signature
 import json
 from pathlib import Path
 from types import NoneType, UnionType
-from typing import Any, AsyncGenerator, Type, Union, get_args, get_origin
+from typing import Any, AsyncGenerator, Type, Union, get_args, get_origin, Annotated, get_type_hints
 
 from bevy import dependency
 from bevy.containers import Container
@@ -176,11 +176,6 @@ class Form:
     @classmethod
     def matches_form_data(cls, form_data: dict[str, Any]) -> bool:
         annotations = get_annotations(cls)
-        print("--------------------------------")
-        print("PROCESSING FORM", cls.__name__)
-        print()
-        print()
-        print()
 
         allowed_keys = set(annotations.keys())
         required_keys = {key for key, value in annotations.items() if not is_optional(value)}
@@ -192,10 +187,8 @@ class Form:
             return False # Form data keys do not match the expected keys
 
         for key, value in annotations.items():
-            print("- Checking Key", key, "Value", value)
             optional = key not in required_keys
             if key not in form_data and not optional:
-                print("Key not in form data and not optional", key, form_data.keys())
                 return False
             
             allowed_types = get_args(value)
@@ -206,16 +199,11 @@ class Form:
                 get_origin(value) is list and
                 not all(_is_valid_type(item, allowed_types) for item in form_data[key])
             ):
-                print("Invalid list type", value)
                 return False
 
             if key in form_data and not _is_valid_type(form_data[key][0], allowed_types):
-                print("Invalid type", form_data[key][0], allowed_types)
                 return False
-            
-            print("Key", key, "Value", form_data.get(key, "NOT SENT"), "Allowed types", allowed_types)
 
-        print("All fields match")
         return True # All fields match 
 
 
@@ -223,30 +211,56 @@ class Route:
     __method_handlers__: dict[str, str]
     __error_handlers__: dict[Type[Exception], str]
     __form_handlers__: dict[str, dict[Type[Form], list[str]]]
+    __annotated_response_wrappers__: dict[str, Type[Response]]
 
     def __init_subclass__(cls) -> None:
         cls.__method_handlers__ = {}
         cls.__error_handlers__ = defaultdict(list)
         cls.__form_handlers__ = defaultdict(lambda: defaultdict(list))
+        cls.__annotated_response_wrappers__ = {}
         
+        try:
+            all_type_hints = get_type_hints(cls, include_extras=True)
+        except Exception:
+            all_type_hints = {}
+
         for name in dir(cls):
             if name.startswith("_"):
                 continue
 
-            handler = getattr(cls, name)
-            if not callable(handler):
+            member = getattr(cls, name)
+            if not callable(member):
                 continue
 
-            sig = signature(handler)
-            second_arg = list(sig.parameters.values())[1].annotation
-            match second_arg:
-                case type() as request if issubclass(request, Request):
-                    method = MethodMapping.get(request)
-                    cls.__method_handlers__[method] = name
-                case type() as form_type if issubclass(form_type, Form):
+            sig = signature(member)
+            params = list(sig.parameters.values())
+            
+            if not params:
+                continue
+
+            if len(params) > 1:
+                second_arg_annotation = params[1].annotation
+                if isinstance(second_arg_annotation, type) and issubclass(second_arg_annotation, Request):
+                    method = MethodMapping.get(second_arg_annotation)
+                    if method:
+                        cls.__method_handlers__[method] = name
+                        try:
+                            handler_type_hints = get_type_hints(member, include_extras=True)
+                            return_annotation = handler_type_hints.get('return')
+                        except Exception:
+                            return_annotation = None
+                            
+                        if return_annotation and get_origin(return_annotation) is Annotated:
+                            args = get_args(return_annotation)
+                            if len(args) == 2 and isinstance(args[1], type) and issubclass(args[1], Response):
+                                cls.__annotated_response_wrappers__[name] = args[1]
+
+                elif isinstance(second_arg_annotation, type) and issubclass(second_arg_annotation, Form):
+                    form_type = second_arg_annotation
                     cls.__form_handlers__[form_type.__form_method__][form_type].append(name)
-                case type() as exception if issubclass(exception, Exception):
-                    cls.__error_handlers__[exception] = name
+
+                elif isinstance(second_arg_annotation, type) and issubclass(second_arg_annotation, Exception):
+                    cls.__error_handlers__[second_arg_annotation] = name
 
     async def __call__(
         self, 
@@ -254,44 +268,71 @@ class Route:
         container: Container = dependency(),
         response_builder: ResponseBuilder = dependency(),
     ):
-        response = await self._handle_request(request, container)
-        response_builder.set_status(response.status_code)
-        for header, value in response.headers.items():
-            response_builder.add_header(header, value)
+        handler_result = await self._handle_request(request, container)
 
-        response_builder.body(response.render())
+        if isinstance(handler_result, Response):
+            response_builder.set_status(handler_result.status_code)
+            for header, value in handler_result.headers.items():
+                response_builder.add_header(header, value)
+            response_builder.body(handler_result.render())
+        else:
+            raise TypeError(
+                f"Route handler for {request.method} '{request.path}' returned a "
+                f"{type(handler_result).__name__!r} but was expected to return a Response instance or use an "
+                f"Annotated response type."
+            )
         
 
-    async def _handle_request(self, request: Request, container: Container) -> Response:
+    async def _handle_request(self, request: Request, container: Container) -> Any:
         method = request.method
+        handler = None
+        handler_name = None
+        is_form_handler = False
+        args_to_pass = []
+
         if self.__form_handlers__.get(method):
             form_data = await request.form()
-            for form_type, form_handlers in self.__form_handlers__[method].items():
-                # TODO: This is a hack to get the form data for the form type
-                # TODO: We should probably just pass the possible form types to request.form
-                # TODO: and let it decide which one to use
+            for form_type, form_handler_names in self.__form_handlers__[method].items():
                 if form_type.matches_form_data(form_data):
-                    for handler_name in form_handlers:
+                    for name_in_list in form_handler_names:
                         try:
-                            handler = getattr(self, handler_name)
-                            form = await request.form(form_type, data=form_data)
-                            return await container.call(handler, form)
+                            parsed_form = await request.form(form_type, data=form_data)
+                            handler = getattr(self, name_in_list)
+                            handler_name = name_in_list
+                            is_form_handler = True
+                            args_to_pass = [parsed_form]
+                            break
                         except Exception as e:
-                            return await container.call(self._error_handler, e)
+                            return await container.call(self._error_handler, e) 
+                    if handler:
+                        break
 
-        if method not in self.__method_handlers__:
+        if not handler and method in self.__method_handlers__:
+            handler_name = self.__method_handlers__[method]
+            handler = getattr(self, handler_name)
+            args_to_pass = [request]
+
+        if not handler:
             return await container.call(
                 self._error_handler,
                 HTTPMethodNotAllowedException(
-                    f"{type(self).__name__} does not support {method}", 
+                    f"{type(self).__name__} does not support {method} or a matching form handler for provided data.", 
                     list(self.__method_handlers__.keys() | self.__form_handlers__.keys())
                 )
             )
 
-        handler_name = self.__method_handlers__[method]
         try:
-            handler = getattr(self, handler_name)
-            return await container.call(handler, request)
+            if is_form_handler:
+                handler_output_data = await container.call(handler, args_to_pass[0])
+            else:
+                handler_output_data = await container.call(handler, args_to_pass[0])
+
+            if handler_name and handler_name in self.__annotated_response_wrappers__:
+                wrapper_class = self.__annotated_response_wrappers__[handler_name]
+                return wrapper_class(handler_output_data)
+            
+            return handler_output_data
+        
         except Exception as e:
             return await container.call(self._error_handler, e)
     
