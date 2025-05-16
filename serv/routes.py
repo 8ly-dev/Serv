@@ -10,6 +10,7 @@ from bevy import dependency
 from bevy.containers import Container
 
 from serv.exceptions import HTTPMethodNotAllowedException
+from serv.plugins import search_for_plugin_directory
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
@@ -19,9 +20,16 @@ class Response:
         self.status_code = status_code
         self.body = body or bytes()
         self.headers = headers or {}
+        
+        # A reference to the handler that returned this response. This is only set after creation but
+        # before the response is rendered.
+        self.created_by = None
 
     async def render(self) -> AsyncGenerator[bytes, None]:
         yield self.body
+
+    def set_created_by(self, handler: Any) -> None:
+        self.created_by = handler
 
 
 class RedirectResponse(Response):
@@ -69,9 +77,20 @@ class Jinja2Response(Response):
     def render(self) -> AsyncGenerator[bytes, None]:
         from jinja2 import Environment, FileSystemLoader
 
-        env = Environment(loader=FileSystemLoader(Path.cwd() / "templates"), enable_async=True)
+        template_locations = []
+        try:
+            plugin_dir = search_for_plugin_directory(Path(self.created_by.__func__.__globals__["__file__"]).parent)
+        except Exception:
+            pass
+        else:
+            template_locations.append(Path.cwd() / "templates" / plugin_dir.name)
+            template_locations.append(plugin_dir / "templates")
+
+        template_locations.append(Path.cwd() / "templates")
+        env = Environment(loader=FileSystemLoader(template_locations), enable_async=True)
         template = env.get_template(self.template)
         return template.generate_async(**self.context)
+
 
 
 class GetRequest(Request):
@@ -322,19 +341,18 @@ class Route:
             )
 
         try:
-            if is_form_handler:
-                handler_output_data = await container.call(handler, args_to_pass[0])
-            else:
-                handler_output_data = await container.call(handler, args_to_pass[0])
-
+            handler_output_data = await container.call(handler, args_to_pass[0])
             if handler_name and handler_name in self.__annotated_response_wrappers__:
                 wrapper_class = self.__annotated_response_wrappers__[handler_name]
                 if isinstance(handler_output_data, tuple):
-                    return wrapper_class(*handler_output_data)
+                    response = wrapper_class(*handler_output_data)
                 else:
-                    return wrapper_class(handler_output_data)
+                    response = wrapper_class(handler_output_data)
+            else:
+                response = handler_output_data
             
-            return handler_output_data
+            response.set_created_by(handler)
+            return response
         
         except Exception as e:
             return await container.call(self._error_handler, e)
