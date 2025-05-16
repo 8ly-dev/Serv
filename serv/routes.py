@@ -238,16 +238,7 @@ class Route:
 
     async def _handle_request(self, request: Request, container: Container) -> Response:
         method = request.method
-        if method not in self.__method_handlers__.keys() | self.__form_handlers__.keys():
-            return await container.call(
-                self._error_handler,
-                HTTPMethodNotAllowedException(
-                    f"{type(self).__name__} does not support {method}", 
-                    list(self.__method_handlers__.keys() | self.__form_handlers__.keys())
-                )
-            )
-        
-        if self.__form_handlers__[method]:
+        if self.__form_handlers__.get(method):
             form_data = await request.form()
             for form_type, form_handlers in self.__form_handlers__[method].items():
                 # TODO: This is a hack to get the form data for the form type
@@ -261,8 +252,15 @@ class Route:
                             return await container.call(handler, form)
                         except Exception as e:
                             return await container.call(self._error_handler, e)
-                        
-            print("No match")
+
+        if method not in self.__method_handlers__:
+            return await container.call(
+                self._error_handler,
+                HTTPMethodNotAllowedException(
+                    f"{type(self).__name__} does not support {method}", 
+                    list(self.__method_handlers__.keys() | self.__form_handlers__.keys())
+                )
+            )
 
         handler_name = self.__method_handlers__[method]
         try:

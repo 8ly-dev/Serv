@@ -2,9 +2,7 @@ import pytest
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.requests import Request
 from serv.responses import ResponseBuilder
-from serv.routing import get_current_router # To add routes in tests
 from tests.helpers import RouteAddingPlugin, EventWatcherPlugin
 from bevy import dependency # Added
 

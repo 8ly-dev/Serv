@@ -16,11 +16,8 @@ class RouteAddingPlugin(Observer):
         self.was_called = False
         self.received_kwargs = None
 
-    async def on(self, event_name: str, **kwargs: Any) -> None:
-        if event_name == "app.request.begin": # Add route early in the request lifecycle
-            router = kwargs.get("router_instance") # Get the router instance directly
-            if router:
-                router.add_route(self.path, self._handler_wrapper, methods=self.methods)
+    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+        router.add_route(self.path, self._handler_wrapper, methods=self.methods)
 
     async def _handler_wrapper(self, request: Request = dependency(), container: Container = dependency(), **path_params):
         self.was_called = True

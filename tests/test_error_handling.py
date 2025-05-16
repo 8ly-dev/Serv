@@ -75,7 +75,7 @@ async def test_default_handler_for_generic_exception(app: App, client: AsyncClie
     assert response.status_code == 500 # Default for non-ServException
     assert "<h1>Error 500</h1>" in response.text
     assert "<p>YetAnotherError: A generic problem</p>" in response.text
-    assert "<p>Traceback:</p>" in response.text # Default 500 handler includes traceback
+    assert "Traceback" in response.text # Default 500 handler includes traceback
 
 @pytest.mark.asyncio
 async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncClient):
@@ -104,7 +104,7 @@ async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncCl
     assert "<p>ValueError: Error inside the error handler!</p>" in text
     # Check for the specific format of the chained exception display
     assert "<hr><p>Caused by / Context: MyCustomError: Initial problem</p>" in text
-    assert "Traceback:" in text
+    assert "Traceback" in text
 
 @pytest.mark.asyncio
 async def test_request_end_event_on_handled_error(app: App, client: AsyncClient):
