@@ -42,16 +42,16 @@ async def handle_direct_single_file(request: Request = dependency(), response_bu
         errors.append(f"file_upload list error: {file_upload_list}")
     else:
         file_obj = file_upload_list[0]
-        if not isinstance(file_obj, FileUpload):
+        if not isinstance(file_obj, dict):
             errors.append(f"file_upload type error: {type(file_obj)}")
         else:
-            file_upload_filename_for_response = file_obj.filename
-            if not file_obj.filename == 'testfile.txt':
-                errors.append(f"file_upload filename error: {file_obj.filename}")
+            file_upload_filename_for_response = file_obj["filename"]
+            if not file_obj["filename"] == 'testfile.txt':
+                errors.append(f"file_upload filename error: {file_obj["filename"]}")
             
             # Content-Type will be None due to library limitations, skip check.
 
-            file_content = file_obj.file.read() if file_obj.file else b'' # Read once
+            file_content = file_obj["file"].read() if file_obj["file"] else b'' # Read once
             if not file_content == b"Hello, world!":
                 errors.append(f"file_upload content error. Expected b'Hello, world!', got: {file_content!r}")
             else:
@@ -63,15 +63,26 @@ async def handle_direct_single_file(request: Request = dependency(), response_bu
         for k, v_list in form_data.items():
             serializable_form_data[k] = []
             for item in v_list:
-                if isinstance(item, FileUpload):
+                if isinstance(item, dict):
                     serializable_form_data[k].append({
-                        'filename': item.filename,
-                        'content_type': item.content_type,
-                        'file_is_present': item.file is not None
+                        'filename': item['filename'],
+                        'content_type': item['content_type'],
+                        'file_is_present': item['file'] is not None
                     })
                 else:
                     serializable_form_data[k].append(item)
-        return JsonResponse({"status": "error", "errors": errors, "form_data_received": serializable_form_data}, status_code=400)
+        
+        response_builder.body(
+            JsonResponse(
+                {
+                    "status": "error", 
+                    "errors": errors, 
+                    "form_data_received": serializable_form_data
+                }, 
+                status_code=400
+            ).render()
+        )
+        return
     
     success_payload = {
         "status": "ok", 
@@ -108,17 +119,17 @@ async def handle_direct_multiple_files(request: Request = dependency(), response
     mandatory_file_list = form_data['mandatory_file']
     assert len(mandatory_file_list) == 1
     mandatory_file_obj = mandatory_file_list[0]
-    assert isinstance(mandatory_file_obj, FileUpload)
-    assert mandatory_file_obj.filename == 'main.dat'
-    content_mand = mandatory_file_obj.file.read() if mandatory_file_obj.file else b''
+    assert set(mandatory_file_obj.keys()) == {'filename', 'content_type', 'headers', 'file'}
+    assert mandatory_file_obj["filename"] == 'main.dat'
+    content_mand = mandatory_file_obj["file"].read() if mandatory_file_obj["file"] else b''
     assert content_mand == b"Mandatory content"
 
     optional_file_sent_list = form_data['optional_file_sent']
     assert len(optional_file_sent_list) == 1
     optional_file_obj = optional_file_sent_list[0]
-    assert isinstance(optional_file_obj, FileUpload)
-    assert optional_file_obj.filename == 'opt.txt'
-    content_opt = optional_file_obj.file.read() if optional_file_obj.file else b''
+    assert isinstance(optional_file_obj, dict)
+    assert optional_file_obj["filename"] == 'opt.txt'
+    content_opt = optional_file_obj["file"].read() if optional_file_obj["file"] else b''
     assert content_opt == b"Optional content"
 
     # Construct a serializable response
@@ -126,11 +137,11 @@ async def handle_direct_multiple_files(request: Request = dependency(), response
         "status": "ok",
         "main_text_field": form_data['main_text_field'][0],
         "mandatory_file": {
-            "filename": mandatory_file_obj.filename,
+            "filename": mandatory_file_obj["filename"],
             "content_length": len(content_mand)
         },
         "optional_file_sent": {
-            "filename": optional_file_obj.filename,
+            "filename": optional_file_obj["filename"],
             "content_length": len(content_opt)
         },
         "missing_optional_field_absent": "optional_file_not_sent" not in form_data

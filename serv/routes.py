@@ -4,7 +4,7 @@ from inspect import get_annotations, signature
 import json
 from pathlib import Path
 from types import NoneType, UnionType
-from typing import Any, AsyncGenerator, Type, get_args, get_origin
+from typing import Any, AsyncGenerator, Type, Union, get_args, get_origin
 
 from bevy import dependency
 from bevy.containers import Container
@@ -112,13 +112,20 @@ MethodMapping = {
     HeadRequest: "HEAD",
 }
 
+def normalized_origin(annotation: Any) -> Any:
+    origin = get_origin(annotation)
+    if origin is UnionType:
+        return Union
+    
+    return origin
+
 
 def is_optional(annotation: Any) -> bool:
-    origin = get_origin(annotation)
+    origin = normalized_origin(annotation)
     if origin is list:
         return True
     
-    if origin is UnionType and NoneType in get_args(annotation):
+    if origin is Union and NoneType in get_args(annotation):
         return True
     
     return False
@@ -169,12 +176,26 @@ class Form:
     @classmethod
     def matches_form_data(cls, form_data: dict[str, Any]) -> bool:
         annotations = get_annotations(cls)
-        if form_data.keys() ^ annotations.keys():
+        print("--------------------------------")
+        print("PROCESSING FORM", cls.__name__)
+        print()
+        print()
+        print()
+
+        allowed_keys = set(annotations.keys())
+        required_keys = {key for key, value in annotations.items() if not is_optional(value)}
+
+        form_data_keys = set(form_data.keys())
+        has_missing_required_keys = required_keys - form_data_keys
+        has_extra_keys = form_data_keys > allowed_keys
+        if has_missing_required_keys or has_extra_keys:
             return False # Form data keys do not match the expected keys
 
         for key, value in annotations.items():
-            optional = is_optional(value)
+            print("- Checking Key", key, "Value", value)
+            optional = key not in required_keys
             if key not in form_data and not optional:
+                print("Key not in form data and not optional", key, form_data.keys())
                 return False
             
             allowed_types = get_args(value)
@@ -185,12 +206,16 @@ class Form:
                 get_origin(value) is list and
                 not all(_is_valid_type(item, allowed_types) for item in form_data[key])
             ):
+                print("Invalid list type", value)
                 return False
 
-            if not _is_valid_type(form_data[key][0], allowed_types):
+            if key in form_data and not _is_valid_type(form_data[key][0], allowed_types):
                 print("Invalid type", form_data[key][0], allowed_types)
                 return False
+            
+            print("Key", key, "Value", form_data.get(key, "NOT SENT"), "Allowed types", allowed_types)
 
+        print("All fields match")
         return True # All fields match 
 
 

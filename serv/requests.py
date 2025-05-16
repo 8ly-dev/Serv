@@ -1,4 +1,5 @@
 import json
+from types import UnionType
 from typing import get_origin, get_args, List, Union, Any, Dict
 from urllib.parse import parse_qs
 import io
@@ -8,12 +9,24 @@ from collections import defaultdict
 from multipart.multipart import parse_options_header
 from python_multipart import FormParser
 
+from serv.multipart_parser import MultipartParser
+
 
 @dataclass
 class FileUpload:
     filename: str | None
     content_type: str | None
+    headers: dict[str, str]
     file: io.IOBase
+
+    async def read(self) -> bytes:
+        return self.file.read()
+    
+    async def seek(self, offset: int) -> int:
+        return self.file.seek(offset)
+    
+    async def close(self) -> None:
+        return self.file.close()
 
 
 class Request:
@@ -132,13 +145,13 @@ class Request:
         text_data = await self.text(encoding=encoding, max_size=max_size)
         return json.loads(text_data) if text_data else None
 
-    def _coerce_value(self, value_str: str, target_type: type) -> Any:
+    def _coerce_value(self, value: Any, target_type: type) -> Any:
         origin_type = get_origin(target_type)
         type_args = get_args(target_type)
 
-        if origin_type is Union: # Handles Optional[T] as Union[T, NoneType]
+        if origin_type is Union or origin_type is UnionType: # Handles Optional[T] as Union[T, NoneType]
             # If empty string and None is an option, return None directly.
-            if value_str == "" and type(None) in type_args:
+            if value == "" and type(None) in type_args:
                 return None
 
             # Attempt coercion for each type in the Union, return on first success
@@ -148,7 +161,7 @@ class Request:
 
             for t in non_none_types:
                 try:
-                    return self._coerce_value(value_str, t)
+                    return self._coerce_value(value, t)
                 except (ValueError, TypeError):
                     continue
             # If all non-NoneType coercions fail, and NoneType is an option
@@ -156,27 +169,37 @@ class Request:
             if type(None) in type_args: # value_str is not empty here
                  pass # Let it fall through to the final raise if it was not coercible to non-None types
 
-            raise ValueError(f"Cannot coerce {value_str!r} to any type in Union {target_type}")
+            raise ValueError(f"Cannot coerce {value!r} to any type in Union {target_type}")
 
         if target_type is Any: # If type is Any, return the string value directly
-            return value_str
+            return value
 
         if target_type is str:
-            return value_str
+            return str(value)
 
         
         if target_type is bool:
-            val_lower = value_str.lower()
+            val_lower = value.lower()
             if val_lower in ("true", "on", "1", "yes"):
                 return True
             if val_lower in ("false", "off", "0", "no"):
                 return False
-            raise ValueError(f"Cannot coerce {value_str!r} to bool.")
+            raise ValueError(f"Cannot coerce {value!r} to bool.")
+        
+        print("Target type", target_type)
+        if target_type is FileUpload:
+            print("FileUpload", value)
+            return FileUpload(
+                filename=value["filename"],
+                content_type=value["content_type"],
+                headers=value["headers"],
+                file=value["file"],
+            )
         
         try:
-            return target_type(value_str)
+            return target_type(value)
         except Exception as e:
-            raise ValueError(f"Unsupported coercion for type {target_type} from value {value_str!r}: {e}")
+            raise ValueError(f"Unsupported coercion for type {target_type} from value {value!r}: {e}")
 
     async def _parse_form_data(self, max_size: int = 10*1024*1024, encoding: str = "utf-8") -> dict[str, Any]:
         form_data_bytes = await self.body(max_size=max_size)
@@ -184,120 +207,8 @@ class Request:
         return parse_qs(form_data_str, keep_blank_values=True)
 
     async def _parse_multipart_body(self, encoding: str, boundary: bytes) -> dict:
-        print(f"DEBUG _parse_multipart_body: encoding='{encoding}', boundary='{boundary}'") # Debug
-        content_type_header = self.headers.get("content-type", "")
-        print(f"DEBUG _parse_multipart_body: content_type_header='{content_type_header}'") # Debug
-        _, params = parse_options_header(content_type_header.encode('latin-1'))
-        form_charset = params.get(b"charset", encoding.encode()).decode()
-        print(f"DEBUG _parse_multipart_body: effective form_charset='{form_charset}'") # Debug
-
-        collected_fields: Dict[str, List[str]] = defaultdict(list)
-        collected_files: Dict[str, List[FileUpload]] = defaultdict(list)
-
-        async def body_stream_producer() -> io.BytesIO:
-            # Let's use self.read() to robustly consume the body
-            # as it handles the _buffer and _body_consumed state correctly.
-            final_full_body = bytearray()
-            
-            # If self.read() has already been partially used, it will resume.
-            # If body is already fully consumed by a prior different mechanism, 
-            # self.read() will raise RuntimeError, which is fine as it means an API misuse.
-            # For a fresh request to .form(), self.read() will consume the body from _receive.
-            async for chunk in self.read(): # Use the existing self.read() method
-                final_full_body.extend(chunk)
-            
-            # After self.read() completes, self._body_consumed is True, 
-            # and self._buffer should be empty (or contain only residue if max_size was hit, not relevant here).
-            # We are storing the full body back into self._buffer so that subsequent calls to 
-            # request.body() or request.text() can still access it, even though FormParser consumes it from BytesIO.
-            # This behavior makes request.form() idempotent in terms of body availability for other methods.
-            self._buffer = final_full_body 
-            # self.read() already sets self._body_consumed = True upon full consumption.
-            return io.BytesIO(final_full_body)
-
-        body_stream_for_parser = await body_stream_producer()
-        # Let's see the raw body before parsing
-        raw_body_bytes_to_parse = body_stream_for_parser.getvalue() # Getvalue before read consumes it
-        print(f"DEBUG _parse_multipart_body: raw_body_bytes_to_parse (first 500 bytes): {raw_body_bytes_to_parse[:500]}")
-        body_stream_for_parser.seek(0) # Reset stream position for parser.write
-
-        def on_field_sync(field):
-            # field is python_multipart.multipart.Field (from BaseStreamingParser)
-            # It has .field_name (bytes) and .value (bytes)
-            field_name_str = field.field_name.decode(form_charset)
-            field_value_str = field.value.decode(form_charset)
-            print(f"DEBUG _parse_multipart_body: on_field_sync: name='{field_name_str}', value='{field_value_str}'")
-            collected_fields[field_name_str].append(field_value_str)
-
-        def on_file_sync(file_part):
-            print(f"DEBUG on_file_sync: type(file_part) = {type(file_part)}")
-            # print(f"DEBUG on_file_sync: dir(file_part) = {dir(file_part)}") # Already seen this
-
-            field_name_str = file_part.field_name.decode(form_charset)
-            
-            actual_filename = None
-            if hasattr(file_part, 'file_name') and file_part.file_name:
-                actual_filename = file_part.file_name.decode(form_charset)
-            elif hasattr(file_part, '_file_name') and file_part._file_name:
-                actual_filename = file_part._file_name.decode(form_charset)
-
-            print(f"DEBUG _parse_multipart_body: on_file_sync: name='{field_name_str}', filename='{actual_filename}'")
-
-            actual_content_type_str = None # Cannot reliably get this
-
-            current_file_stream = None
-            raw_file_object = None
-
-            if hasattr(file_part, 'file_object'):
-                raw_file_object = file_part.file_object
-            elif hasattr(file_part, '_fileobj'):
-                raw_file_object = file_part._fileobj
-            
-            if raw_file_object:
-                try:
-                    print(f"DEBUG on_file_sync: raw_file_object type = {type(raw_file_object)}")
-                    if hasattr(file_part, 'size'):
-                        print(f"DEBUG on_file_sync: file_part.size = {file_part.size}")
-                    
-                    raw_file_object.seek(0)
-                    file_content_sample = raw_file_object.read() # Read all
-                    print(f"DEBUG on_file_sync: file_object yielded {len(file_content_sample)} bytes. Sample: {file_content_sample[:60]}")
-                    raw_file_object.seek(0) # Reset for actual use by FileUpload
-                    current_file_stream = raw_file_object
-                except Exception as e:
-                    print(f"ERROR: Could not seek/read file_object in on_file_sync: {e}")
-                    current_file_stream = io.BytesIO(b"Error reading stream in on_file_sync")
-            else:
-                print(f"ERROR: file_part does not have file_object or _fileobj.")
-
-            upload = FileUpload(
-                filename=actual_filename,
-                content_type=actual_content_type_str, 
-                file=current_file_stream
-            )
-            collected_files[field_name_str].append(upload)
-        
-        # Get the main content_type (e.g. "multipart/form-data") without parameters
-        # parse_options_header already gave us `_ct` but it's bytes.
-        main_content_type = content_type_header.split(';')[0].strip()
-
-        parser = FormParser(
-            content_type=main_content_type, 
-            on_field=on_field_sync,
-            on_file=on_file_sync,
-            boundary=boundary
-        )
-
-        parser.write(body_stream_for_parser.read()) 
-        parser.finalize()
-        
-        raw_form_values: dict[str, Any] = {}
-        for key, val_list in collected_fields.items():
-            raw_form_values[key] = val_list
-        for key, file_list in collected_files.items():
-            raw_form_values[key] = file_list
-            
-        return raw_form_values
+        parser = MultipartParser(boundary=boundary, charset=encoding)
+        return await parser.parse(self._receive)
 
     async def form(
         self, 
