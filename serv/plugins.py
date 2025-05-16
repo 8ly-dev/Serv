@@ -5,14 +5,26 @@ function names like 'set_role_on_user_create' or 'create_annotations_on_form_sub
 
 from collections import defaultdict
 from inspect import isawaitable
+from pathlib import Path
 import re
 from typing import Any
 
 from bevy import get_container
 from bevy.containers import Container
+import yaml
 
 
 type PluginMapping = dict[str, list[str]]
+
+
+def search_for_plugin_directory(path: Path) -> Path | None:
+    while path.name:
+        if (path / "plugin.yaml").exists():
+            return path
+
+        path = path.parent
+
+    raise Exception("Plugin directory not found")
 
 
 class Plugin:
@@ -35,6 +47,20 @@ class Plugin:
             
             event_name = event.group(1)
             cls.__plugins__[event_name].append(name)
+
+    def config(self) -> dict[str, Any]:
+        """
+        Returns a dictionary of configuration options for the plugin.
+        """
+        plugin_path = search_for_plugin_directory(Path(__file__).parent)
+        config_file_path = plugin_path / "plugin.yaml"
+        if not config_file_path.exists():
+            return {}
+
+        with open(config_file_path, 'r') as f:
+            raw_config_data = yaml.safe_load(f)
+
+        return raw_config_data
 
     async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:
         """Receives event notifications.
