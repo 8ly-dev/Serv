@@ -15,6 +15,9 @@ dependencies = [
 jinja = [
     "jinja2>=3.1.6",
 ]
+multipart = [
+    "python-multipart>=0.0.20",
+]
 
 [dependency-groups]
 dev = [
