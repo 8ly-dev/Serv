@@ -329,7 +329,10 @@ class Route:
 
             if handler_name and handler_name in self.__annotated_response_wrappers__:
                 wrapper_class = self.__annotated_response_wrappers__[handler_name]
-                return wrapper_class(handler_output_data)
+                if isinstance(handler_output_data, tuple):
+                    return wrapper_class(*handler_output_data)
+                else:
+                    return wrapper_class(handler_output_data)
             
             return handler_output_data
         

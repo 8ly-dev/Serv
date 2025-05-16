@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from typing import Any, Type, Annotated
 
 from serv.app import App
-from serv.routes import Route, Form, GetRequest, Response, TextResponse, JsonResponse
+from serv.routes import Route, Form, GetRequest, Response, TextResponse, JsonResponse, Jinja2Response
 from serv.plugins import Plugin
 from serv.routing import Router # For type hinting if needed, actual router comes from event
 from bevy import dependency
@@ -71,6 +71,11 @@ class DirectResponseInstanceRoute(Route):
 class JsonAnnotatedCustomStatusRoute(Route):
     async def handle_get(self, _: GetRequest) -> Annotated[dict[str, str], JsonResponse]:
         return {"custom_status_test": "data"}
+
+# New route for Jinja2 tuple return test
+class JinjaTupleReturnRoute(Route):
+    async def handle_get(self, _: GetRequest) -> Annotated[tuple[str, dict[str, str]], Jinja2Response]:
+        return ("jinja_tuple_test.html", {"greeting": "Hello from Jinja via tuple"})
 
 # --- Test Plugin for adding Route classes ---
 
@@ -303,6 +308,18 @@ async def test_annotated_json_response_custom_status_check(app: App, client: Asy
     assert response.status_code == 200 # JsonResponse default
     assert response.headers["content-type"] == "application/json"
     assert response.json() == {"custom_status_test": "data"}
+    assert plugin.plugin_registered_route
+
+@pytest.mark.asyncio
+async def test_annotated_jinja_tuple_return(app: App, client: AsyncClient):
+    plugin = RouteTestPlugin("/test_jinja_tuple", JinjaTupleReturnRoute)
+    app.add_plugin(plugin)
+
+    response = await client.get("/test_jinja_tuple")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "<h1>Hello from Jinja via tuple</h1>" in response.text
+    assert "<p>This tests tuple expansion for Jinja2Response.</p>" in response.text
     assert plugin.plugin_registered_route
 
 # Removed </rewritten_file> tag that was causing a syntax error 
