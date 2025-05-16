@@ -48,7 +48,7 @@ class UnhandledErrorRoute(Route):
 
 # --- Test Plugin for adding Route classes ---
 
-class TestRoutePlugin(Observer):
+class RouteTestPlugin(Observer):
     def __init__(self, path: str, route_class: Type[Route]):
         self.path = path
         self.route_class = route_class
@@ -66,7 +66,7 @@ class TestRoutePlugin(Observer):
 
 @pytest.mark.asyncio
 async def test_route_get_method(app: App, client: AsyncClient):
-    plugin = TestRoutePlugin("/test_complex", ComplexTestRoute)
+    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
     app.add_plugin(plugin)
 
     response = await client.get("/test_complex")
@@ -76,7 +76,7 @@ async def test_route_get_method(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_post_form_success(app: App, client: AsyncClient):
-    plugin = TestRoutePlugin("/test_complex", ComplexTestRoute)
+    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
     app.add_plugin(plugin)
 
     response = await client.post("/test_complex", data={"name": "Alice", "age": "30"})
@@ -86,7 +86,7 @@ async def test_route_post_form_success(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_post_form_missing_field(app: App, client: AsyncClient):
-    plugin = TestRoutePlugin("/test_complex", ComplexTestRoute)
+    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
     app.add_plugin(plugin)
 
     # This should not match SimpleForm due to missing 'age', 
@@ -101,7 +101,7 @@ async def test_route_post_form_missing_field(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_post_form_wrong_type(app: App, client: AsyncClient):
-    plugin = TestRoutePlugin("/test_complex", ComplexTestRoute)
+    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
     app.add_plugin(plugin)
     
     # Age is not an int. Should not match SimpleForm.
@@ -119,7 +119,7 @@ async def test_route_another_form_get_method(app: App, client: AsyncClient):
     # The current `Route.__call__` prioritizes form handlers based on `matches_form_data`.
     # A GET request with query params for the form.
     
-    plugin = TestRoutePlugin("/test_complex", ComplexTestRoute)
+    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
     app.add_plugin(plugin)
 
     response = await client.post("/test_complex", data={"item_id": "xyz123"})
@@ -143,7 +143,7 @@ async def test_route_custom_error_handler(app: App, client: AsyncClient):
     # or to modify `__init_subclass__` to register `raise_custom_error_route` to a GET path.
 
     # Simpler: Define a new Route for this specific test.
-    plugin = TestRoutePlugin("/test_raiser", CustomErrorRoute)
+    plugin = RouteTestPlugin("/test_raiser", CustomErrorRoute)
     app.add_plugin(plugin)
 
     response = await client.get("/test_raiser")
@@ -155,7 +155,7 @@ async def test_route_custom_error_handler(app: App, client: AsyncClient):
 @pytest.mark.asyncio
 async def test_route_unhandled_error(app: App, client: AsyncClient):
     # Similar to custom error, need a way to trigger unhandled_error_route.
-    plugin = TestRoutePlugin("/test_unhandled", UnhandledErrorRoute)
+    plugin = RouteTestPlugin("/test_unhandled", UnhandledErrorRoute)
     app.add_plugin(plugin)
 
     response = await client.get("/test_unhandled")
@@ -169,7 +169,7 @@ async def test_route_unhandled_error(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_method_not_allowed_specific_override(app: App, client: AsyncClient):
-    plugin = TestRoutePlugin("/test_complex", ComplexTestRoute)
+    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
     app.add_plugin(plugin)
 
     # ComplexTestRoute has GET and POST (form) handlers. Try PUT.
@@ -185,7 +185,7 @@ async def test_route_method_not_allowed_no_override(app: App, client: AsyncClien
             return TextResponse("GET only")
         # No custom MNA handler
 
-    plugin = TestRoutePlugin("/test_simple_get", SimpleGetRoute)
+    plugin = RouteTestPlugin("/test_simple_get", SimpleGetRoute)
     app.add_plugin(plugin)
     
     response = await client.post("/test_simple_get")

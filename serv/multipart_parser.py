@@ -3,8 +3,7 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional, TypedDict, Union, Callable, Awaitable
 
 # Using PBaseParser to avoid name clash with our MultipartParser
-from multipart.multipart import MultipartParser as PBaseParser
-from multipart.multipart import parse_options_header
+from python_multipart.multipart import MultipartParser as PBaseParser, parse_options_header
 from werkzeug.utils import secure_filename
 
 

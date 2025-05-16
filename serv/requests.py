@@ -5,7 +5,7 @@ from urllib.parse import parse_qs
 import io
 from dataclasses import dataclass
 
-from multipart.multipart import parse_options_header
+from python_multipart.multipart import parse_options_header
 
 from serv.multipart_parser import MultipartParser
 

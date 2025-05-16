@@ -52,7 +52,7 @@ class MultipartRoute(Route):
 
         return TextResponse("\n".join(response_parts))
 
-class TestMultipartRoutePlugin(Observer):
+class MultipartTestRoutePlugin(Observer):
     def __init__(self, path: str, route_class: Type[Route]):
         self.path = path
         self.route_class = route_class
@@ -65,7 +65,7 @@ class TestMultipartRoutePlugin(Observer):
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_single_file(app: App, client: AsyncClient):
-    plugin = TestMultipartRoutePlugin("/upload", MultipartRoute)
+    plugin = MultipartTestRoutePlugin("/upload", MultipartRoute)
     app.add_plugin(plugin)
 
     files = {"file_upload": ("testfile.txt", b"Hello, world!", "text/plain")}
@@ -84,7 +84,7 @@ File Content Length: 13"""
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_with_optional_file(app: App, client: AsyncClient):
-    plugin = TestMultipartRoutePlugin("/upload_opt", MultipartRoute)
+    plugin = MultipartTestRoutePlugin("/upload_opt", MultipartRoute)
     app.add_plugin(plugin)
 
     files = {
@@ -110,7 +110,7 @@ async def test_multipart_form_submission_with_optional_file(app: App, client: As
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_optional_file_not_provided(app: App, client: AsyncClient):
-    plugin = TestMultipartRoutePlugin("/upload_no_opt", MultipartRoute)
+    plugin = MultipartTestRoutePlugin("/upload_no_opt", MultipartRoute)
     app.add_plugin(plugin)
 
     files = {"file_upload": ("another.txt", b"Only main file.", "text/plain")}
