@@ -9,6 +9,7 @@ dependencies = [
     "bevy>=3.0.0b2",
     "nubby>=0.1.2",
     "tramp>=2025.3.2",
+    "werkzeug>=3.1.3",
 ]
 
 [project.optional-dependencies]
@@ -24,5 +25,6 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
+    "pytest-mock>=3.14.0",
     "uvicorn>=0.34.2",
 ]

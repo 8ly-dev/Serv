@@ -1,13 +1,11 @@
 import json
 from types import UnionType
-from typing import get_origin, get_args, List, Union, Any, Dict
+from typing import get_origin, get_args, Union, Any, List
 from urllib.parse import parse_qs
 import io
 from dataclasses import dataclass
-from collections import defaultdict
 
 from multipart.multipart import parse_options_header
-from python_multipart import FormParser
 
 from serv.multipart_parser import MultipartParser
 
