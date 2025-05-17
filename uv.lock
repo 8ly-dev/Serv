@@ -261,18 +261,12 @@ source = { virtual = "." }
 dependencies = [
     { name = "asgiref" },
     { name = "bevy" },
+    { name = "jinja2" },
     { name = "nubby" },
+    { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "tramp" },
     { name = "werkzeug" },
-]
-
-[package.optional-dependencies]
-jinja = [
-    { name = "jinja2" },
-]
-multipart = [
-    { name = "python-multipart" },
 ]
 
 [package.dev-dependencies]
@@ -288,9 +282,9 @@ dev = [
 requires-dist = [
     { name = "asgiref", specifier = ">=3.8.1" },
     { name = "bevy", specifier = ">=3.0.0b2" },
-    { name = "jinja2", marker = "extra == 'jinja'", specifier = ">=3.1.6" },
+    { name = "jinja2", specifier = ">=3.1.6" },
     { name = "nubby", specifier = ">=0.1.2" },
-    { name = "python-multipart", marker = "extra == 'multipart'", specifier = ">=0.0.20" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "tramp", specifier = ">=2025.3.2" },
     { name = "werkzeug", specifier = ">=3.1.3" },
