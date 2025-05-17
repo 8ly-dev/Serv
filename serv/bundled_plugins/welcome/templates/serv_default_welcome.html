@@ -8,6 +8,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Optional: Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Prism.js CSS (Coy theme for minimal highlighting) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-coy.min.css" rel="stylesheet" />
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -69,6 +71,10 @@
         body > .navbar.navbar-scrolled {
             background-color: rgba(255, 255, 255, 0.5) !important; /* 50% transparent white */
             /* box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); */ /* Removed box shadow */
+        }
+
+        .nav-link {
+            padding-left: 0;
         }
 
         /* Styles for navbar-light (when scrolled) */
@@ -183,29 +189,53 @@
             font-size: 1.5rem;
         }
 
-        pre code {
-            padding: 0;
-        }
         /* .logo-font span { color: #f0f0f0; } */ /* Removed: Handled by contextual navbar-dark/light styles */
 
+        /* Responsive adjustments for "On This Page" section */
+        @media (max-width: 767.98px) { /* Applies to screens smaller than Bootstrap md breakpoint */
+            #next-steps-sections > .row > .col-md-4:last-child { /* Targets the column with "On This Page" */
+                order: -1; /* Moves this column to the top of the .row container */
+            }
+
+            #next-steps-sections > .row > .col-md-4:last-child > .position-sticky[style] {
+                /* Override Bootstrap class and the inline style for mobile view */
+                position: static !important; 
+                top: auto !important;
+            }
+        }
+
+        /* Prism.js Coy theme overrides for code blocks */
+        pre[class*='language-'] {
+            box-shadow: none !important;
+            border-left: none !important;
+        }
+
+        pre[class*='language-']::before,
+        pre[class*='language-']::after {
+            display: none !important; /* Hide pseudo-elements causing border/shadow effects */
+        }
+
+        code[class*='language-'],
+        pre[class*='language-'] {
+            font-size: 0.9em !important; /* Adjust font size */
+        }
+
+        pre code {
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            box-shadow: none !important;
+            padding: 0.5em !important;
+        }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand logo-font" href="#">Serv<span>.</span></a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link fw-medium" href="https://getserv.ing" target="_blank">Serv Website <i class="bi bi-box-arrow-up-right"></i></a>
-                    </li>
-                </ul>
-            </div>
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link fw-medium" href="https://getserv.ing" target="_blank">Serv Website <i class="bi bi-box-arrow-up-right"></i></a>
+                </li>
+            </ul>
         </div>
     </nav>
 
@@ -432,14 +462,14 @@ class ArticleRoute(Route):
 
             <div class="col-md-4">
                 <div class="position-sticky" style="top: 5rem;"> <!-- Adjust top to account for fixed navbar height -->
-                    <div class="p-4 mb-3 bg-light rounded">
+                    <div class="mb-3 bg-light rounded">
                         <h4 class="fst-italic">On This Page</h4>
                         <ol class="list-unstyled mb-0 nav flex-column" id="toc">
-                            <li class="nav-item"><a class="nav-link" href="#getting-started">1. Getting Started</a></li>
-                            <li class="nav-item"><a class="nav-link" href="#working-with-plugins">2. Working with Plugins</a></li>
-                            <li class="nav-item"><a class="nav-link" href="#using-middleware">3. Using Middleware</a></li>
-                            <li class="nav-item"><a class="nav-link" href="#defining-routes">4. Defining Routes</a></li>
-                            <li class="nav-item"><a class="nav-link" href="#further-resources">5. Further Resources</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#getting-started">Getting Started</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#working-with-plugins">Working with Plugins</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#using-middleware">Using Middleware</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#defining-routes">Defining Routes</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#further-resources">Further Resources</a></li>
                         </ol>
                     </div>
                 </div>
@@ -455,12 +485,16 @@ class ArticleRoute(Route):
 
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Prism.js Core JS and Autoloader Plugin -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        Prism.plugins.autoloader.languages_path = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/';
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const navbar = document.querySelector('body > .navbar');
             const heroSection = document.querySelector('.hero-gradient');
-            const navbarToggler = document.querySelector('.navbar-toggler');
-            const navbarCollapse = document.getElementById('navbarNav');
             
             if (navbar && heroSection) { // Ensure navbar and hero elements exist
                 window.addEventListener('scroll', function() {
@@ -479,15 +513,6 @@ class ArticleRoute(Route):
                             navbar.classList.add('navbar-dark');
                         }
                     }
-                });
-            }
-
-            if (navbarToggler && navbarCollapse) {
-                navbarCollapse.addEventListener('show.bs.collapse', function () {
-                    navbarToggler.classList.add('active');
-                });
-                navbarCollapse.addEventListener('hide.bs.collapse', function () {
-                    navbarToggler.classList.remove('active');
                 });
             }
         });
