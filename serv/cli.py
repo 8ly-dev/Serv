@@ -7,6 +7,7 @@ import yaml  # PyYAML
 import logging
 import uvicorn
 import re
+from bevy import dependency # For dependency injection
 
 from serv.config import import_module_from_string, load_raw_config, setup_app_from_config, DEFAULT_CONFIG_FILE, import_from_string, ServConfigError
 from serv.app import App as DefaultApp # Default app
@@ -552,6 +553,118 @@ def handle_disable_middleware_command(args_ns):
         logger.error(f"Error disabling middleware '{middleware_entry_string}': {e}", exc_info=True)
 
 
+def handle_create_middleware_command(args_ns):
+    """Handles the 'create-middleware' command."""
+    logger.info("Creating a new Serv middleware...")
+
+    mw_name_human = prompt_user("Middleware Name (e.g., 'Request Logger')")
+    if not mw_name_human:
+        logger.error("Middleware name cannot be empty. Aborting.")
+        return
+    
+    mw_description = prompt_user("Description", f"A middleware for {mw_name_human}.") or f"A middleware for {mw_name_human}."
+
+    class_name_base = to_pascal_case(mw_name_human)
+    package_dir_name = to_snake_case(mw_name_human) # This will be the directory name for the package
+    python_main_file_name = "main.py" # The main file within the package
+
+    if not package_dir_name:
+        logger.error(f"Could not derive a valid directory name from '{mw_name_human}'. Please use alphanumeric characters.")
+        return
+
+    middleware_class_name = f"{class_name_base}Middleware"
+    # python_file_name = f"{package_dir_name}.py" # Old way, single file
+
+    middleware_root_dir = Path.cwd() / "middleware"
+    middleware_package_dir = middleware_root_dir / package_dir_name # Path to the new package directory
+    middleware_py_path = middleware_package_dir / python_main_file_name # Path to main.py within the package
+
+    try:
+        os.makedirs(middleware_package_dir, exist_ok=True)
+        (middleware_root_dir / "__init__.py").touch(exist_ok=True) # __init__.py in ./middleware/
+        (middleware_package_dir / "__init__.py").touch(exist_ok=True) # __init__.py in ./middleware/<package_name>/
+    except OSError as e:
+        logger.error(f"Error creating middleware directory structure '{middleware_package_dir}': {e}")
+        return
+
+    # Create middleware Python file (main.py)
+    middleware_py_content = f"""
+import logging
+from bevy import dependency # For dependency injection
+
+# Import your project-specific Request and ResponseBuilder types
+from serv.request import Request as ServRequest
+from serv.response import ResponseBuilder as ServResponseBuilder # Or your actual Response type if not ResponseBuilder
+from serv.middleware import ServMiddleware # Import the base class
+
+logger = logging.getLogger(__name__) # Get a logger specific to this middleware module
+
+class {middleware_class_name}(ServMiddleware):
+    \"""
+    {mw_description}
+    This class implements the middleware logic using ServMiddleware hooks.
+    Dependencies like Request and ResponseBuilder can be injected into its methods.
+    \"""
+    def __init__(self, **config):
+        super().__init__() # Initialize the base ServMiddleware
+        self.config = config
+        # Example: Access a config value passed during instantiation
+        # self.custom_setting = self.config.get("custom_setting", "default_value")
+        # if self.config:
+        #     logger.info(f"'{middleware_class_name}' initialized with custom config: {{self.config}}")
+        # else:
+        #     logger.info(f"'{middleware_class_name}' initialized with no custom config.")
+
+    async def enter(self, request: ServRequest = dependency()):
+        \"""
+        Called before the request is processed further.
+        Use `request: ServRequest = dependency()` to get the request object.
+        \"""
+        # logger.debug(f"'{middleware_class_name}' enter: {{request.url.path}}")
+        # Example: Access request
+        # logger.info(f"Path: {{request.url.path}}")
+        # To modify request properties, ensure your Request object supports it
+        # and that changes are meaningful for subsequent processing.
+        await super().enter() # Important to call super if not handling everything
+
+    async def leave(self, request: ServRequest = dependency(), response_builder: ServResponseBuilder = dependency()):
+        \"""
+        Called after the request has been processed.
+        Not called if an unhandled exception occurred in `enter` or during request processing.
+        Use `request: ServRequest = dependency()` and `response_builder: ServResponseBuilder = dependency()`.
+        \"""
+        await super().leave() # Call base implementation
+
+    async def on_error(self, exc: Exception, request: ServRequest = dependency()):
+        \"""
+        Called if an exception occurs during request processing after 'enter' has successfully run.
+        Use `request: ServRequest = dependency()`.
+        The base implementation re-raises the exception. You might re-raise or handle it.
+        \"""
+        # logger.error(f"'{middleware_class_name}' on_error: {{request.url.path}}, exc: {{exc}}", exc_info=True)
+        # Example: Log the error with request context
+        # To return a custom error response, you would typically do this in the part of your framework
+        # that *uses* this middleware, by catching the exception (or a specific one) re-raised here,
+        # or by modifying the response_builder in `leave` if the error is caught before `leave`.
+        await super().on_error(exc) # Default is to re-raise exc. Consider if you want to handle and not re-raise.
+
+""" # Note: Removed the factory function template
+    try:
+        with open(middleware_py_path, "w") as f:
+            f.write(middleware_py_content)
+        logger.info(f"Created middleware file: '{middleware_py_path}'")
+        
+        entry_path_to_suggest = f"middleware.{package_dir_name}.{python_main_file_name.replace('.py', '')}:{middleware_class_name}"
+        logger.info(f"Middleware '{mw_name_human}' created successfully in '{middleware_package_dir}'.")
+        logger.info(f"To use it, add its entry path to your 'serv.config.yaml' under the 'middleware' section:")
+        logger.info(f"  - entry: {entry_path_to_suggest}")
+        logger.info(f"    config: {{}} # Optional: Add any config key-value pairs here")
+        logger.info(f"Then run: serv middleware enable {entry_path_to_suggest}")
+
+    except IOError as e:
+        logger.error(f"Error writing middleware file '{middleware_py_path}': {e}")
+
+
 def handle_app_details_command(args_ns):
     """Handles the 'app details' command to display loaded configuration."""
     # Determine config path: use --config from args if provided, else default behavior of load_raw_config
@@ -983,6 +1096,15 @@ def main():
         help="The full import string for the middleware (e.g., mypackage.mod:MyMiddlewareFactory)."
     )
     mw_disable_parser.set_defaults(func=handle_disable_middleware_command)
+
+    # middleware create command
+    mw_create_parser = mw_subparsers.add_parser(
+        "create",
+        aliases=['new'],
+        help="Create a new Serv middleware structure.",
+        description="Scaffolds a new middleware Python file in the 'middleware' directory."
+    )
+    mw_create_parser.set_defaults(func=handle_create_middleware_command)
     
     # --- Launch Command --- 
     launch_parser = top_level_subparsers.add_parser(
