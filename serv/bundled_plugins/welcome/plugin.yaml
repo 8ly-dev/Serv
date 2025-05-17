@@ -1,4 +1,5 @@
 name: Welcome to Serv
+module: serv.bundled_plugins.welcome:WelcomePlugin
 description: A simple plugin that helps you get started with Serv.
 version: 0.1.0
 author: Serv

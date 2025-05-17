@@ -1,4 +1,7 @@
-from serv.cli import run_server
+from serv.cli import main as cli_main
+
+def main():
+    cli_main()
 
 if __name__ == "__main__":
-    run_server() 
+    main() 

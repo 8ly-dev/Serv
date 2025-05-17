@@ -1,1 +1,0 @@
-# This file makes serv/bundled_plugins a Python package. 
