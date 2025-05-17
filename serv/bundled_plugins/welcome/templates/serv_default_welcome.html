@@ -182,6 +182,10 @@
             font-weight: bold;
             font-size: 1.5rem;
         }
+
+        pre code {
+            padding: 0;
+        }
         /* .logo-font span { color: #f0f0f0; } */ /* Removed: Handled by contextual navbar-dark/light styles */
 
     </style>
@@ -209,27 +213,234 @@
         <div class="container">
             <h1>Welcome to Serv!</h1>
             <p class="lead">Your sleek, modern Python web framework journey starts now.</p>
-            <a href="#next-steps" class="btn btn-light btn-lg px-4">Get Started</a>
+            <a href="#next-steps-sections" class="btn btn-light btn-lg px-4">Get Started</a>
         </div>
     </div>
 
-    <div class="container" id="next-steps">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <h2 class="text-center mb-4">Next Steps on Your Serv Adventure</h2>
-                
-                <div class="setup-steps">
-                    <div class="card">
-                        <div class="card-body">
-                            <ul class="list-group list-group-flush">
-                                <li class="list-group-item"><i class="bi bi-terminal-plus"></i><div><strong>Create Your First Route:</strong> Define a <code>Route</code> subclass (e.g., in <code>routes.py</code>). Example: <code>class MyRoute(Route): async def handle_get(self, req): return TextResponse("Hello, Serv!")</code></div></li>
-                                <li class="list-group-item"><i class="bi bi-file-earmark-code"></i><div><strong>Configure Your App:</strong> Create or modify <code>serv_config.yaml</code> for site info, plugins, and middleware.</div></li>
-                                <li class="list-group-item"><i class="bi bi-plug"></i><div><strong>Register Routes/Plugins:</strong> Add your routes via plugins in <code>serv_config.yaml</code> or directly in your app setup.</div></li>
-                                <li class="list-group-item"><i class="bi bi-puzzle"></i><div><strong>Explore Plugins:</strong> Enhance functionality with custom or community Serv plugins.</div></li>
-                                <li class="list-group-item"><i class="bi bi-play-circle"></i><div><strong>Run Your App:</strong> Use <code>python -m serv</code>. Add <code>--reload</code> for development.</div></li>
-                                <li class="list-group-item"><i class="bi bi-book"></i><div><strong>Consult the Docs:</strong> For advanced features, visit <a href="https://getserv.ing/docs" target="_blank">getserv.ing/docs</a> (Coming Soon!).</div></li>
-                            </ul>
+    <div class="container mt-5 mb-5" id="next-steps-sections">
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Content Sections will go here -->
+                <h2 class="text-center mb-5 visually-hidden">Your Serv Adventure Guide</h2>
+
+                <section id="getting-started" class="mb-5">
+                    <h3 class="mb-3"><i class="bi bi-rocket-takeoff-fill me-2"></i>Getting Started with Serv</h3>
+                    <p>Begin your journey by setting up your Serv application and getting familiar with the basic commands.</p>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Initialize Your Application
                         </div>
+                        <div class="card-body">
+                            <p>The first step is to initialize your Serv project. This creates a <code>serv.config.yaml</code> file in your current directory, which will hold your site's configuration, plugin settings, and middleware definitions.</p>
+                            <p>Run the following command in your project's root directory:</p>
+                            <pre><code class="language-bash">serv app init</code></pre>
+                            <p>You'll be prompted for a site name and description. These are optional but recommended for clarity.</p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Inspect Your Configuration
+                        </div>
+                        <div class="card-body">
+                            <p>Once initialized, or any time you want to see how Serv interprets your configuration file (including resolved plugin paths), use:</p>
+                            <pre><code class="language-bash">serv app details</code></pre>
+                            <p>This command displays a formatted view of your <code>serv.config.yaml</code>, making it easy to verify your setup.</p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Launch Your Serv App
+                        </div>
+                        <div class="card-body">
+                            <p>To start the development server and see your application in action, run:</p>
+                            <pre><code class="language-bash">serv launch</code></pre>
+                            <p>By default, this serves your application (defined by <code>serv.app:App</code> if not overridden) on <code>http://127.0.0.1:8000</code>.</p>
+                            <p>For a smoother development experience, especially when making frequent changes, use the <code>--reload</code> flag. This will automatically restart the server when code changes are detected:</p>
+                            <pre><code class="language-bash">serv launch --reload</code></pre>
+                            <p>You can also specify a different host or port:</p>
+                            <pre><code class="language-bash">serv launch --host 0.0.0.0 --port 8080 --reload</code></pre>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="working-with-plugins" class="mb-5">
+                    <h3 class="mb-3"><i class="bi bi-puzzle-fill me-2"></i>Working with Plugins</h3>
+                    <p>Plugins are the building blocks of your Serv application, allowing you to organize features and extend functionality. Serv provides CLI tools to help you create and manage them.</p>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Scaffold a New Plugin
+                        </div>
+                        <div class="card-body">
+                            <p>To quickly create the basic file structure for a new plugin (including a <code>plugin.yaml</code> definition file and a main Python file), use:</p>
+                            <pre><code class="language-bash">serv plugin create</code></pre>
+                            <p>You'll be prompted for the plugin's name, author, description, and version. This information will populate the generated files. Plugins are typically created in a <code>./plugins/</code> directory.</p>
+                            <p>A typical plugin might define routes. For example, in your plugin's <code>main.py</code>:</p>
+                            <pre><code class="language-python">from serv import Route, Plugin, ResponseBuilder
+
+class MySampleRoute(Route):
+    async def say_hello(self, request: GetRequest):
+        return PlainTextResponse("Hello from MySampleRoute!")
+
+class MyNewPlugin(Plugin):
+    async def on_request_begin(self, router: Router = dependency()):
+        router.add_route("/my-route", MySampleRoute)</code></pre>
+                            <p>Remember to update your plugin's <code>plugin.yaml</code> to point to your main plugin class.</p>
+                            <pre><code class="language-yaml">
+name: Sample Plugin
+entry: plugins.sample.sample:MyNewPlugin
+version: 0.1.0
+author: Me
+description: An awesome sample plugin</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Enable &amp; Disable Plugins
+                        </div>
+                        <div class="card-body">
+                            <p>To activate a plugin and include it in your application's lifecycle, add it to your <code>serv.config.yaml</code> using:</p>
+                            <pre><code class="language-bash">serv plugin enable &lt;plugin_name_or_entry_string&gt;</code></pre>
+                            <p>You can use the simple name of the plugin (e.g., <code>my_new_plugin</code> if it's in your local <code>./plugins</code> directory) or the full entry string (e.g., <code>some_module.some_plugin:SomePlugin</code>).</p>
+                            <p>To remove a plugin from your configuration:</p>
+                            <pre><code class="language-bash">serv plugin disable &lt;plugin_name_or_entry_string&gt;</code></pre>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="using-middleware" class="mb-5">
+                    <h3 class="mb-3"><i class="bi bi-sliders me-2"></i>Using Middleware</h3>
+                    <p>Middleware components allow you to process requests and responses globally or for specific routes, implement custom authentication, logging, and more.</p>
+
+                     <div class="card mb-4">
+                        <div class="card-header">
+                            Scaffold New Middleware
+                        </div>
+                        <div class="card-body">
+                            <p>Serv helps you get started with new middleware by creating a template:</p>
+                            <pre><code class="language-bash">serv middleware create</code></pre>
+                            <p>You'll be prompted for the middleware's name and a brief description. This creates a new directory (e.g., <code>./middleware/my_custom_middleware/</code>) with an <code>__init__.py</code> and a <code>main.py</code> containing a class that inherits from <code>serv.middleware.ServMiddleware</code>.</p>
+                            <p>The generated middleware class includes stubs for <code>enter</code>, <code>leave</code>, and <code>on_error</code> hooks, demonstrating how to use Bevy for dependency injection:</p>
+                            <pre><code class="language-python">from serv import ServMiddleware, Request, ResponseBuilder
+from bevy import dependency
+
+class MyCustomMiddleware(ServMiddleware):
+    async def enter(self, request: Request = dependency()):
+        # Code to run before the request is handled
+        # print(f"Entering middleware for {request.path}")
+        pass
+
+    async def leave(self, response: ResponseBuilder = dependency()):
+        # Code to run after the request is handled, before the response is sent
+        # print(f"Leaving middleware for {response.status_code}")
+        pass
+
+    async def on_error(self, exc: Exception, request: Request = dependency()):
+        # Code to run if an exception occurs during request handling
+        # print(f"Error in middleware: {exc} for {request.path}")
+        pass</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                           Enable &amp; Disable Middleware
+                        </div>
+                        <div class="card-body">
+                            <p>To add your middleware to the application's processing pipeline, enable it via the CLI:</p>
+                            <pre><code class="language-bash">serv middleware enable &lt;middleware_entry_string&gt;</code></pre>
+                            <p>The <code>&lt;middleware_entry_string&gt;</code> should be the Python import path to your middleware class, e.g., <code>middleware.my_custom_middleware.main:MyCustomMiddleware</code>.</p>
+                            <p>To remove it:</p>
+                            <pre><code class="language-bash">serv middleware disable &lt;middleware_entry_string&gt;</code></pre>
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="defining-routes" class="mb-5">
+                    <h3 class="mb-3"><i class="bi bi-signpost-split-fill me-2"></i>Defining Routes</h3>
+                    <p>Routes are the heart of your web application, mapping URL paths to specific request handlers. In Serv, you define routes by creating classes that inherit from <code>serv.routing.Route</code>.</p>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Basic Route Structure
+                        </div>
+                        <div class="card-body">
+                            <p>A route class can contain multiple handler methods. Handler methods can have any descriptive name. Serv determines the specific handler to execute for an incoming request by matching the HTTP method (e.g., GET, POST) to a handler method whose first parameter is type-hinted with the corresponding <code>Request</code> subtype from <code>serv.requests</code> (e.g., <code>GetRequest</code> for GET, <code>PostRequest</code> for POST). These methods receive the specific request object and must return an instance of a <code>Response</code> subtype (e.g., <code>TextResponse</code>, <code>JSONResponse</code> from <code>serv.response_types</code>). These response objects are used to define the response body, status code, headers, etc.</p>
+                            <pre><code class="language-python">from serv import Route
+from serv.requests import GetRequest # Import specific request types
+from serv.response_types import TextResponse # Or HTMLResponse, JSONResponse etc.
+
+class GreeterRoute(Route):
+    # This method handles GET requests because its first parameter is type-hinted as GetRequest.
+    # The method name can be anything descriptive.
+    async def show_greeting(self, request: GetRequest) -> TextResponse:
+        name = request.query.get("name", "World")
+        # Handlers should return a Response object.
+        # TextResponse sets Content-Type: text/plain by default.
+        # Status code and headers can be set via its constructor if needed.
+        return TextResponse(f"Hello, {name}!")</code></pre>
+                            <p>Routes are typically added to your application via a plugin's event handler (e.g., <code>on_request_begin</code> if adding to the main router, or a more specific event) by calling <code>router.add_route("/path", YourRouteClass)</code> on a <code>Router</code> instance obtained through dependency injection.</p>
+                        </div>
+                    </div>
+                     <div class="card mb-4">
+                        <div class="card-header">
+                            Annotated Response Types &amp; Tuple Expansion
+                        </div>
+                        <div class="card-body">
+                            <p>Serv supports enhanced response handling using <code>typing.Annotated</code>. If a route handler's return type is annotated (e.g., <code>Annotated[dict, JSONResponse]</code> or <code>Annotated[tuple[str, dict], Jinja2Response]</code>), Serv will use the annotation to wrap the handler's output.</p>
+                            <p>For example, to return JSON:</p>
+                            <pre><code class="language-python">from typing import Annotated
+from serv import Route
+from serv.response_types import JSONResponse
+
+class DataRoute(Route):
+    async def handle_get(self) -> Annotated[dict, JSONResponse]:
+        return {"message": "This is a JSON response", "status": "ok"}</code></pre>
+                            <p>If your handler returns a tuple and uses an annotated response type that can accept multiple arguments (like <code>Jinja2Response</code> which might take a template name and context data), the tuple will be expanded as arguments to the response wrapper's constructor:</p>
+                            <pre><code class="language-python">from typing import Annotated
+from serv import Route
+from serv.response_types import Jinja2Response
+
+class ArticleRoute(Route):
+    async def handle_get(self, article_id: str) -> Annotated[tuple[str, dict], Jinja2Response]:
+        # Fetch article_data based on article_id
+        article_data = {"title": "My Article", "content": "..."} 
+        return "article_template.html", {"article": article_data}</code></pre>
+                            <p>This allows for cleaner and more expressive route handlers.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="further-resources" class="mb-4">
+                    <h3 class="mb-3"><i class="bi bi-book-fill me-2"></i>Further Resources</h3>
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>The official Serv documentation is your next destination for in-depth guides, API references, and advanced topics.
+                    </div>
+                    <p class="text-center">
+                        <a href="https://getserv.ing/docs" target="_blank" class="btn btn-primary btn-lg">
+                            Read the Docs (Coming Soon!) <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </p>
+                     <p class="mt-4 text-center">
+                        Consider joining the Serv community (details to be announced) to ask questions, share your projects, and contribute!
+                    </p>
+                </section>
+            </div>
+
+            <div class="col-md-4">
+                <div class="position-sticky" style="top: 5rem;"> <!-- Adjust top to account for fixed navbar height -->
+                    <div class="p-4 mb-3 bg-light rounded">
+                        <h4 class="fst-italic">On This Page</h4>
+                        <ol class="list-unstyled mb-0 nav flex-column" id="toc">
+                            <li class="nav-item"><a class="nav-link" href="#getting-started">1. Getting Started</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#working-with-plugins">2. Working with Plugins</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#using-middleware">3. Using Middleware</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#defining-routes">4. Defining Routes</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#further-resources">5. Further Resources</a></li>
+                        </ol>
                     </div>
                 </div>
             </div>
