@@ -238,29 +238,31 @@ def handle_create_plugin_command(args_ns):
     # Create plugin.yaml
     plugin_yaml_path = plugin_specific_dir / "plugin.yaml"
     plugin_entry_path = f"plugins.{plugin_dir_name}.{python_file_name.replace('.py', '')}:{class_name}"
-    plugin_yaml_content = {
-        "name": plugin_name_human,
-        "entry": plugin_entry_path,
-        "version": plugin_version,
-        "author": plugin_author,
-        "description": plugin_description,
+    
+    # Prepare context for plugin.yaml template
+    plugin_yaml_context = {
+        "plugin_name_human": plugin_name_human,
+        "plugin_entry_path": plugin_entry_path,
+        "plugin_version": plugin_version,
+        "plugin_author": plugin_author,
+        "plugin_description": plugin_description,
     }
-    example_config_schema = """
-# Optional: Define a schema for your plugin's configuration.
-# This helps with validation and can be used for documentation.
-# config_schema:
-#   type: object
-#   properties:
-#     example_setting:
-#       type: string
-#       description: "An example configuration setting for this plugin."
-#       default: "hello"
-#   required: []
-"""
+    
+    # Load plugin.yaml template
+    try:
+        # Assuming serv is installed or PYTHONPATH is set to find serv.scaffolding
+        template_path = Path(importlib.util.find_spec("serv").submodule_search_locations[0]) / "scaffolding" / "plugin_yaml.template"
+        with open(template_path, "r") as f_template:
+            plugin_yaml_template_content = f_template.read()
+    except Exception as e_template:
+        logger.error(f"Error loading plugin_yaml.template: {e_template}")
+        return
+
+    plugin_yaml_content_str = plugin_yaml_template_content.format(**plugin_yaml_context)
+
     try:
         with open(plugin_yaml_path, "w") as f:
-            yaml.dump(plugin_yaml_content, f, sort_keys=False, indent=2, default_flow_style=False)
-            f.write(example_config_schema)
+            f.write(plugin_yaml_content_str)
         logger.info(f"Created '{plugin_yaml_path}'")
     except IOError as e:
         logger.error(f"Error writing '{plugin_yaml_path}': {e}")
@@ -268,88 +270,28 @@ def handle_create_plugin_command(args_ns):
 
     # Create main.py (plugin Python file)
     plugin_py_path = plugin_specific_dir / python_file_name
-    # Note: Using ''' within f-string needs care. Using explicit ''' for docstrings inside.
-    plugin_py_content = f"""
-from serv.plugins import Plugin
-from serv.app import App
-# from serv.routes import Route
-# from serv.response import TextResponse # , JSONResponse
-# from typing import Annotated
+    
+    # Prepare context for plugin_main_py.template
+    plugin_py_context = {
+        "class_name": class_name,
+        "module_base_name": module_base_name,
+        # Add any other variables needed by the template, e.g., plugin_name_human
+    }
 
-# logger = logging.getLogger(__name__) # Optional: get a logger specific to your plugin
-
-# Example Route (Uncomment and modify if your plugin provides routes)
-# class {class_name}Route(Route):
-#     async def handle_get(self, request):
-#         # Access plugin's own config: self.plugin_config (if Plugin class is enhanced)
-#         # Or from app: app_plugin_config = request.app.plugins_config.get('{module_base_name}', {{}})
-#         # message = app_plugin_config.get("greeting", "Hello from {class_name}!")
-#         message = "Hello from {class_name}!"
-#         return TextResponse(message)
-
-class {class_name}(Plugin):
-    def on_load(self) -> None:
-        '''Called when the plugin is loaded.
+    # Load plugin_main_py.template
+    try:
+        template_path = Path(importlib.util.find_spec("serv").submodule_search_locations[0]) / "scaffolding" / "plugin_main_py.template"
+        with open(template_path, "r") as f_template:
+            plugin_py_template_content = f_template.read()
+    except Exception as e_template:
+        logger.error(f"Error loading plugin_main_py.template: {e_template}")
+        return
         
-        This is a good place to initialize resources or perform setup
-        that the plugin needs. You can access plugin-specific configuration
-        via `self.config` (which is a dictionary).
-        '''
-        # Use the main 'serv' logger or get your own as shown above
-        logger.info(f"'{{self.name}}' plugin (v{{self.version}}) loaded.")
-        # Example: Accessing a configuration value from plugin.yaml's config section
-        # example_setting = self.config.get("example_setting", "default_value")
-        # logger.info(f"'{{self.name}}' example_setting: {{example_setting}}")
+    plugin_py_content_str = plugin_py_template_content.format(**plugin_py_context)
 
-    def on_app_startup(self, app: App) -> None:
-        '''Called when the application is starting up.
-        
-        This method is called once the application instance is created and
-        basic setup (like config loading) is done, but before the server
-        starts accepting requests. Useful for setting up shared resources
-        or adding routes to the application.
-        
-        Args:
-            app: The Serv application instance.
-        '''
-        # Example: Adding a route
-        # route_path = f"/{module_base_name}"
-        # app.router.add_route(route_path, {class_name}Route())
-        # logger.info(f"'{{self.name}}' added example route at {{route_path}}")
-        pass
-
-    def on_app_shutdown(self, app: App) -> None:
-        '''Called when the application is shutting down.
-        
-        Useful for cleaning up resources that the plugin might have created
-        or maintained during its lifecycle.
-        
-        Args:
-            app: The Serv application instance.
-        '''
-        logger.info(f"'{{self.name}}' plugin shutting down.")
-        pass
-
-    # Other potential lifecycle methods to uncomment and use:
-    #
-    # def on_app_route_added(self, app: App, path: str, route_handler) -> None:
-    #     '''Called after a route has been added to the application's router.'''
-    #     pass
-    #
-    # def on_app_request_begin(self, app: App) -> None:
-    #    '''Called at the beginning of every request, before routing.'''
-    #    pass
-    #
-    # def on_app_request_end(self, app: App, response, exc: Exception | None) -> None:
-    #    '''Called at the end of every request, after a response is generated or an exception occurs.'''
-    #    pass
-
-    # You can define other methods specific to your plugin's functionality.
-
-"""
     try:
         with open(plugin_py_path, "w") as f:
-            f.write(plugin_py_content)
+            f.write(plugin_py_content_str)
         logger.info(f"Created '{plugin_py_path}'")
         logger.info(f"Plugin '{plugin_name_human}' created successfully in '{plugin_specific_dir}'.")
         logger.info(f"To use it, add its entry path to your 'serv.config.yaml':")
@@ -588,70 +530,27 @@ def handle_create_middleware_command(args_ns):
         return
 
     # Create middleware Python file (main.py)
-    middleware_py_content = f"""
-import logging
-from bevy import dependency # For dependency injection
+    # Prepare context for middleware_main_py.template
+    middleware_py_context = {
+        "mw_description": mw_description,
+        "middleware_class_name": middleware_class_name,
+        "mw_name_human": mw_name_human, # Potentially useful in the template
+    }
 
-# Import your project-specific Request and ResponseBuilder types
-from serv.request import Request as ServRequest
-from serv.response import ResponseBuilder as ServResponseBuilder # Or your actual Response type if not ResponseBuilder
-from serv.middleware import ServMiddleware # Import the base class
+    # Load middleware_main_py.template
+    try:
+        template_path = Path(importlib.util.find_spec("serv").submodule_search_locations[0]) / "scaffolding" / "middleware_main_py.template"
+        with open(template_path, "r") as f_template:
+            middleware_py_template_content = f_template.read()
+    except Exception as e_template:
+        logger.error(f"Error loading middleware_main_py.template: {e_template}")
+        return
 
-logger = logging.getLogger(__name__) # Get a logger specific to this middleware module
+    middleware_py_content_str = middleware_py_template_content.format(**middleware_py_context)
 
-class {middleware_class_name}(ServMiddleware):
-    \"""
-    {mw_description}
-    This class implements the middleware logic using ServMiddleware hooks.
-    Dependencies like Request and ResponseBuilder can be injected into its methods.
-    \"""
-    def __init__(self, **config):
-        super().__init__() # Initialize the base ServMiddleware
-        self.config = config
-        # Example: Access a config value passed during instantiation
-        # self.custom_setting = self.config.get("custom_setting", "default_value")
-        # if self.config:
-        #     logger.info(f"'{middleware_class_name}' initialized with custom config: {{self.config}}")
-        # else:
-        #     logger.info(f"'{middleware_class_name}' initialized with no custom config.")
-
-    async def enter(self, request: ServRequest = dependency()):
-        \"""
-        Called before the request is processed further.
-        Use `request: ServRequest = dependency()` to get the request object.
-        \"""
-        # logger.debug(f"'{middleware_class_name}' enter: {{request.url.path}}")
-        # Example: Access request
-        # logger.info(f"Path: {{request.url.path}}")
-        # To modify request properties, ensure your Request object supports it
-        # and that changes are meaningful for subsequent processing.
-        await super().enter() # Important to call super if not handling everything
-
-    async def leave(self, request: ServRequest = dependency(), response_builder: ServResponseBuilder = dependency()):
-        \"""
-        Called after the request has been processed.
-        Not called if an unhandled exception occurred in `enter` or during request processing.
-        Use `request: ServRequest = dependency()` and `response_builder: ServResponseBuilder = dependency()`.
-        \"""
-        await super().leave() # Call base implementation
-
-    async def on_error(self, exc: Exception, request: ServRequest = dependency()):
-        \"""
-        Called if an exception occurs during request processing after 'enter' has successfully run.
-        Use `request: ServRequest = dependency()`.
-        The base implementation re-raises the exception. You might re-raise or handle it.
-        \"""
-        # logger.error(f"'{middleware_class_name}' on_error: {{request.url.path}}, exc: {{exc}}", exc_info=True)
-        # Example: Log the error with request context
-        # To return a custom error response, you would typically do this in the part of your framework
-        # that *uses* this middleware, by catching the exception (or a specific one) re-raised here,
-        # or by modifying the response_builder in `leave` if the error is caught before `leave`.
-        await super().on_error(exc) # Default is to re-raise exc. Consider if you want to handle and not re-raise.
-
-""" # Note: Removed the factory function template
     try:
         with open(middleware_py_path, "w") as f:
-            f.write(middleware_py_content)
+            f.write(middleware_py_content_str)
         logger.info(f"Created middleware file: '{middleware_py_path}'")
         
         entry_path_to_suggest = f"middleware.{package_dir_name}.{python_main_file_name.replace('.py', '')}:{middleware_class_name}"

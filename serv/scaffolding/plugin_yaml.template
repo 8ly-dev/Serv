@@ -1,0 +1,16 @@
+name: {plugin_name_human}
+entry: {plugin_entry_path}
+version: {plugin_version}
+author: {plugin_author}
+description: {plugin_description}
+
+# Optional: Define a schema for your plugin's configuration.
+# This helps with validation and can be used for documentation.
+# config_schema:
+#   type: object
+#   properties:
+#     example_setting:
+#       type: string
+#       description: "An example configuration setting for this plugin."
+#       default: "hello"
+#   required: [] 

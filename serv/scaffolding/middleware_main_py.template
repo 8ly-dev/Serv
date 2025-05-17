@@ -1,0 +1,63 @@
+import logging
+from bevy import dependency # For dependency injection
+
+# Import your project-specific Request and ResponseBuilder types
+from serv.request import Request as ServRequest
+from serv.response import ResponseBuilder as ServResponseBuilder # Or your actual Response type if not ResponseBuilder
+from serv.middleware import ServMiddleware # Import the base class
+
+logger = logging.getLogger(__name__) # Get a logger specific to this middleware module
+
+class {middleware_class_name}(ServMiddleware):
+    """
+    {mw_description}
+    This class implements the middleware logic using ServMiddleware hooks.
+    Dependencies like Request and ResponseBuilder can be injected into its methods.
+    """
+    def __init__(self, **config):
+        super().__init__() # Initialize the base ServMiddleware
+        self.config = config
+        # Example: Access a config value passed during instantiation
+        # self.custom_setting = self.config.get("custom_setting", "default_value")
+        # if self.config:
+        #     logger.info(f"'{middleware_class_name}' initialized with custom config: {{self.config}}")
+        # else:
+        #     logger.info(f"'{middleware_class_name}' initialized with no custom config.")
+
+    async def enter(self, request: ServRequest = dependency()):
+        """
+        Called before the request is processed further.
+        Use `request: ServRequest = dependency()` to get the request object.
+        """
+        # logger.debug(f"'{middleware_class_name}' enter: {{request.url.path}}")
+        # Example: Access request
+        # logger.info(f"Path: {{request.url.path}}")
+        # To modify request properties, ensure your Request object supports it
+        # and that changes are meaningful for subsequent processing.
+        await super().enter() # Important to call super if not handling everything
+
+    async def leave(self, request: ServRequest = dependency(), response_builder: ServResponseBuilder = dependency()):
+        """
+        Called after the request has been processed.
+        Not called if an unhandled exception occurred in `enter` or during request processing.
+        Use `request: ServRequest = dependency()` and `response_builder: ServResponseBuilder = dependency()`.
+        """
+        # logger.debug(f"'{middleware_class_name}' leave: {{request.url.path}}, status: {{response_builder.status_code}}")
+        # Example: Access response builder
+        # logger.info(f"Response status: {{response_builder.status_code}}")
+        # To modify response, ensure your ResponseBuilder object supports it.
+        # For example, adding a header: response_builder.headers.add("X-Middleware-Processed", "true")
+        await super().leave() # Call base implementation
+
+    async def on_error(self, exc: Exception, request: ServRequest = dependency()):
+        """
+        Called if an exception occurs during request processing after 'enter' has successfully run.
+        Use `request: ServRequest = dependency()`.
+        The base implementation re-raises the exception. You might re-raise or handle it.
+        """
+        # logger.error(f"'{middleware_class_name}' on_error: {{request.url.path}}, exc: {{exc}}", exc_info=True)
+        # Example: Log the error with request context
+        # To return a custom error response, you would typically do this in the part of your framework
+        # that *uses* this middleware, by catching the exception (or a specific one) re-raised here,
+        # or by modifying the response_builder in `leave` if the error is caught before `leave`.
+        await super().on_error(exc) # Default is to re-raise exc. Consider if you want to handle and not re-raise. 
