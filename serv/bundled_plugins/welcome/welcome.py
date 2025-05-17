@@ -8,7 +8,7 @@ class WelcomeRoute(Route):
     async def handle_get(self, _: GetRequest) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
         # The Jinja2Response expects (template_name, context_dict)
         # The context dict is currently empty as the template is static.
-        return ("serv_default_welcome.html", {})
+        return ("welcome.html", {})
 
 class WelcomePlugin(Plugin):
     """
