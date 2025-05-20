@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Awaitable, List, Dict, Any, Sequence, Type, overload
+from typing import Callable, Awaitable, List, Dict, Any, Sequence, Type, overload, Optional
 from bevy import dependency, inject
 from bevy.containers import Container
 
@@ -9,24 +9,28 @@ import serv.routes as routes
 
 
 class Router:
-    def __init__(self):
-        # Stores tuples of (path_pattern, methods, handler_callable)
-        self._routes: List[tuple[str, frozenset[str] | None, Callable]] = []
+    def __init__(self, settings: Dict[str, Any] = None):
+        # Stores tuples of (path_pattern, methods, handler_callable, settings)
+        self._routes: List[tuple[str, frozenset[str] | None, Callable, Dict[str, Any]]] = []
         # Stores mapping of (route_class -> path_pattern) for url_for lookups
         self._route_class_paths: Dict[Type[routes.Route], List[str]] = {}
+        # Stores mapping of route path patterns to settings
+        self._route_settings: Dict[str, Dict[str, Any]] = {}
         # Stores tuples of (mount_path, router_instance)
         self._mounted_routers: List[tuple[str, "Router"]] = []
         self._sub_routers: List[Router] = []
+        # Router-level settings
+        self._settings: Dict[str, Any] = settings or {}
 
     @overload
-    def add_route(self, path: str, handler: "Type[routes.Route]"):
+    def add_route(self, path: str, handler: "Type[routes.Route]", *, settings: Dict[str, Any] = None):
         ...
 
     @overload
-    def add_route(self, path: str, handler: "Callable[..., Awaitable[Any]]", methods: Sequence[str] | None = None):
+    def add_route(self, path: str, handler: "Callable[..., Awaitable[Any]]", methods: Sequence[str] | None = None, *, settings: Dict[str, Any] = None):
         ...
 
-    def add_route(self, path: str, handler: "Callable[..., Awaitable[Any]] | Type[routes.Route]", methods: Sequence[str] | None = None):
+    def add_route(self, path: str, handler: "Callable[..., Awaitable[Any]] | Type[routes.Route]", methods: Sequence[str] | None = None, *, settings: Dict[str, Any] = None):
         """Adds a route to this router.
 
         This method can handle both direct route handlers and Route objects. For Route objects,
@@ -37,10 +41,11 @@ class Router:
             handler: Either a Route object or an async handler function.
             methods: A list of HTTP methods (e.g., ['GET', 'POST']). Only used when handler is a function.
                     If None, allows all methods.
+            settings: Optional dictionary of settings to be added to the container when handling this route.
 
         Examples:
             >>> router.add_route("/users", user_handler, ["GET", "POST"])
-            >>> router.add_route("/items", ItemRoute)
+            >>> router.add_route("/items", ItemRoute, settings={"db_table": "items"})
         """
         match handler:
             case type() as route if issubclass(route, routes.Route):
@@ -50,13 +55,24 @@ class Router:
                 self._route_class_paths[route].append(path)
                 
                 # Create instance and register its __call__ method as usual
-                route_instance = route()
+                # Pass settings to the route instance constructor if it has a settings parameter
+                if settings is not None and hasattr(route, "__init__"):
+                    sig = inspect.signature(route.__init__)
+                    if "settings" in sig.parameters:
+                        route_instance = route(settings=settings)
+                    else:
+                        route_instance = route()
+                else:
+                    route_instance = route()
+                
                 methods = route.__method_handlers__.keys() | route.__form_handlers__.keys()
-                self.add_route(path, route_instance.__call__, methods)
+                # Store these settings for the actual path
+                self._route_settings[path] = settings or {}
+                self.add_route(path, route_instance.__call__, methods, settings=settings)
                 
             case _:
                 normalized_methods = frozenset(m.upper() for m in methods) if methods else None
-                self._routes.append((path, normalized_methods, handler))
+                self._routes.append((path, normalized_methods, handler, settings or {}))
 
     def add_router(self, router: "Router"):
         """Adds a sub-router. Sub-routers are checked before the current router's own routes.
@@ -89,25 +105,17 @@ class Router:
 
     def url_for(self, handler: Callable | Type[routes.Route], **kwargs) -> str:
         """Builds a URL for a registered route handler with the given path parameters.
-        
+
         Args:
-            handler: The route handler function, a method of a Route class, or a Route class itself
-            **kwargs: Path parameters to substitute in the URL pattern
-            
+            handler: The route handler function or Route class for which to build a URL.
+            **kwargs: Path parameters to substitute in the URL pattern.
+
         Returns:
-            A URL string with path parameters substituted
-            
+            A URL string with path parameters filled in.
+
         Raises:
-            ValueError: If the handler is not found or if required path parameters are missing
-            
-        Examples:
-            >>> # Function handler
-            >>> router.url_for(show_user, id=123)
-            "/user/123"
-            >>>
-            >>> # Route class directly
-            >>> router.url_for(UserProfileRoute, username="johndoe")
-            "/users/johndoe"
+            ValueError: If the handler is not found in any router, or if required path
+                       parameters are missing from kwargs.
         """
         # First check if handler is a Route class
         if isinstance(handler, type) and issubclass(handler, routes.Route):
@@ -220,7 +228,7 @@ class Router:
 
     def _find_all_handler_paths(self, handler: Callable) -> list[str]:
         """Finds all path patterns for a given handler in this router."""
-        return [path for path, _, route_handler in self._routes if route_handler == handler]
+        return [path for path, _, route_handler, _ in self._routes if route_handler == handler]
 
     def _find_best_matching_path(self, paths: list[str], kwargs: dict) -> str | None:
         """Find the best matching path based on the provided kwargs.
@@ -254,12 +262,12 @@ class Router:
 
     def _find_handler_path(self, handler: Callable) -> str | None:
         """Finds the first path pattern for a given handler in this router."""
-        for path, _, route_handler in self._routes:
+        for path, _, route_handler, _ in self._routes:
             if route_handler == handler:
                 return path
         return None
 
-    def resolve_route(self, request_path: str, request_method: str) -> tuple[Callable, Dict[str, Any]] | None:
+    def resolve_route(self, request_path: str, request_method: str) -> tuple[Callable, Dict[str, Any], Dict[str, Any]] | None:
         """Recursively finds a handler for the given path and method.
 
         Args:
@@ -267,7 +275,7 @@ class Router:
             request_method: The HTTP method of the incoming request.
 
         Returns:
-            A tuple of (handler_callable, path_parameters_dict) if a match is found.
+            A tuple of (handler_callable, path_parameters_dict, settings_dict) if a match is found.
             None if no route matches the path (results in a 404).
         
         Raises:
@@ -290,7 +298,10 @@ class Router:
                 try:
                     resolved_in_mounted = mounted_router.resolve_route(sub_path, request_method)
                     if resolved_in_mounted:
-                        return resolved_in_mounted  # Handler found and method matched in mounted router
+                        handler, params, settings = resolved_in_mounted
+                        # Merge router settings with any more specific settings
+                        merged_settings = {**self._settings, **mounted_router._settings, **settings}
+                        return handler, params, merged_settings
                 except HTTPMethodNotAllowedException as e:
                     # Mounted router matched the path but not the method
                     collected_allowed_methods.update(e.allowed_methods)
@@ -304,7 +315,10 @@ class Router:
             try:
                 resolved_in_sub = sub_router.resolve_route(request_path, request_method)
                 if resolved_in_sub:
-                    return resolved_in_sub  # Handler found and method matched in sub-router
+                    handler, params, settings = resolved_in_sub
+                    # Merge router settings with any more specific settings
+                    merged_settings = {**self._settings, **sub_router._settings, **settings}
+                    return handler, params, merged_settings
             except HTTPMethodNotAllowedException as e:
                 # Sub-router matched the path but not the method.
                 # Collect its allowed methods and mark that a path match occurred.
@@ -316,13 +330,15 @@ class Router:
                 pass
 
         # 3. Check own routes
-        for path_pattern, route_specific_methods, handler_callable in self._routes:
+        for path_pattern, route_specific_methods, handler_callable, route_settings in self._routes:
             match_info = self._match_path(request_path, path_pattern)
             if match_info is not None:  # Path matches
                 found_path_match_but_not_method = True # Mark that we at least matched the path
                 if route_specific_methods is None or request_method.upper() in route_specific_methods:
                     # Path and method match
-                    return handler_callable, match_info
+                    # Merge router settings with route settings
+                    merged_settings = {**self._settings, **route_settings}
+                    return handler_callable, match_info, merged_settings
                 else:
                     # Path matches, but method is not allowed for this specific route.
                     # Collect allowed methods.

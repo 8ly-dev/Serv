@@ -577,12 +577,19 @@ class App:
                 error_to_propagate = e
 
             else:
-                handler_callable, path_params = resolved_route_info
-                try:
-                    await container.call(handler_callable, **path_params)
-                except Exception as e:
-                    logger.info(f"Handler execution resulted in exception: {type(e).__name__}: {e}")
-                    error_to_propagate = e
+                handler_callable, path_params, route_settings = resolved_route_info
+                
+                # Create a branch of the container with route settings
+                with container.branch() as route_container:
+                    # Add route settings to the container
+                    for setting_name, setting_value in route_settings.items():
+                        route_container.instances[setting_name] = setting_value
+                    
+                    try:
+                        await route_container.call(handler_callable, **path_params)
+                    except Exception as e:
+                        logger.info(f"Handler execution resulted in exception: {type(e).__name__}: {e}")
+                        error_to_propagate = e
 
             await self.emit("app.request.after_router", container=container, request=request_instance, error=error_to_propagate, router_instance=router_instance)
 
