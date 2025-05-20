@@ -19,6 +19,7 @@ from asgiref.typing import (
 )
 
 from serv.plugins import Plugin
+from serv.loader import ServLoader
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.injectors import inject_request_object
@@ -46,13 +47,25 @@ class App:
     It is responsible for handling the incoming requests and delegating them to the appropriate routes.
     """
 
-    def __init__(self):
+    def __init__(self, plugin_dirs: List[str] = None, middleware_dirs: List[str] = None):
+        """Initialize a new Serv application.
+        
+        Args:
+            plugin_dirs: List of directories to search for plugins (default: ['./plugins'])
+            middleware_dirs: List of directories to search for middleware (default: ['./middleware'])
+        """
         self._registry = get_registry()
         self._container = self._registry.create_container()
         self._plugins = []
         self._async_exit_stack = contextlib.AsyncExitStack()
         self._middleware = []
         self._error_handlers: dict[type[Exception], Callable[[Exception], Awaitable[None]]] = {}
+        
+        # Initialize the loader
+        self._loader = ServLoader(
+            plugin_dirs=plugin_dirs or ['./plugins'],
+            middleware_dirs=middleware_dirs or ['./middleware']
+        )
 
         self._emit = EventEmitter(self._plugins)
 
@@ -64,6 +77,7 @@ class App:
         self._container.instances[App] = self
         self._container.instances[Container] = self._container
         self._container.instances[Registry] = self._registry
+        self._container.instances[ServLoader] = self._loader
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
@@ -81,6 +95,152 @@ class App:
     def add_plugin(self, plugin: Plugin):
         self._plugins.append(plugin)
         self.emit("plugin.loaded", plugin=plugin, container=self._container)
+        
+    def load_plugin(self, package_name: str, namespace: str = None) -> bool:
+        """Load a plugin from the plugin directories.
+        
+        Args:
+            package_name: Name of the plugin package to load
+            namespace: Optional namespace to look in (defaults to first found)
+            
+        Returns:
+            True if plugin was loaded successfully, False otherwise
+        """
+        plugin_module = self._loader.load_package("plugin", package_name, namespace)
+        if not plugin_module:
+            logger.warning(f"Failed to load plugin {package_name}")
+            return False
+            
+        # First, try to find the class by looking for a name in plugin.yaml
+        plugin_dir = None
+        for search_path in self._loader.get_search_paths("plugin"):
+            if namespace and search_path.name != namespace:
+                continue
+                
+            potential_dir = search_path / package_name
+            if potential_dir.exists() and (potential_dir / "plugin.yaml").exists():
+                plugin_dir = potential_dir
+                break
+                
+        if plugin_dir and (plugin_dir / "plugin.yaml").exists():
+            try:
+                import yaml
+                with open(plugin_dir / "plugin.yaml", 'r') as f:
+                    plugin_yaml = yaml.safe_load(f)
+                    
+                if plugin_yaml and "entry" in plugin_yaml:
+                    entry = plugin_yaml["entry"]
+                    if ":" in entry:
+                        module_path, class_name = entry.split(":", 1)
+                        # If this is a module.class format, extract just the class name
+                        class_name = class_name.split(".")[-1]
+                        
+                        # Check if this class exists in the module we loaded
+                        if hasattr(plugin_module, class_name):
+                            plugin_class = getattr(plugin_module, class_name)
+                            if isinstance(plugin_class, type) and issubclass(plugin_class, Plugin):
+                                plugin_instance = plugin_class()
+                                self.add_plugin(plugin_instance)
+                                logger.info(f"Loaded plugin {package_name} ({class_name})")
+                                return True
+            except Exception as e:
+                logger.warning(f"Error loading plugin from plugin.yaml: {e}")
+        
+        # If we couldn't find it in plugin.yaml, try to find any Plugin subclass
+        for attr_name in dir(plugin_module):
+            attr = getattr(plugin_module, attr_name)
+            if isinstance(attr, type) and issubclass(attr, Plugin) and attr is not Plugin:
+                plugin_instance = attr()
+                self.add_plugin(plugin_instance)
+                logger.info(f"Loaded plugin {package_name}.{attr_name}")
+                return True
+                
+        # As a last resort, try to match the class name with the package name
+        plugin_class_name = ''.join(word.capitalize() for word in package_name.split('_'))
+        if hasattr(plugin_module, plugin_class_name):
+            plugin_class = getattr(plugin_module, plugin_class_name)
+            if isinstance(plugin_class, type) and issubclass(plugin_class, Plugin):
+                plugin_instance = plugin_class()
+                self.add_plugin(plugin_instance)
+                logger.info(f"Loaded plugin {package_name}")
+                return True
+                
+        logger.warning(f"Could not find Plugin subclass in {package_name}")
+        return False
+        
+    def load_middleware(self, package_name: str, namespace: str = None) -> bool:
+        """Load middleware from the middleware directories.
+        
+        Args:
+            package_name: Name of the middleware package to load
+            namespace: Optional namespace to look in (defaults to first found)
+            
+        Returns:
+            True if middleware was loaded successfully, False otherwise
+        """
+        middleware_module = self._loader.load_package("middleware", package_name, namespace)
+        if not middleware_module:
+            logger.warning(f"Failed to load middleware {package_name}")
+            return False
+        
+        # First try to find something that ends with _middleware
+        for attr_name in dir(middleware_module):
+            attr = getattr(middleware_module, attr_name)
+            if callable(attr) and attr_name.endswith('_middleware'):
+                self.add_middleware(attr)
+                logger.info(f"Loaded middleware {package_name}.{attr_name}")
+                return True
+                
+        # Try to find any callable that looks like a middleware factory
+        import inspect
+        for attr_name in dir(middleware_module):
+            attr = getattr(middleware_module, attr_name)
+            if callable(attr) and not attr_name.startswith('_'):
+                try:
+                    # Check if it's a function that might return an async iterator
+                    sig = inspect.signature(attr)
+                    if len(sig.parameters) <= 1:  # 0 or 1 parameter (config)
+                        # It might be a middleware factory
+                        self.add_middleware(attr)
+                        logger.info(f"Loaded middleware {package_name}.{attr_name}")
+                        return True
+                except (ValueError, TypeError):
+                    continue
+                
+        logger.warning(f"Could not find middleware factory in {package_name}")
+        return False
+        
+    def load_plugins(self) -> int:
+        """Load all available plugins.
+        
+        Returns:
+            Number of plugins loaded
+        """
+        loaded_count = 0
+        available = self._loader.list_available("plugin")
+        
+        for namespace, packages in available.items():
+            for package_name in packages:
+                if self.load_plugin(package_name, namespace):
+                    loaded_count += 1
+                    
+        return loaded_count
+        
+    def load_middleware_packages(self) -> int:
+        """Load all available middleware.
+        
+        Returns:
+            Number of middleware loaded
+        """
+        loaded_count = 0
+        available = self._loader.list_available("middleware")
+        
+        for namespace, packages in available.items():
+            for package_name in packages:
+                if self.load_middleware(package_name, namespace):
+                    loaded_count += 1
+                    
+        return loaded_count
 
     def emit(self, event: str, *, container: Container = dependency(), **kwargs) -> Task:
         return container.call(self._emit.emit_sync, event, **kwargs)
