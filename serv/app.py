@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 import traceback
+from asyncio import get_running_loop, Task
 from typing import AsyncIterator, Awaitable, Callable
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
@@ -17,6 +18,18 @@ from serv.exceptions import HTTPMethodNotAllowedException
 
 logger = logging.getLogger(__name__)
 
+class EventEmitter:
+    def __init__(self, plugins: list[Plugin]):
+        self.plugins = plugins
+
+    def emit_sync(self, event: str, *, container: Container = dependency(), **kwargs) -> Task:
+        return get_running_loop().create_task(self.emit(event, container=container, **kwargs))
+
+    async def emit(self, event: str, *, container: Container = dependency(), **kwargs):
+        async with asyncio.TaskGroup() as tg:
+            for plugin in self.plugins:
+                tg.create_task(container.call(plugin.on, event, **kwargs))
+
 
 class App:
     """This is the main class for an ASGI application.
@@ -31,6 +44,8 @@ class App:
         self._async_exit_stack = contextlib.AsyncExitStack()
         self._middleware = []
         self._error_handlers: dict[type[Exception], Callable[[Exception], Awaitable[None]]] = {}
+
+        self._emit = EventEmitter(self._plugins)
 
         self._init_container()
         self._register_default_error_handlers()
