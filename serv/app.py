@@ -2,9 +2,8 @@ import asyncio
 import contextlib
 import logging
 import traceback
-import os
 from asyncio import get_running_loop, Task
-from typing import AsyncIterator, Awaitable, Callable, List, Dict, Any, Optional
+from typing import AsyncIterator, Awaitable, Callable, List, Dict, Any
 from pathlib import Path
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
