@@ -4,118 +4,258 @@ import importlib
 import inspect
 import os
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Dict, Optional, TypeVar, Union, Type, TypedDict
+import logging
 
 from serv.app import App
 from bevy import dependency # For potential use in middleware factories
 
+logger = logging.getLogger(__name__)
+
 # Default config file name
 DEFAULT_CONFIG_FILE = "serv.config.yaml"
 
+T = TypeVar('T')
+ImportCallable = Callable[..., Any]
+
+class PluginConfig(TypedDict, total=False):
+    entry: str
+    config: Dict[str, Any]
+
+class MiddlewareConfig(TypedDict, total=False):
+    entry: str
+    config: Dict[str, Any]
+
+class ServConfig(TypedDict, total=False):
+    site_info: Dict[str, Any]
+    plugins: list[PluginConfig]
+    middleware: list[MiddlewareConfig]
+    
 class ServConfigError(Exception):
     """Custom exception for configuration errors."""
     pass
 
-def import_from_string(import_string: str) -> Callable[..., Any]:
+def import_from_string(import_str: str) -> Any:
     """
-    Imports a callable (class or function) from an import string like "module.path:ObjectName".
+    Import a class, function, or variable from a module by string.
+    
+    Args:
+        import_str: String in the format "module.path:symbol"
+        
+    Returns:
+        The imported object
+        
+    Raises:
+        ServConfigError: If the import failed.
     """
-    try:
-        module_path, object_name = import_string.rsplit(":", 1)
-    except ValueError:
-        raise ServConfigError(
-            f"Invalid import string format '{import_string}'. Expected 'module.path:ObjectName'."
-        )
-    
-    module = import_module_from_string(module_path)
+    if ":" not in import_str:
+        raise ServConfigError(f"Invalid import string format '{import_str}'. Expected 'module.path:symbol'.")
+        
+    module_path, object_path = import_str.split(":", 1)
     
     try:
-        obj = getattr(module, object_name)
-        if not callable(obj):
-            raise ServConfigError(f"Imported object '{object_name}' from '{import_string}' is not callable.")
-        return obj
-    except AttributeError:
-        raise ServConfigError(f"Object '{object_name}' not found in module '{module_path}' from '{import_string}'.")
-    
+        module = importlib.import_module(module_path)
+        
+        # Handle nested attributes
+        target = module
+        for part in object_path.split('.'):
+            target = getattr(target, part)
+            
+        return target
+    except (ImportError, AttributeError) as e:
+        raise ServConfigError(f"Failed to import '{import_str}': {str(e)}") from e
 
-def import_module_from_string(import_string: str) -> ModuleType:
+def import_module_from_string(module_path: str) -> Any:
+    """
+    Import a module by string.
+    
+    Args:
+        module_path: String representing the module path (e.g., "serv.app")
+        
+    Returns:
+        The imported module
+        
+    Raises:
+        ServConfigError: If the import failed.
+    """
     try:
-        return importlib.import_module(import_string)
+        return importlib.import_module(module_path)
     except ImportError as e:
-        raise ServConfigError(f"Could not import module '{import_string}'. Error: {e}")
+        raise ServConfigError(f"Failed to import module '{module_path}': {str(e)}") from e
 
-def load_raw_config(config_path_str: str | Path | None = None) -> dict:
+def load_raw_config(config_path: Union[str, Path]) -> Dict[str, Any]:
     """
-    Loads the raw configuration from a YAML file.
-    Tries SERV_CONFIG_PATH env var, then provided path, then default path relative to CWD.
+    Load a configuration file.
+    
+    Args:
+        config_path: Path to the configuration file.
+        
+    Returns:
+        Dictionary containing the configuration.
+        
+    Raises:
+        ServConfigError: If the configuration file could not be loaded.
     """
-    config_to_try = config_path_str or os.getenv("SERV_CONFIG_PATH") or DEFAULT_CONFIG_FILE
-    config_file_path = Path(config_to_try).resolve()
-
-    if not config_file_path.exists():
-        if str(config_file_path).endswith(DEFAULT_CONFIG_FILE) and config_to_try == DEFAULT_CONFIG_FILE:
-             return {}
-        raise ServConfigError(f"Configuration file not found: {config_file_path}")
-
     try:
-        with open(config_file_path, 'r') as f:
-            raw_config_data = yaml.safe_load(f)
-        if not isinstance(raw_config_data, dict):
-            raise ServConfigError(f"Configuration file '{config_file_path}' content is not a valid YAML mapping (dictionary).")
-        return raw_config_data
-    except yaml.YAMLError as e:
-        raise ServConfigError(f"Error parsing YAML configuration file '{config_file_path}': {e}")
+        config_path_obj = Path(config_path)
+        if not config_path_obj.exists():
+            return {}
+            
+        with open(config_path_obj, 'r') as f:
+            config = yaml.safe_load(f)
+            
+        if config is None:  # Empty file
+            config = {}
+            
+        if not isinstance(config, dict):
+            raise ServConfigError(f"Invalid configuration format in {config_path}. Expected a dictionary.")
+            
+        return config
     except Exception as e:
-        raise ServConfigError(f"Error loading configuration file '{config_file_path}': {e}")
+        if isinstance(e, ServConfigError):
+            raise
+        raise ServConfigError(f"Error loading configuration from {config_path}: {str(e)}") from e
 
-
-def setup_app_from_config(app: App, raw_config: dict):
+def setup_app_from_config(app: Any, config: Dict[str, Any]) -> None:
     """
-    Configures the given App instance with plugins and middleware from the loaded config.
+    Set up a Serv application from a configuration dictionary.
+    
+    Args:
+        app: The Serv application instance to configure.
+        config: Configuration dictionary.
+        
+    Raises:
+        ServConfigError: If there was an error applying the configuration.
     """
-    for plugin_entry_dict in raw_config.get("plugins", []):
-        if not isinstance(plugin_entry_dict, dict) or "entry" not in plugin_entry_dict:
-            raise ServConfigError(f"Invalid plugin entry: {plugin_entry_dict}. Must be a dict with an 'entry' key.")
+    # Set site info
+    if "site_info" in config and isinstance(config["site_info"], dict):
+        app.site_info = config["site_info"]
+    else:
+        app.site_info = {}
         
-        import_str = plugin_entry_dict["entry"]
-        config_params = plugin_entry_dict.get("config", {})
-        if not isinstance(config_params, dict):
-            raise ServConfigError(f"Plugin '{import_str}' config must be a dictionary.")
-
-        plugin_callable = import_from_string(import_str)
-        
-        try:
-            if inspect.isclass(plugin_callable):
-                plugin_instance = plugin_callable(**config_params)
-            else:
-                plugin_instance = plugin_callable(**config_params)
+    # Configure plugins
+    if "plugins" in config and isinstance(config["plugins"], list):
+        for i, plugin_entry in enumerate(config["plugins"]):
+            if not isinstance(plugin_entry, dict) or "entry" not in plugin_entry:
+                logger.warning(f"Invalid plugin entry at index {i}: {plugin_entry}")
+                continue
+                
+            plugin_path = plugin_entry["entry"]
+            plugin_config = plugin_entry.get("config", {})
             
-            app.add_plugin(plugin_instance)
-            print(f"INFO: Loaded plugin '{import_str}' with config {config_params}")
-        except Exception as e:
-            # Using str() for e and config_params to avoid complex f-string issues with repr.
-            raise ServConfigError(f"Error loading plugin {import_str!r}: {str(e)!r}. Parameters: {str(config_params)}")
-
-    for middleware_entry_dict in raw_config.get("middleware", []):
-        if not isinstance(middleware_entry_dict, dict) or "entry" not in middleware_entry_dict:
-            raise ServConfigError(f"Invalid middleware entry: {middleware_entry_dict}. Must be a dict with an 'entry' key.")
-
-        import_str = middleware_entry_dict["entry"]
-        config_params = middleware_entry_dict.get("config", {})
-        if not isinstance(config_params, dict):
-            raise ServConfigError(f"Middleware {import_str!r} config must be a dictionary.")
+            try:
+                # Check if it's a namespace import (from our loader)
+                if "." in plugin_path and ":" in plugin_path:
+                    module_path, class_name = plugin_path.split(":", 1)
+                    
+                    # Extract namespace and package name
+                    parts = module_path.split(".")
+                    if len(parts) >= 2:
+                        namespace = parts[0]
+                        package_name = parts[1]
+                        
+                        # Try to load via loader first
+                        if hasattr(app, "_loader"):
+                            module = app._loader.load_package("plugin", package_name, namespace)
+                            if module:
+                                # Import the plugin class
+                                if hasattr(module, class_name):
+                                    plugin_class = getattr(module, class_name)
+                                    plugin_instance = plugin_class()
+                                    if plugin_config:
+                                        if hasattr(plugin_instance, "configure"):
+                                            plugin_instance.configure(plugin_config)
+                                        # Also set as attributes for backward compatibility
+                                        for k, v in plugin_config.items():
+                                            setattr(plugin_instance, k, v)
+                                    app.add_plugin(plugin_instance)
+                                    logger.info(f"Loaded plugin {plugin_path}")
+                                    continue
+                
+                # Fall back to regular import if loader didn't work
+                plugin_class = import_from_string(plugin_path)
+                if not isinstance(plugin_class, type):
+                    # It's an instance, not a class
+                    plugin_instance = plugin_class
+                else:
+                    # It's a class, instantiate it
+                    plugin_instance = plugin_class()
+                    
+                # Apply configuration
+                if plugin_config:
+                    if hasattr(plugin_instance, "configure"):
+                        plugin_instance.configure(plugin_config)
+                    # Also set as attributes for backward compatibility
+                    for k, v in plugin_config.items():
+                        setattr(plugin_instance, k, v)
+                        
+                app.add_plugin(plugin_instance)
+                logger.info(f"Loaded plugin {plugin_path}")
+            except Exception as e:
+                logger.error(f"Error loading plugin {plugin_path}: {e}")
+                
+    # Configure middleware
+    if "middleware" in config and isinstance(config["middleware"], list):
+        for i, mw_entry in enumerate(config["middleware"]):
+            if not isinstance(mw_entry, dict) or "entry" not in mw_entry:
+                logger.warning(f"Invalid middleware entry at index {i}: {mw_entry}")
+                continue
+                
+            mw_path = mw_entry["entry"]
+            mw_config = mw_entry.get("config", {})
             
-        middleware_meta_factory = import_from_string(import_str)
-        
-        try:
-            actual_middleware_factory = middleware_meta_factory(**config_params)
-            app.add_middleware(actual_middleware_factory)
-            print(f"INFO: Loaded middleware '{import_str}' with config {config_params}")
-        except Exception as e:
-            raise ServConfigError(f"Error loading middleware {import_str!r}: {str(e)!r}. Parameters: {str(config_params)}")
-
-    site_info = raw_config.get("site_info", {})
-    if site_info:
-        print(f"INFO: Site info loaded: {str(site_info)}")
-
-    return app 
+            try:
+                # Check if it's a namespace import (from our loader)
+                if "." in mw_path and ":" in mw_path:
+                    module_path, factory_name = mw_path.split(":", 1)
+                    
+                    # Extract namespace and package name
+                    parts = module_path.split(".")
+                    if len(parts) >= 2:
+                        namespace = parts[0]
+                        package_name = parts[1]
+                        
+                        # Try to load via loader first
+                        if hasattr(app, "_loader"):
+                            module = app._loader.load_package("middleware", package_name, namespace)
+                            if module:
+                                # Import the middleware factory function
+                                if hasattr(module, factory_name):
+                                    factory = getattr(module, factory_name)
+                                    if mw_config:
+                                        # If the factory accepts config, pass it
+                                        # Otherwise set it as globals
+                                        if callable(factory):
+                                            import inspect
+                                            sig = inspect.signature(factory)
+                                            if "config" in sig.parameters:
+                                                factory_with_config = lambda: factory(config=mw_config)
+                                                app.add_middleware(factory_with_config)
+                                                logger.info(f"Loaded middleware {mw_path} with config")
+                                                continue
+                                    # No config or factory doesn't accept config
+                                    app.add_middleware(factory)
+                                    logger.info(f"Loaded middleware {mw_path}")
+                                    continue
+                
+                # Fall back to regular import if loader didn't work
+                mw_factory = import_from_string(mw_path)
+                if not callable(mw_factory):
+                    logger.warning(f"Middleware {mw_path} is not callable")
+                    continue
+                    
+                # Apply configuration
+                if mw_config:
+                    # If the factory accepts config, pass it
+                    import inspect
+                    sig = inspect.signature(mw_factory)
+                    if "config" in sig.parameters:
+                        factory_with_config = lambda: mw_factory(config=mw_config)
+                        app.add_middleware(factory_with_config)
+                        logger.info(f"Loaded middleware {mw_path} with config")
+                        continue
+                        
+                app.add_middleware(mw_factory)
+                logger.info(f"Loaded middleware {mw_path}")
+            except Exception as e:
+                logger.error(f"Error loading middleware {mw_path}: {e}") 
