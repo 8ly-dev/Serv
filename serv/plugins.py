@@ -8,11 +8,13 @@ from inspect import isawaitable
 from pathlib import Path
 import re
 import sys
-from typing import Any
+from typing import Any, Dict, List, Callable, Type, Optional
 
-from bevy import get_container
+from bevy import dependency, get_container
 from bevy.containers import Container
 import yaml
+
+from serv.routing import Router
 
 
 type PluginMapping = dict[str, list[str]]
@@ -48,6 +50,15 @@ class Plugin:
             
             event_name = event.group(1)
             cls.__plugins__[event_name].append(name)
+    
+    def __init__(self):
+        """Initialize the plugin.
+        
+        Loads plugin configuration and sets up any defined routers and routes
+        if they are configured in the plugin.yaml file.
+        """
+        self._config = self.config()
+        self._router_configs = self._config.get("routers", [])
 
     def config(self) -> dict[str, Any]:
         """
@@ -63,6 +74,108 @@ class Plugin:
             raw_config_data = yaml.safe_load(f)
 
         return raw_config_data
+    
+    def setup_routers(self, container: Container = dependency()) -> List[Router]:
+        """
+        Sets up routers defined in the plugin configuration.
+        Returns a list of created Router instances.
+        
+        Router configuration format in plugin.yaml:
+        ```yaml
+        routers:
+          - name: api_router  # Optional, used for reference
+            routes:
+              - path: /users
+                handler: users.UserRoute  # Import path to Route class
+                # OR
+                handler_method: handle_users  # Method on this plugin
+                methods: [GET, POST]  # Optional, only used with handler_method
+            mount_at: /api  # Optional, path to mount this router
+            mount_to: main_router  # Optional, name of router to mount to
+        ```
+        """
+        created_routers = []
+        router_instances = {}
+        
+        # First pass: create all routers
+        for router_config in self._router_configs:
+            router_name = router_config.get("name", f"router_{len(router_instances)}")
+            router = Router()
+            router_instances[router_name] = router
+            created_routers.append(router)
+            
+            # Add routes to this router
+            if "routes" in router_config:
+                for route_config in router_config["routes"]:
+                    self._add_route_from_config(router, route_config, container)
+        
+        # Second pass: handle mounting
+        for router_config in self._router_configs:
+            if "mount_at" in router_config and "mount_to" in router_config:
+                router_name = router_config.get("name", f"router_{len(router_instances)}")
+                router = router_instances.get(router_name)
+                
+                mount_to_name = router_config["mount_to"]
+                mount_to_router = router_instances.get(mount_to_name)
+                
+                if router and mount_to_router:
+                    mount_path = router_config["mount_at"]
+                    mount_to_router.mount(mount_path, router)
+        
+        return created_routers
+    
+    def _add_route_from_config(self, router: Router, route_config: Dict[str, Any], container: Container) -> None:
+        """Add a route to a router based on route configuration."""
+        path = route_config.get("path")
+        if not path:
+            return
+            
+        # Handle route defined as an importable class
+        if "handler" in route_config:
+            handler_path = route_config["handler"]
+            handler_class = self._import_handler(handler_path)
+            if handler_class:
+                router.add_route(path, handler_class)
+        
+        # Handle route defined as a method on this plugin
+        elif "handler_method" in route_config:
+            method_name = route_config["handler_method"]
+            if hasattr(self, method_name):
+                handler_method = getattr(self, method_name)
+                methods = route_config.get("methods")
+                router.add_route(path, handler_method, methods=methods)
+    
+    def _import_handler(self, handler_path: str) -> Optional[Type]:
+        """Import a handler class from a string path.
+        
+        Format required:
+        - "module.path:ClassName" - Import a class directly
+        - "module.path:object.attribute.ClassName" - Access a nested object/attribute
+        
+        Note: The colon separator is required to distinguish between the module path
+        and the object path.
+        """
+        try:
+            if ":" not in handler_path:
+                raise ValueError(f"Handler path must use colon notation (module.path:ClassName): {handler_path}")
+                
+            # Split on colon to separate module path from object access path
+            module_path, object_path = handler_path.split(":", 1)
+            
+            # Import the module
+            module = __import__(module_path, fromlist=["__name__"])
+            
+            # Navigate through the object access path
+            obj = module
+            for attr in object_path.split("."):
+                obj = getattr(obj, attr)
+            
+            return obj
+        except (ImportError, AttributeError, ValueError) as e:
+            # Log error but don't crash
+            import logging
+            logging.getLogger(__name__).error(f"Failed to import handler {handler_path}: {e}")
+            return None
 
     async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:
         """Receives event notifications.
@@ -81,3 +194,23 @@ class Plugin:
             result = get_container(container).call(callback, *args, **kwargs)
             if isawaitable(result):
                 await result
+                
+    def on_app_startup(self, app: Any = None, container: Container = dependency()) -> None:
+        """Called when the app starts up.
+        
+        This is a good place to set up routers defined in the plugin configuration.
+        
+        Args:
+            app: The Serv application instance.
+            container: The dependency injection container.
+        """
+        # Set up routers from config if any are defined
+        if self._router_configs:
+            routers = self.setup_routers(container)
+            
+            # If there's only one router and it's not mounted to another router,
+            # register it as the main router in the container
+            if len(routers) == 1 and not any(
+                "mount_to" in config for config in self._router_configs
+            ):
+                container.set(Router, routers[0])

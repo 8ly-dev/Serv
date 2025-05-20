@@ -1,8 +1,9 @@
 from serv.plugins import Plugin
 from serv.app import App
 # from serv.routes import Route
-# from serv.response import TextResponse # , JSONResponse
+# from serv.responses import TextResponse, JSONResponse, Template
 # from typing import Annotated
+# import logging
 
 # logger = logging.getLogger(__name__) # Optional: get a logger specific to your plugin
 
@@ -40,10 +41,12 @@ class {class_name}(Plugin):
         Args:
             app: The Serv application instance.
         '''
-        # Example: Adding a route
-        # route_path = f"/{module_base_name}"
-        # app.router.add_route(route_path, {class_name}Route())
-        # logger.info(f"'{{self.name}}' added example route at {{route_path}}")
+        # The router configuration in plugin.yaml will be automatically processed
+        # but you can also add routes programmatically:
+        # 
+        # from serv.routing import Router
+        # router = app._container.get(Router)
+        # router.add_route("/example", {class_name}Route)
         pass
 
     def on_app_shutdown(self, app: App) -> None:
@@ -57,6 +60,17 @@ class {class_name}(Plugin):
         '''
         logger.info(f"'{{self.name}}' plugin shutting down.")
         pass
+
+    # Example handler methods for routes defined in plugin.yaml
+    # These can be referenced by handler_method in the routes configuration
+    #
+    # async def handle_home(self):
+    #     """Handle the home route."""
+    #     return Template("home.html", {"title": "Welcome to {class_name}"})
+    #
+    # async def handle_api(self):
+    #     """Handle the API route."""
+    #     return JSONResponse({"plugin": "{class_name}", "status": "active"})
 
     # Other potential lifecycle methods to uncomment and use:
     #

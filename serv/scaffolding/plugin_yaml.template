@@ -14,3 +14,28 @@ description: {plugin_description}
 #       description: "An example configuration setting for this plugin."
 #       default: "hello"
 #   required: [] 
+
+# Optional: Define routers and routes for this plugin.
+# These will be automatically set up when the plugin is loaded.
+# 
+# routers:
+#   - name: api_router  # Optional name for reference
+#     routes:
+#       - path: /users
+#         handler: app.routes:UserRoute  # Module:Class format
+#       - path: /admin
+#         handler: app.routes:admin.AdminRoute  # Module:object.attribute syntax
+#       - path: /posts
+#         handler_method: handle_posts  # Method on this plugin
+#         methods: [GET, POST]          # Optional HTTP methods
+#     mount_at: /api    # Optional path to mount this router
+#     mount_to: main_router  # Optional name of router to mount to
+#
+#   - name: main_router
+#     routes:
+#       - path: /
+#         handler: app.routes:HomeRoute
+#       - path: /dashboard
+#         handler: app.routes:dashboard.routes.DashboardRoute  # Complex path example
+#       - path: /about
+#         handler_method: handle_about 
