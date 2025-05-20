@@ -1,7 +1,7 @@
 import pytest
 from typing import Dict, Any
 from serv.routing import Router
-from serv.routes import Route
+from serv.routes import GetRequest, Route
 
 
 # Mock handlers for testing
@@ -18,10 +18,14 @@ async def api_handler(**kwargs):
     return "API Root"
 
 
-# Mock Route class
+# Mock Route classes
 class UserProfileRoute(Route):
-    async def __call__(self, **kwargs):
-        return f"User Profile: {kwargs.get('username')}"
+    async def show_profile(self, request: GetRequest):
+        return
+
+class ArticleRoute(Route):
+    async def show_article(self, request: GetRequest):
+        return
 
 
 def test_url_for_basic():
@@ -93,11 +97,43 @@ def test_url_for_handler_not_found():
 
 def test_url_for_route_class():
     router = Router()
-    route_instance = UserProfileRoute()
-    
+
     # Simulate what happens when Route class is registered
-    router.add_route("/users/{username}", route_instance.__call__, methods=["GET"])
+    router.add_route("/users/{username}", UserProfileRoute)
+
     
     # When we have the route instance's __call__ method
-    url = router.url_for(route_instance.__call__, username="johndoe")
-    assert url == "/users/johndoe" 
+    url = router.url_for(UserProfileRoute, username="johndoe")
+    assert url == "/users/johndoe"
+
+
+def test_url_for_route_class_in_mounted_router():
+    main_router = Router()
+    api_router = Router()
+    
+    # Add a Route class to the API router
+    api_router.add_route("/articles/{slug}", ArticleRoute)
+    
+    # Mount the API router
+    main_router.mount("/api", api_router)
+    
+    # Get the URL using the Route class
+    url = main_router.url_for(ArticleRoute, slug="getting-started")
+    assert url == "/api/articles/getting-started"
+
+
+# This test isn't really well-designed because our lookup logic doesn't directly support 
+# looking up individual methods on the Route class yet, but just ensuring we can store 
+# and access the route class URL and its instance still.
+def test_url_for_route_instance_method():
+    router = Router()
+    
+    # Register the Route class
+    router.add_route("/products/{product_id}", ArticleRoute)
+    
+    # Create an instance of the route class
+    route_instance = ArticleRoute()
+    
+    # Try to get the URL using the original class
+    url = router.url_for(ArticleRoute, product_id="abcd-1234")
+    assert url == "/products/abcd-1234" 

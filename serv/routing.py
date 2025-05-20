@@ -12,6 +12,8 @@ class Router:
     def __init__(self):
         # Stores tuples of (path_pattern, methods, handler_callable)
         self._routes: List[tuple[str, frozenset[str] | None, Callable]] = []
+        # Stores mapping of (route_class -> path_pattern) for url_for lookups
+        self._route_class_paths: Dict[Type[routes.Route], str] = {}
         # Stores tuples of (mount_path, router_instance)
         self._mounted_routers: List[tuple[str, "Router"]] = []
         self._sub_routers: List[Router] = []
@@ -42,6 +44,10 @@ class Router:
         """
         match handler:
             case type() as route if issubclass(route, routes.Route):
+                # Store the original route class for url_for lookups
+                self._route_class_paths[route] = path
+                
+                # Create instance and register its __call__ method as usual
                 route_instance = route()
                 methods = route.__method_handlers__.keys() | route.__form_handlers__.keys()
                 self.add_route(path, route_instance.__call__, methods)
@@ -79,11 +85,11 @@ class Router:
             
         self._mounted_routers.append((path, router))
 
-    def url_for(self, handler: Callable, **kwargs) -> str:
+    def url_for(self, handler: Callable | Type[routes.Route], **kwargs) -> str:
         """Builds a URL for a registered route handler with the given path parameters.
         
         Args:
-            handler: The route handler function or a method of a Route class
+            handler: The route handler function, a method of a Route class, or a Route class itself
             **kwargs: Path parameters to substitute in the URL pattern
             
         Returns:
@@ -93,37 +99,66 @@ class Router:
             ValueError: If the handler is not found or if required path parameters are missing
             
         Examples:
-            >>> @get("/user/{id}")
-            >>> async def show_user(self, id: str):
-            >>>     pass
-            >>> 
+            >>> # Function handler
             >>> router.url_for(show_user, id=123)
             "/user/123"
+            >>>
+            >>> # Route class directly
+            >>> router.url_for(UserProfileRoute, username="johndoe")
+            "/users/johndoe"
         """
-        # Handle methods on Route instances (most common case)
-        if hasattr(handler, '__self__') and isinstance(handler.__self__, routes.Route):
+        # First check if handler is a Route class
+        if isinstance(handler, type) and issubclass(handler, routes.Route):
+            # Look for route class in the _route_class_paths dictionary
+            if handler in self._route_class_paths:
+                path = self._route_class_paths[handler]
+            else:
+                # If not found directly, check mounted routers
+                for mount_path, mounted_router in self._mounted_routers:
+                    try:
+                        sub_path = mounted_router.url_for(handler, **kwargs)
+                        return f"{mount_path}{sub_path}"
+                    except ValueError:
+                        continue
+                
+                # Check sub-routers
+                for sub_router in self._sub_routers:
+                    try:
+                        return sub_router.url_for(handler, **kwargs)
+                    except ValueError:
+                        continue
+                
+                raise ValueError(f"Route class {handler.__name__} not found in any router")
+        
+        # Handle methods on Route instances (less common case)
+        elif hasattr(handler, '__self__') and isinstance(handler.__self__, routes.Route):
             route_instance = handler.__self__
             handler = route_instance.__call__
+            path = self._find_handler_path(handler)
+            if not path:
+                raise ValueError(f"Route instance method {handler.__name__} not found in any router")
         
-        # Try to find the handler and its path
-        path = self._find_handler_path(handler)
-        if not path:
-            # If not found directly, check mounted routers
-            for mount_path, mounted_router in self._mounted_routers:
-                try:
-                    sub_path = mounted_router.url_for(handler, **kwargs)
-                    return f"{mount_path}{sub_path}"
-                except ValueError:
-                    continue
-            
-            # If not found in mounted routers, check sub-routers
-            for sub_router in self._sub_routers:
-                try:
-                    return sub_router.url_for(handler, **kwargs)
-                except ValueError:
-                    continue
-            
-            raise ValueError(f"Handler {handler.__name__} not found in any router")
+        # For function handlers
+        else:
+            # Try to find the handler and its path
+            path = self._find_handler_path(handler)
+            if not path:
+                # If not found directly, check mounted routers
+                for mount_path, mounted_router in self._mounted_routers:
+                    try:
+                        sub_path = mounted_router.url_for(handler, **kwargs)
+                        return f"{mount_path}{sub_path}"
+                    except ValueError:
+                        continue
+                
+                # If not found in mounted routers, check sub-routers
+                for sub_router in self._sub_routers:
+                    try:
+                        return sub_router.url_for(handler, **kwargs)
+                    except ValueError:
+                        continue
+                
+                raise ValueError(f"Handler {handler.__name__} not found in any router")
         
         # Insert path parameters
         parts = path.split('/')
