@@ -64,13 +64,30 @@ class {class_name}(Plugin):
     # Example handler methods for routes defined in plugin.yaml
     # These can be referenced by handler_method in the routes configuration
     #
-    # async def handle_home(self):
-    #     """Handle the home route."""
-    #     return Template("home.html", {"title": "Welcome to {class_name}"})
+    # from bevy import dependency
     #
-    # async def handle_api(self):
-    #     """Handle the API route."""
-    #     return JSONResponse({"plugin": "{class_name}", "status": "active"})
+    # async def handle_home(self, title: str = dependency()):
+    #     """Handle the home route.
+    #     
+    #     The 'title' parameter will be injected from the settings defined in plugin.yaml
+    #     for this route, if present in the 'settings' section.
+    #     """
+    #     return Template("home.html", {"title": title})
+    #
+    # async def handle_api(self, db_table: str = dependency(), rate_limit: int = dependency(default=60)):
+    #     """Handle the API route.
+    #     
+    #     Settings from both the router and route are available for injection:
+    #     - db_table comes from the route settings
+    #     - rate_limit could come from router settings
+    #     """
+    #     # You could use these settings to customize the handler behavior
+    #     return JSONResponse({
+    #         "plugin": "{class_name}",
+    #         "status": "active",
+    #         "db_table": db_table,
+    #         "rate_limit": rate_limit
+    #     })
 
     # Other potential lifecycle methods to uncomment and use:
     #

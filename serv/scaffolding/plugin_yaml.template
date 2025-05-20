@@ -20,22 +20,40 @@ description: {plugin_description}
 # 
 # routers:
 #   - name: api_router  # Optional name for reference
+#     settings:  # Optional settings for this router
+#       auth_required: true
+#       rate_limit: 100
 #     routes:
 #       - path: /users
 #         handler: app.routes:UserRoute  # Module:Class format
+#         settings:  # Optional settings for this route
+#           db_table: users
+#           cache_ttl: 300
 #       - path: /admin
 #         handler: app.routes:admin.AdminRoute  # Module:object.attribute syntax
+#         settings:
+#           require_role: admin
 #       - path: /posts
 #         handler_method: handle_posts  # Method on this plugin
 #         methods: [GET, POST]          # Optional HTTP methods
+#         settings:
+#           db_table: posts
 #     mount_at: /api    # Optional path to mount this router
 #     mount_to: main_router  # Optional name of router to mount to
 #
 #   - name: main_router
+#     settings:
+#       template_dir: templates/main
 #     routes:
 #       - path: /
 #         handler: app.routes:HomeRoute
+#         settings:
+#           title: "Welcome to Our Site"
 #       - path: /dashboard
 #         handler: app.routes:dashboard.routes.DashboardRoute  # Complex path example
+#         settings:
+#           widgets: ["stats", "charts", "news"]
 #       - path: /about
-#         handler_method: handle_about 
+#         handler_method: handle_about
+#         settings:
+#           content_file: about.md 
