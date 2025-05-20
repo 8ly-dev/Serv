@@ -699,6 +699,9 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
                     logger.info(f"No configuration file found or it's empty for '{app_module_str}'.")
                     if isinstance(app_obj, DefaultApp):
                         should_load_welcome_plugin_by_default = True
+                elif not config_data.get("plugins") and not config_data.get("middleware"):
+                    logger.info(f"Configuration file '{config_path_str}' exists but no plugins/middleware are defined.")
+                    should_load_welcome_plugin_by_default = True
                 else: # Config data was loaded
                     logger.info(f"Applying configuration to '{app_module_str}'.")
                     setup_app_from_config(app_obj, config_data)
