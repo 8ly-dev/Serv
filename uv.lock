@@ -256,8 +256,8 @@ wheels = [
 
 [[package]]
 name = "serv"
-version = "0.1.0a2"
-source = { virtual = "." }
+version = "0.1.0a3"
+source = { editable = "." }
 dependencies = [
     { name = "asgiref" },
     { name = "bevy" },
