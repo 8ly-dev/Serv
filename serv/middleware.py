@@ -13,13 +13,13 @@ class ServMiddleware:
         return self._create_iterator()
     
     async def _create_iterator(self):
-        await self.container.call(self.enter)
+        await self._container.call(self.enter)
         try:
             yield
         except Exception as e:
-            await self.container.call(self.on_error, e)
+            await self._container.call(self.on_error, e)
         else:
-            await self.container.call(self.leave)
+            await self._container.call(self.leave)
     
     async def enter(self):
         """

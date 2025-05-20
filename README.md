@@ -19,6 +19,89 @@ Serv is a powerful and intuitive ASGI web framework for Python, designed for ult
 *   **Comprehensive Error Handling:** Robust mechanisms for managing exceptions.
 *   **Event System:** Emit and listen to events throughout the application lifecycle.
 
+## 🔌 Plugin and Middleware System
+
+Serv provides a robust plugin and middleware loader that makes extending your application easy:
+
+### Plugin Structure
+
+Plugins in Serv are packages that should have the following structure:
+
+```
+plugins/
+  plugin_name/
+    __init__.py
+    main.py  # Contains your Plugin subclass
+    plugin.yaml  # Metadata about your plugin
+```
+
+The `plugin.yaml` file should contain:
+
+```yaml
+name: My Plugin Name
+description: What my plugin does
+version: 0.1.0
+author: Your Name
+entry: plugins.plugin_name.main:PluginClass
+```
+
+### Middleware Structure
+
+Middleware in Serv follows a similar structure:
+
+```
+middleware/
+  middleware_name/
+    __init__.py
+    main.py  # Contains your middleware factory function
+```
+
+Middleware are async iterators but using the `ServMiddleware` type abstracts that away making it much simpler to implement.
+
+```python
+class MyMiddleware(ServMiddleware):
+    async def enter(self):
+        # Code to run before request processing
+        pass
+        
+    async def leave(self):
+        # Code to run after request processing
+        pass
+        
+    async def on_error(self, exc):
+        # Code to run on error
+        pass
+```
+
+### Loading Plugins and Middleware
+
+You can specify plugin and middleware directories using the CLI:
+
+```
+python -m serv launch --plugin-dirs ./plugins,./custom_plugins --middleware-dirs ./middleware,./custom_middleware
+```
+
+Or programmatically:
+
+```python
+from serv.app import App
+from serv.loader import ServLoader
+
+# Create an app with custom plugin/middleware directories
+app = App(
+    plugin_dirs=['./plugins', './custom_plugins'],
+    middleware_dirs=['./middleware', './custom_middleware']
+)
+
+# Load all available plugins and middleware
+app.load_plugins()
+app.load_middleware_packages()
+
+# Or load specific ones
+app.load_plugin('auth', namespace='plugins')
+app.load_middleware('logging', namespace='middleware')
+```
+
 ##  Quick Start
 
 *(Coming Soon)*
