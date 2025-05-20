@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import json
 import logging
 import traceback
 from asyncio import get_running_loop, Task
@@ -143,32 +144,29 @@ class App:
     async def _default_error_handler(self, error: Exception, response: ResponseBuilder = dependency(), request: Request = dependency()):
         status_code = getattr(error, 'status_code', 500)
         response.set_status(status_code)
-        response.content_type("text/html")
+        
+        # Check if the client accepts HTML
+        accept_header = request.headers.get("accept", "")
 
-        # Prepare context for the template
-        context = {
+        # Prepare error data for JSON response
+        error_data = {
             "status_code": status_code,
-            "error_title": f"Error {status_code}",
-            "error_message": str(error),
-            "error_type": type(error).__name__,
-            "error_str": str(error),
-            "request_path": request.path,
-            "request_method": request.method,
-            "show_details": status_code == 500  # Only show details for 500 errors
+            "error": type(error).__name__,
+            "message": str(error),
+            "path": request.path,
+            "method": request.method
         }
 
-        # Process error chain for 500 errors
+        # For 500 errors, add stack trace information if appropriate
         if status_code == 500:
             error_chain = []
             current_exc = error.__context__ or error.__cause__
             chain_count = 0
 
             while current_exc and chain_count < 10:  # Limit depth to prevent infinite loops
-                formatted_tb = "".join(traceback.format_exception(type(current_exc), current_exc, current_exc.__traceback__))
                 error_chain.append({
                     "type": type(current_exc).__name__,
-                    "message": str(current_exc),
-                    "traceback": formatted_tb
+                    "message": str(current_exc)
                 })
 
                 next_exc = current_exc.__context__ or current_exc.__cause__
@@ -178,59 +176,145 @@ class App:
                 chain_count += 1
 
             if error_chain:
-                context["error_chain"] = error_chain
+                error_data["error_chain"] = error_chain
 
-            # Add traceback for the main error
-            context["traceback"] = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        if "text/html" in accept_header:
+            # Use HTML response with templates
+            response.content_type("text/html")
+            
+            # Prepare context for the template
+            context = {
+                "status_code": status_code,
+                "error_title": f"Error {status_code}",
+                "error_message": str(error),
+                "error_type": type(error).__name__,
+                "error_str": str(error),
+                "request_path": request.path,
+                "request_method": request.method,
+                "show_details": status_code == 500  # Only show details for 500 errors
+            }
 
-        # Try to use a specific template for this status code, fall back to generic_error.html
-        template_name = f"error/{status_code}.html" if status_code in [404, 405, 500] else "error/generic_error.html"
-        html_content = self._render_template(template_name, context)
+            # Process error chain for 500 errors with full traceback
+            if status_code == 500:
+                error_chain = []
+                current_exc = error.__context__ or error.__cause__
+                chain_count = 0
 
-        response.body(html_content)
+                while current_exc and chain_count < 10:
+                    formatted_tb = "".join(traceback.format_exception(type(current_exc), current_exc, current_exc.__traceback__))
+                    error_chain.append({
+                        "type": type(current_exc).__name__,
+                        "message": str(current_exc),
+                        "traceback": formatted_tb
+                    })
+
+                    next_exc = current_exc.__context__ or current_exc.__cause__
+                    if next_exc is current_exc:
+                        break
+                    current_exc = next_exc
+                    chain_count += 1
+
+                if error_chain:
+                    context["error_chain"] = error_chain
+
+                # Add traceback for the main error
+                context["traceback"] = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+
+            # Try to use a specific template for this status code, fall back to generic_error.html
+            template_name = f"error/{status_code}.html" if status_code in [404, 405, 500] else "error/generic_error.html"
+            html_content = self._render_template(template_name, context)
+            response.body(html_content)
+        elif "application/json" in accept_header:
+            # Use JSON response
+            response.content_type("application/json")
+            response.body(json.dumps(error_data))
+        else:
+            # Use plaintext response
+            response.content_type("text/plain")
+            response.body(f"500 Error {status_code}: {error}")
 
     @inject
     async def _default_404_handler(self, error: HTTPNotFoundException, response: ResponseBuilder = dependency(), request: Request = dependency()):
         response.set_status(HTTPNotFoundException.status_code)
-        response.content_type("text/html")
-
-        context = {
-            "status_code": HTTPNotFoundException.status_code,
-            "error_title": "Not Found",
-            "error_message": f"The requested resource was not found.",
-            "error_type": type(error).__name__,
-            "error_str": str(error),
-            "request_path": request.path,
-            "request_method": request.method,
-            "show_details": False
-        }
-
-        html_content = self._render_template("error/404.html", context)
-        response.body(html_content)
+        
+        # Check if the client accepts HTML
+        accept_header = request.headers.get("accept", "")
+        if "text/html" in accept_header:
+            # Use HTML response
+            response.content_type("text/html")
+            context = {
+                "status_code": HTTPNotFoundException.status_code,
+                "error_title": "Not Found",
+                "error_message": f"The requested resource was not found.",
+                "error_type": type(error).__name__,
+                "error_str": str(error),
+                "request_path": request.path,
+                "request_method": request.method,
+                "show_details": False
+            }
+            
+            html_content = self._render_template("error/404.html", context)
+            response.body(html_content)
+        elif "application/json" in accept_header:
+            # Use JSON response
+            response.content_type("application/json")
+            error_data = {
+                "status_code": HTTPNotFoundException.status_code,
+                "error": "NotFound",
+                "message": "The requested resource was not found.",
+                "path": request.path,
+                "method": request.method
+            }
+            response.body(json.dumps(error_data))
+        else:
+            # Use plaintext response
+            response.content_type("text/plain")
+            response.body(f"404 Not Found: The requested resource ({request.path}) was not found.")
 
     @inject
     async def _default_405_handler(self, error: HTTPMethodNotAllowedException, response: ResponseBuilder = dependency(), request: Request = dependency()):
         response.set_status(HTTPMethodNotAllowedException.status_code)
-        response.content_type("text/html")
-
+        
         allowed_methods_str = ", ".join(error.allowed_methods) if error.allowed_methods else ""
         if error.allowed_methods:
             response.add_header("Allow", allowed_methods_str)
-
-        context = {
-            "status_code": HTTPMethodNotAllowedException.status_code,
-            "error_title": "Method Not Allowed",
-            "error_message": error.args[0] if error.args else "The method used is not allowed for the requested resource.",
-            "error_type": type(error).__name__,
-            "error_str": str(error),
-            "request_path": request.path,
-            "request_method": request.method,
-            "allowed_methods": allowed_methods_str,
-            "show_details": False
-        }
-
-        html_content = self._render_template("error/405.html", context)
-        response.body(html_content)
+        
+        # Check if the client accepts HTML
+        accept_header = request.headers.get("accept", "")
+        if "text/html" in accept_header:
+            # Use HTML response
+            response.content_type("text/html")
+            context = {
+                "status_code": HTTPMethodNotAllowedException.status_code,
+                "error_title": "Method Not Allowed",
+                "error_message": error.args[0] if error.args else "The method used is not allowed for the requested resource.",
+                "error_type": type(error).__name__,
+                "error_str": str(error),
+                "request_path": request.path,
+                "request_method": request.method,
+                "allowed_methods": allowed_methods_str,
+                "show_details": False
+            }
+            
+            html_content = self._render_template("error/405.html", context)
+            response.body(html_content)
+        elif "application/json" in accept_header:
+            # Use JSON response
+            response.content_type("application/json")
+            error_data = {
+                "status_code": HTTPMethodNotAllowedException.status_code,
+                "error": "MethodNotAllowed",
+                "message": error.args[0] if error.args else "The method used is not allowed for the requested resource.",
+                "path": request.path,
+                "method": request.method,
+                "allowed_methods": error.allowed_methods if error.allowed_methods else []
+            }
+            response.body(json.dumps(error_data))
+        else:
+            # Use plaintext response
+            response.content_type("text/plain")
+            message = error.args[0] if error.args else f"The method used is not allowed for the requested resource {request.path}."
+            response.body(f"405 Method Not Allowed: {message}")
 
     @inject
     async def _run_error_handler(self, error: Exception, container: Container = dependency()):
