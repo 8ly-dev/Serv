@@ -79,6 +79,74 @@ class Router:
             
         self._mounted_routers.append((path, router))
 
+    def url_for(self, handler: Callable, **kwargs) -> str:
+        """Builds a URL for a registered route handler with the given path parameters.
+        
+        Args:
+            handler: The route handler function or a method of a Route class
+            **kwargs: Path parameters to substitute in the URL pattern
+            
+        Returns:
+            A URL string with path parameters substituted
+            
+        Raises:
+            ValueError: If the handler is not found or if required path parameters are missing
+            
+        Examples:
+            >>> @get("/user/{id}")
+            >>> async def show_user(self, id: str):
+            >>>     pass
+            >>> 
+            >>> router.url_for(show_user, id=123)
+            "/user/123"
+        """
+        # Handle methods on Route instances (most common case)
+        if hasattr(handler, '__self__') and isinstance(handler.__self__, routes.Route):
+            route_instance = handler.__self__
+            handler = route_instance.__call__
+        
+        # Try to find the handler and its path
+        path = self._find_handler_path(handler)
+        if not path:
+            # If not found directly, check mounted routers
+            for mount_path, mounted_router in self._mounted_routers:
+                try:
+                    sub_path = mounted_router.url_for(handler, **kwargs)
+                    return f"{mount_path}{sub_path}"
+                except ValueError:
+                    continue
+            
+            # If not found in mounted routers, check sub-routers
+            for sub_router in self._sub_routers:
+                try:
+                    return sub_router.url_for(handler, **kwargs)
+                except ValueError:
+                    continue
+            
+            raise ValueError(f"Handler {handler.__name__} not found in any router")
+        
+        # Insert path parameters
+        parts = path.split('/')
+        result_parts = []
+        
+        for part in parts:
+            if part.startswith('{') and part.endswith('}'):
+                param_name = part[1:-1]
+                if param_name not in kwargs:
+                    raise ValueError(f"Missing required path parameter: {param_name}")
+                result_parts.append(str(kwargs[param_name]))
+            else:
+                result_parts.append(part)
+        
+        return '/' + '/'.join(p for p in result_parts if p)
+
+    def _find_handler_path(self, handler: Callable) -> str | None:
+        """Finds the path pattern for a given handler in this router."""
+        for path, _, route_handler in self._routes:
+            if route_handler == handler:
+                return path
+        return None
+
     def resolve_route(self, request_path: str, request_method: str) -> tuple[Callable, Dict[str, Any]] | None:
         """Recursively finds a handler for the given path and method.
 
