@@ -1,0 +1,11 @@
+{% extends "error/base.html" %}
+
+{% block error_content %}
+<h1 class="error-title">Page Not Found</h1>
+
+<div class="error-message">
+    <p>Whoops! Looks like we took a wrong turn into the digital void. <span class="emoji-inline">🕳️</span></p>
+    <p>We've sent our best digital explorers to find <code>{{ request_path }}</code> but it seems to have vanished into thin air.</p>
+    <p>Maybe try checking the URL? Or click that fancy home button below to get back to safer digital territory. <span class="emoji-inline">🧭</span></p>
+</div>
+{% endblock %} 

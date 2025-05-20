@@ -1,3 +1,4 @@
+import asyncio
 from serv.app import App
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
@@ -33,7 +34,23 @@ if __name__ == "__main__":
         print("Starting Serv basic demo on http://127.0.0.1:8000")
         print("Press Ctrl+C to stop.")
 
-        # Create an app instance
+        # Create a new event loop or get the current one
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        # Create an app instance inside the event loop
         app = App()
         app.add_plugin(BasicAppPlugin())
-        uvicorn.run(app, host="127.0.0.1", port=8000) 
+
+        # Configure and run Uvicorn with the same loop
+        config = uvicorn.Config(
+            app,
+            host="127.0.0.1",
+            port=8000,
+            loop="asyncio",
+        )
+        server = uvicorn.Server(config)
+        loop.run_until_complete(server.serve())

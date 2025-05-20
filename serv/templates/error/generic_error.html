@@ -1,0 +1,11 @@
+{% extends "error/base.html" %}
+
+{% block error_content %}
+<h1 class="error-title">Something Went Wrong</h1>
+
+<div class="error-message">
+    <p>Well, this is awkward. Something unexpected happened. <span class="emoji-inline">🙃</span></p>
+    <p>While processing <code>{{ request_path }}</code>, our code decided to take the path less traveled.</p>
+    <p>Don't worry! We've recorded this digital mishap in our logs and will investigate what went wrong. In the meantime, perhaps try again or head back home? <span class="emoji-inline">🏠</span></p>
+</div>
+{% endblock %} 

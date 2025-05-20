@@ -1,0 +1,15 @@
+{% extends "error/base.html" %}
+
+{% block error_content %}
+<h1 class="error-title">Method Not Allowed</h1>
+
+<div class="error-message">
+    <p>Oh no! You're trying to <code>{{ request_method }}</code> but this URL only wants to be approached in certain ways. <span class="emoji-inline">🚫</span></p>
+    
+    <p>It's like trying to high-five someone who's only offering a fist bump at <code>{{ request_path }}</code>.</p>
+    
+    {% if allowed_methods %}
+    <p>This endpoint prefers to be contacted via: <code>{{ allowed_methods }}</code> <span class="emoji-inline">👌</span></p>
+    {% endif %}
+</div>
+{% endblock %} 

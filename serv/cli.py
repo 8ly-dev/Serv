@@ -2,6 +2,8 @@ import argparse
 import os
 import sys
 import importlib
+import asyncio
+from inspect import isawaitable
 from pathlib import Path
 import yaml  # PyYAML
 import logging
@@ -61,7 +63,7 @@ def prompt_user(text: str, default: str | None = None) -> str:
     if default is not None:
         prompt_text += f" [{default}]"
     prompt_text += ": "
-    
+
     while True:
         response = input(prompt_text).strip()
         if response:
@@ -96,7 +98,7 @@ def _resolve_plugin_module_string(identifier: str, project_root: Path) -> tuple[
     if not dir_name:
         logger.error(f"Could not derive a valid directory name from identifier '{identifier}'.")
         return None, None
-    
+
     plugin_yaml_path = plugins_dir / dir_name / "plugin.yaml"
 
     if not plugin_yaml_path.exists():
@@ -110,7 +112,7 @@ def _resolve_plugin_module_string(identifier: str, project_root: Path) -> tuple[
         if not isinstance(plugin_meta, dict):
             logger.error(f"Invalid YAML format in '{plugin_yaml_path}'. Expected a dictionary.")
             return None, None
-        
+
         entry_string = plugin_meta.get("entry")
         plugin_name_human = plugin_meta.get("name", identifier) # Fallback to identifier if name not in yaml
 
@@ -132,7 +134,7 @@ def handle_init_command(args_ns):
 
     if config_path.exists() and not args_ns.force:
         overwrite_prompt = prompt_user(f"'{config_path.name}' already exists in '{Path.cwd()}'. Overwrite? (yes/no)", "no")
-        if overwrite_prompt is None or overwrite_prompt.lower() != 'yes': 
+        if overwrite_prompt is None or overwrite_prompt.lower() != 'yes':
             print("Initialization cancelled by user.")
             return
 
@@ -185,7 +187,7 @@ def handle_init_command(args_ns):
             yaml.dump({"plugins": config_content["plugins"]}, f, sort_keys=False, indent=2, default_flow_style=False)
             f.write(yaml_middleware_comment)
             yaml.dump({"middleware": config_content["middleware"]}, f, sort_keys=False, indent=2, default_flow_style=False)
-            
+
         print(f"Successfully created '{config_path}'.")
         print("You can now configure your plugins and middleware in this file.")
     except IOError as e:
@@ -197,7 +199,7 @@ def handle_create_plugin_command(args_ns):
     logger.debug("Create plugin command started.")
 
     plugin_name_human = prompt_user("Plugin Name (e.g., 'My Awesome Plugin')")
-    if not plugin_name_human: 
+    if not plugin_name_human:
         logger.error("Plugin name cannot be empty. Aborting.")
         return
 
@@ -207,10 +209,10 @@ def handle_create_plugin_command(args_ns):
 
     class_name = to_pascal_case(plugin_name_human)
     module_base_name = to_snake_case(plugin_name_human)
-    if not module_base_name: 
+    if not module_base_name:
         logger.error(f"Could not derive a valid module name from '{plugin_name_human}'. Please use alphanumeric characters.")
         return
-    
+
     plugin_dir_name = module_base_name
     python_file_name = "main.py"
 
@@ -232,7 +234,7 @@ def handle_create_plugin_command(args_ns):
     # Create plugin.yaml
     plugin_yaml_path = plugin_specific_dir / "plugin.yaml"
     plugin_entry_path = f"plugins.{plugin_dir_name}.{python_file_name.replace('.py', '')}:{class_name}"
-    
+
     plugin_yaml_context = {
         "plugin_name_human": plugin_name_human,
         "plugin_entry_path": plugin_entry_path,
@@ -240,7 +242,7 @@ def handle_create_plugin_command(args_ns):
         "plugin_author": plugin_author,
         "plugin_description": plugin_description,
     }
-    
+
     try:
         template_path = Path(importlib.util.find_spec("serv").submodule_search_locations[0]) / "scaffolding" / "plugin_yaml.template"
         with open(template_path, "r") as f_template:
@@ -261,7 +263,7 @@ def handle_create_plugin_command(args_ns):
 
     # Create main.py (plugin Python file)
     plugin_py_path = plugin_specific_dir / python_file_name
-    
+
     plugin_py_context = {
         "class_name": class_name,
         "module_base_name": module_base_name,
@@ -274,7 +276,7 @@ def handle_create_plugin_command(args_ns):
     except Exception as e_template:
         logger.error(f"Error loading plugin_main_py.template: {e_template}")
         return
-        
+
     plugin_py_content_str = plugin_py_template_content.format(**plugin_py_context)
 
     try:
@@ -301,7 +303,7 @@ def handle_enable_plugin_command(args_ns):
         return
 
     module_string, plugin_name_human = _resolve_plugin_module_string(plugin_identifier, Path.cwd())
-    name_to_log = plugin_name_human or module_string 
+    name_to_log = plugin_name_human or module_string
 
     if not module_string:
         logger.error(f"Could not resolve plugin '{plugin_identifier}'. Enable command aborted.")
@@ -318,23 +320,23 @@ def handle_enable_plugin_command(args_ns):
         if not isinstance(plugins_list, list):
             logger.error(f"'plugins' section in '{config_path}' is not a list. Aborting.")
             return
-        
+
         found = False
         for plugin_entry in plugins_list:
             if isinstance(plugin_entry, dict) and plugin_entry.get("entry") == module_string:
                 print(f"Plugin '{name_to_log}' ({module_string}) is already enabled.")
                 found = True
                 break
-        
+
         if not found:
             plugins_list.append({"entry": module_string, "config": {}})
             config_data["plugins"] = plugins_list
-            
+
             with open(config_path, 'w') as f:
                 yaml.dump(config_data, f, sort_keys=False, indent=2, default_flow_style=False)
             print(f"Plugin '{name_to_log}' ({module_string}) enabled successfully.")
             print(f"It has been added to '{config_path}'.")
-        
+
     except Exception as e:
         logger.error(f"Error enabling plugin '{name_to_log}': {e}", exc_info=logger.level == logging.DEBUG)
 
@@ -359,7 +361,7 @@ def handle_disable_plugin_command(args_ns):
     try:
         with open(config_path, 'r') as f:
             config_data = yaml.safe_load(f)
-        
+
         if not config_data or not isinstance(config_data, dict):
             print(f"Warning: Configuration file '{config_path}' is empty or invalid. Cannot disable plugin.")
             return
@@ -371,7 +373,7 @@ def handle_disable_plugin_command(args_ns):
 
         original_count = len(plugins_list)
         updated_plugins_list = [p for p in plugins_list if not (isinstance(p, dict) and p.get("entry") == module_string)]
-        
+
         if len(updated_plugins_list) < original_count:
             config_data["plugins"] = updated_plugins_list
             with open(config_path, 'w') as f:
@@ -398,7 +400,7 @@ def handle_enable_middleware_command(args_ns):
     if ":" not in middleware_entry_string:
         logger.error(f"Invalid middleware entry string format: '{middleware_entry_string}'. Expected 'module.path:CallableName'.")
         return
-        
+
     try:
         with open(config_path, 'r') as f:
             config_data = yaml.safe_load(f) or {}
@@ -410,23 +412,23 @@ def handle_enable_middleware_command(args_ns):
         if not isinstance(middlewares_list, list):
             logger.error(f"'middleware' section in '{config_path}' is not a list. Aborting.")
             return
-        
+
         found = False
         for mw_entry in middlewares_list:
             if isinstance(mw_entry, dict) and mw_entry.get("entry") == middleware_entry_string:
                 print(f"Middleware '{middleware_entry_string}' is already enabled.")
                 found = True
                 break
-        
+
         if not found:
             middlewares_list.append({"entry": middleware_entry_string, "config": {}})
             config_data["middleware"] = middlewares_list
-            
+
             with open(config_path, 'w') as f:
                 yaml.dump(config_data, f, sort_keys=False, indent=2, default_flow_style=False)
             print(f"Middleware '{middleware_entry_string}' enabled successfully.")
             print(f"It has been added to '{config_path}'.")
-        
+
     except Exception as e:
         logger.error(f"Error enabling middleware '{middleware_entry_string}': {e}", exc_info=logger.level == logging.DEBUG)
 
@@ -441,14 +443,14 @@ def handle_disable_middleware_command(args_ns):
         logger.error(f"Configuration file '{config_path}' not found. Cannot disable middleware.")
         return
 
-    if ":" not in middleware_entry_string: 
+    if ":" not in middleware_entry_string:
         logger.error(f"Invalid middleware entry string format for disable: '{middleware_entry_string}'. Expected 'module.path:CallableName'.")
         return
 
     try:
         with open(config_path, 'r') as f:
             config_data = yaml.safe_load(f)
-        
+
         if not config_data or not isinstance(config_data, dict):
             print(f"Warning: Configuration file '{config_path}' is empty or invalid. Cannot disable middleware.")
             return
@@ -460,10 +462,10 @@ def handle_disable_middleware_command(args_ns):
 
         original_count = len(middlewares_list)
         updated_middlewares_list = [
-            mw for mw in middlewares_list 
+            mw for mw in middlewares_list
             if not (isinstance(mw, dict) and mw.get("entry") == middleware_entry_string)
         ]
-        
+
         if len(updated_middlewares_list) < original_count:
             config_data["middleware"] = updated_middlewares_list
             with open(config_path, 'w') as f:
@@ -485,27 +487,27 @@ def handle_create_middleware_command(args_ns):
     if not mw_name_human:
         logger.error("Middleware name cannot be empty. Aborting.")
         return
-    
+
     mw_description = prompt_user("Description", f"A middleware for {mw_name_human}.") or f"A middleware for {mw_name_human}."
 
     class_name_base = to_pascal_case(mw_name_human)
-    package_dir_name = to_snake_case(mw_name_human) 
-    python_main_file_name = "main.py" 
+    package_dir_name = to_snake_case(mw_name_human)
+    python_main_file_name = "main.py"
 
     if not package_dir_name:
         logger.error(f"Could not derive a valid directory name from '{mw_name_human}'. Please use alphanumeric characters.")
         return
 
     middleware_class_name = f"{class_name_base}Middleware"
-    
+
     middleware_root_dir = Path.cwd() / "middleware"
-    middleware_package_dir = middleware_root_dir / package_dir_name 
-    middleware_py_path = middleware_package_dir / python_main_file_name 
+    middleware_package_dir = middleware_root_dir / package_dir_name
+    middleware_py_path = middleware_package_dir / python_main_file_name
 
     try:
         os.makedirs(middleware_package_dir, exist_ok=True)
-        (middleware_root_dir / "__init__.py").touch(exist_ok=True) 
-        (middleware_package_dir / "__init__.py").touch(exist_ok=True) 
+        (middleware_root_dir / "__init__.py").touch(exist_ok=True)
+        (middleware_package_dir / "__init__.py").touch(exist_ok=True)
     except OSError as e:
         logger.error(f"Error creating middleware directory structure '{middleware_package_dir}': {e}")
         return
@@ -513,7 +515,7 @@ def handle_create_middleware_command(args_ns):
     middleware_py_context = {
         "mw_description": mw_description,
         "middleware_class_name": middleware_class_name,
-        "mw_name_human": mw_name_human, 
+        "mw_name_human": mw_name_human,
     }
 
     try:
@@ -530,7 +532,7 @@ def handle_create_middleware_command(args_ns):
         with open(middleware_py_path, "w") as f:
             f.write(middleware_py_content_str)
         print(f"Created middleware file: '{middleware_py_path}'")
-        
+
         entry_path_to_suggest = f"middleware.{package_dir_name}.{python_main_file_name.replace('.py', '')}:{middleware_class_name}"
         print(f"Middleware '{mw_name_human}' created successfully in '{middleware_package_dir}'.")
         print(f"To use it, add its entry path to your 'serv.config.yaml' under the 'middleware' section:")
@@ -545,9 +547,9 @@ def handle_create_middleware_command(args_ns):
 def handle_app_details_command(args_ns):
     """Handles the 'app details' command to display loaded configuration."""
     logger.debug("Displaying application configuration details...")
-    
-    config_path_to_load = getattr(args_ns, 'config', None) 
-    
+
+    config_path_to_load = getattr(args_ns, 'config', None)
+
     try:
         raw_config = load_raw_config(config_path_to_load)
         effective_config_path_str = config_path_to_load or os.getenv("SERV_CONFIG_PATH") or DEFAULT_CONFIG_FILE
@@ -559,7 +561,7 @@ def handle_app_details_command(args_ns):
             if not config_path_to_load:
                  print(f"You can create one with 'serv app init'.")
             return
-        
+
         if not raw_config and effective_config_path.exists():
             logger.info(f"Configuration file '{effective_config_path}' was found but is empty or invalid. Nothing to display.")
             print(f"Configuration file loaded: {effective_config_path} (but it's empty or invalid)")
@@ -572,7 +574,7 @@ def handle_app_details_command(args_ns):
         plugins_root_dir = Path.cwd() / "plugins"
         if plugins_root_dir.is_dir():
             for plugin_dir_item in plugins_root_dir.iterdir():
-                if plugin_dir_item.is_dir(): 
+                if plugin_dir_item.is_dir():
                     plugin_yaml_path = plugin_dir_item / "plugin.yaml"
                     if plugin_yaml_path.is_file():
                         try:
@@ -591,7 +593,7 @@ def handle_app_details_command(args_ns):
         if site_info and isinstance(site_info, dict):
             for key, value in site_info.items():
                 print(f"  {key}: {value}")
-        elif site_info is not None: 
+        elif site_info is not None:
              print(f"  Site info is present but not in the expected format: {site_info}")
         else:
             print("  (No site information configured)")
@@ -613,7 +615,7 @@ def handle_app_details_command(args_ns):
 
                         plugin_path_resolved = plugin_path.resolve()
                         plugin_path_string = str(plugin_path_resolved)
-                        
+
                         print(f"  - {plugin_settings.get('name')}")
                         print(f"    - Entry: {entry}")
                         print(f"    - Path: {plugin_path_string}")
@@ -663,7 +665,7 @@ def handle_app_details_command(args_ns):
                     print(f"  - Middleware {i+1}: <Invalid entry format: {mw_entry}>")
         else:
             print("  (No middleware configured)")
-        
+
         print("\n--------------------------------------------------")
 
     except ServConfigError as e:
@@ -677,23 +679,33 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
     def factory():
         logger.debug(f"App factory called for '{app_module_str}' with config '{config_path_str}'")
         app_obj = None
+
+        # Create a new event loop or get the current one
+        try:
+            loop = asyncio.get_running_loop()
+            logger.debug("Using existing asyncio event loop")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            logger.debug("Created new asyncio event loop")
+
         try:
             if app_module_str == "serv.app:App":
                 app_obj = DefaultApp()
-            else: 
+            else:
                 imported = import_from_string(app_module_str)
-                if callable(imported) and not isinstance(imported, DefaultApp.__class__): 
+                if callable(imported) and not isinstance(imported, DefaultApp.__class__):
                     logger.debug(f"Imported '{app_module_str}' is a callable factory. Calling it.")
-                    app_obj = imported() 
-                else: 
+                    app_obj = imported()
+                else:
                     app_obj = imported
-            
+
             if app_obj is None:
                 raise ImportError(f"Could not load app object from '{app_module_str}'")
 
             if isinstance(app_obj, DefaultApp) or (hasattr(app_obj, 'plugins_config') and hasattr(app_obj, 'router')):
-                config_data = load_raw_config(config_path_str) 
-                
+                config_data = load_raw_config(config_path_str)
+
                 should_load_welcome_plugin_by_default = False
                 if not config_data: # No config file found or it was empty
                     logger.info(f"No configuration file found or it's empty for '{app_module_str}'.")
@@ -721,7 +733,7 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
                                 welcome_plugin_instance.name = "Serv Welcome Plugin (Bundled)"
                         if not hasattr(welcome_plugin_instance, 'version') or not welcome_plugin_instance.version:
                                 welcome_plugin_instance.version = "bundled"
-                        
+
                         # Check if welcome plugin or its route is already present (e.g. if user manually added it)
                         # This is a basic check; a more robust check might involve inspecting routes.
                         already_loaded = False
@@ -731,11 +743,11 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
                                     already_loaded = True
                                     logger.debug("WelcomePlugin instance already found in app.plugins.")
                                     break
-                        
+
                         if not already_loaded:
                             app_obj.add_plugin(welcome_plugin_instance)
                             logger.info(f"Successfully added bundled '{welcome_plugin_instance.name}' to the application.")
-                            
+
                             if hasattr(welcome_plugin_instance, 'on_app_startup'):
                                     welcome_plugin_instance.on_app_startup(app_obj)
                                     logger.debug(f"Executed on_app_startup for '{welcome_plugin_instance.name}'.")
@@ -750,7 +762,7 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
                 logger.debug(f"Imported app '{app_module_str}' is not a Serv App instance. Skipping Serv config application.")
 
             return app_obj
-            
+
         except ImportError:
             logger.error(f"Could not import app module '{app_module_str}'.", exc_info=logger.level == logging.DEBUG)
             sys.exit(1)
@@ -760,14 +772,14 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
     return factory
 
 
-def handle_launch_command(args_ns):
+async def handle_launch_command(args_ns):
     """Handles the 'launch' command to start the Uvicorn server."""
     app_module_str = args_ns.app_module
     app_target: any
 
     if args_ns.factory:
         app_target_factory = _get_configured_app_factory(app_module_str, args_ns.config)
-        app_target = app_target_factory 
+        app_target = app_target_factory
         logger.debug(f"Using application factory: '{app_module_str}' (via Serv wrapper factory).")
     else:
         if args_ns.reload:
@@ -777,36 +789,40 @@ def handle_launch_command(args_ns):
         else:
             try:
                 temp_factory = _get_configured_app_factory(app_module_str, args_ns.config)
-                app_target = temp_factory() 
+                app_target = temp_factory()
                 logger.debug(f"Running pre-configured app instance for '{app_module_str}'.")
-            except Exception as e: 
+            except Exception as e:
                 logger.warning(f"Could not pre-load/configure '{app_module_str}', passing string to Uvicorn: {e}")
-                app_target = app_module_str 
+                app_target = app_module_str
 
     uvicorn_log_level = "debug" if logger.level == logging.DEBUG else "info"
     num_workers = None
-    if args_ns.workers is not None: 
-        if args_ns.workers == 0: 
-            num_workers = None 
+    if args_ns.workers is not None:
+        if args_ns.workers == 0:
+            num_workers = None
         elif args_ns.workers > 0:
             num_workers = args_ns.workers
 
     if args_ns.reload and num_workers is not None and num_workers > 1:
         logger.warning("Number of workers is ignored when reload is enabled. Using 1 worker.")
-        if num_workers == 0: 
-            pass 
-        else: 
+        if num_workers == 0:
+            pass
+        else:
              num_workers = 1
 
     try:
-        uvicorn.run(
+        # Configure Uvicorn with the loop
+        config = uvicorn.Config(
             app_target,
             host=args_ns.host,
             port=args_ns.port,
             reload=args_ns.reload,
             workers=num_workers,
             log_level=uvicorn_log_level,
+            loop="asyncio",  # Ensure Uvicorn uses the asyncio loop
         )
+        server = uvicorn.Server(config)
+        await server.serve()
     except ImportError as e:
         if app_module_str in str(e):
              logger.error(f"Error: App module '{app_module_str}' could not be found or imported.")
@@ -825,7 +841,7 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter # Preserves formatting in help messages
     )
     serv_version = "0.1.0-dev" # Placeholder
-    
+
     parser.add_argument(
         '--version',
         action='version',
@@ -840,14 +856,14 @@ def main():
     # Top-level subparsers
     top_level_subparsers = parser.add_subparsers(title="Available command groups", dest="command_group")
 
-    # --- App Command Group --- 
+    # --- App Command Group ---
     app_parser = top_level_subparsers.add_parser(
-        "app", 
+        "app",
         help="Manage your Serv application.",
         description="Commands for managing your Serv application."
     )
     app_subparsers = app_parser.add_subparsers(title="App commands", dest="app_command", required=True)
-    
+
     # app init command
     app_init_parser = app_subparsers.add_parser(
         "init",
@@ -871,9 +887,9 @@ def main():
     # For now, it uses the same logic as `launch` (env var, default, or a future global --config)
     app_details_parser.set_defaults(func=handle_app_details_command)
 
-    # --- Plugin Command Group --- 
+    # --- Plugin Command Group ---
     plugin_parser = top_level_subparsers.add_parser(
-        "plugin", 
+        "plugin",
         help="Manage Serv plugins.",
         description="Commands for creating, enabling, and disabling Serv plugins."
     )
@@ -952,8 +968,8 @@ def main():
         description="Scaffolds a new middleware Python file in the 'middleware' directory."
     )
     mw_create_parser.set_defaults(func=handle_create_middleware_command)
-    
-    # --- Launch Command --- 
+
+    # --- Launch Command ---
     launch_parser = top_level_subparsers.add_parser(
         "launch",
         help="Launch the Serv development server (default command if none specified).",
@@ -961,7 +977,7 @@ def main():
     )
     launch_parser.add_argument(
         "app_module",
-        nargs="?", 
+        nargs="?",
         default="serv.app:App",
         help=("App to run, e.g., 'my_app.main:app' or 'my_project.app_factory:create_app'.\n"
               "Default: 'serv.app:App' (basic Serv instance).")
@@ -992,7 +1008,7 @@ def main():
         help="Treat APP_MODULE as an application factory string (e.g., 'module:create_app')."
     )
     launch_parser.set_defaults(func=handle_launch_command)
-    
+
     args = parser.parse_args()
 
     if args.debug or os.getenv("SERV_DEBUG"):
@@ -1018,7 +1034,7 @@ def main():
                  parser.print_help()
                  sys.exit(0)
             non_command_cli_args.append(arg_val)
-            
+
         try:
             launch_specific_args = launch_parser.parse_args(non_command_cli_args)
             for global_arg_name in ['debug', 'version']:
@@ -1029,10 +1045,12 @@ def main():
         except SystemExit:
             parser.print_help()
             sys.exit(1)
-    
+
     # Dispatch to the appropriate handler function
     if hasattr(current_args_to_use, 'func') and callable(current_args_to_use.func):
-        current_args_to_use.func(current_args_to_use)
+        result = current_args_to_use.func(current_args_to_use)
+        if isawaitable(result):
+            asyncio.run(result)
     else:
         # If no func is set (e.g., 'serv app' or 'serv plugin' without subcommand),
         # print help for that command group.
@@ -1049,4 +1067,4 @@ def main():
             parser.print_help() # Fallback to main help
 
 if __name__ == "__main__":
-    main() 
+    main()

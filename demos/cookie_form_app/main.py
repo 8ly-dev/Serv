@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from serv.app import App
 from serv.injectors import Cookie
@@ -50,7 +51,7 @@ async def handle_name_submission_handler(request: Request = dependency(), respon
         print(f"Username submitted: {form.username}. Cookie set.")
     else:
         print("No username submitted in form.")
-    
+
     response.redirect("/", status_code=303)
 
 # Welcome Router Handlers
@@ -59,7 +60,7 @@ async def show_welcome_message_handler(request: Request = dependency(), response
     if not username:
         # This is a safeguard; middleware should prevent this router from being used if no cookie.
         print("Error: Welcome router called without username cookie. Redirecting to form.")
-        response.redirect("/", status_code=303) 
+        response.redirect("/", status_code=303)
         return
 
     response.content_type("text/html")
@@ -100,9 +101,9 @@ async def cookie_based_router_middleware(router: Router = dependency(), username
     else:
         print("No username cookie. Setting form_router for the request.")
         router.add_router(form_router)
-    
+
     yield # Allow processing to continue to the (now selected) router
-    
+
     # No cleanup needed after yield for this middleware
 
 # --- Add Middleware to App ---
@@ -121,4 +122,20 @@ if __name__ == "__main__":
         print("Starting Serv cookie_form_app demo (middleware routing) on http://127.0.0.1:8001")
         print("Access it at: http://127.0.0.1:8001/")
         print("Press Ctrl+C to stop.")
-        uvicorn.run(app, host="127.0.0.1", port=8001) 
+
+        # Create a new event loop or get the current one
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        # Configure and run Uvicorn with the same loop
+        config = uvicorn.Config(
+            app,
+            host="127.0.0.1",
+            port=8001,
+            loop="asyncio",
+        )
+        server = uvicorn.Server(config)
+        loop.run_until_complete(server.serve())
