@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "serv"
-version = "0.1.0a3"
+version = "0.1.0a4"
 description = "Serv is a powerful, extensible, and minimally opinionated ASGI web framework for Python, designed for building modern web applications and APIs with ease."
 readme = "README.md"
 requires-python = ">=3.13"
