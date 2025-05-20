@@ -69,12 +69,15 @@ class App:
 
     def add_error_handler(self, error_type: type[Exception], handler: Callable[[Exception], Awaitable[None]]):
         self._error_handlers[error_type] = handler
+        self.emit("error_handler.loaded", error_type=error_type, handler=handler, container=self._container)
 
     def add_middleware(self, middleware: Callable[[], AsyncIterator[None]]):
         self._middleware.append(middleware)
+        self.emit("middleware.loaded", middleware=middleware, container=self._container)
 
     def add_plugin(self, plugin: Plugin):
         self._plugins.append(plugin)
+        self.emit("plugin.loaded", plugin=plugin, container=self._container)
 
     def emit(self, event: str, *, container: Container = dependency(), **kwargs) -> Task:
         return container.call(self._emit.emit_sync, event, **kwargs)
