@@ -66,14 +66,14 @@ class App:
             match event:
                 case {"type": "lifespan.startup"}:
                     logger.debug("Lifespan startup event")
-                    await self.emit("app.lifespan.startup", scope=scope, container=self._container)
-                    await send({"type": "lifespan.startup.complete"})
+                    await self.emit("app.startup", scope=scope, container=self._container)
+                    await send(LifespanStartupCompleteEvent(type="lifespan.startup.complete"))
 
                 case {"type": "lifespan.shutdown"}:
                     logger.debug("Lifespan shutdown event")
-                    await self.emit("app.lifespan.shutdown", scope=scope, container=self._container)
+                    await self.emit("app.shutdown", scope=scope, container=self._container)
                     await self._async_exit_stack.aclose()
-                    await send({"type": "lifespan.shutdown.complete"})
+                    await send(LifespanShutdownCompleteEvent(type="lifespan.shutdown.complete"))
 
     @inject
     async def _default_error_handler(self, error: Exception, response: ResponseBuilder = dependency(), request: Request = dependency()):
