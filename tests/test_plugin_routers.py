@@ -5,7 +5,9 @@ import pytest
 from unittest.mock import MagicMock, patch
 import yaml
 
+from bevy import dependency, get_registry
 from bevy.containers import Container
+from bevy.registries import Registry
 from serv.plugins import Plugin
 from serv.routing import Router
 
@@ -57,7 +59,8 @@ def test_plugin_router_config_basic():
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     
     # Create a container for dependency injection
-    container = Container()
+    registry = Registry()
+    container = registry.create_container()
     
     # Set up routers from config
     routers = plugin.setup_routers(container)
@@ -67,7 +70,7 @@ def test_plugin_router_config_basic():
     assert len(routers[0]._routes) == 1
     
     # Check that the route was added correctly
-    path, methods, handler = routers[0]._routes[0]
+    path, methods, handler, _ = routers[0]._routes[0]
     assert path == "/test"
     assert handler is not None
 
@@ -105,7 +108,8 @@ def test_plugin_router_mounting():
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     
     # Create a container for dependency injection
-    container = Container()
+    registry = Registry()
+    container = registry.create_container()
     
     # Set up routers from config
     routers = plugin.setup_routers(container)
@@ -143,21 +147,22 @@ def test_plugin_on_app_startup():
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     
-    # Create a container for dependency injection
-    container = Container()
+    # Create a mocked container for the test
+    mock_container = MagicMock()
+    mock_container.instances = {}
     
-    # Mock app for the on_app_startup call
-    mock_app = MagicMock()
+    # Mock Router for the test
+    mock_router = Router()
     
-    # Call the on_app_startup method
-    with patch.object(plugin, 'setup_routers', return_value=[Router()]) as mock_setup:
-        plugin.on_app_startup(mock_app, container)
+    # Call the on_app_startup method with our mocked objects
+    with patch.object(plugin, 'setup_routers', return_value=[mock_router]):
+        # We need to inject the real Router class
+        from serv.routing import Router as RealRouter
+        plugin.on_app_startup(MagicMock(), mock_container)
         
-        # Verify setup_routers was called
-        mock_setup.assert_called_once()
-        
-        # Verify the router was set in the container
-        assert isinstance(container.get(Router), Router)
+        # After the method executes, the Router should be in the container instances
+        assert RealRouter in mock_container.instances
+        assert mock_container.instances[RealRouter] == mock_router
 
 
 def test_plugin_import_handler():
