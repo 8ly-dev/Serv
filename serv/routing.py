@@ -12,6 +12,8 @@ class Router:
     def __init__(self):
         # Stores tuples of (path_pattern, methods, handler_callable)
         self._routes: List[tuple[str, frozenset[str] | None, Callable]] = []
+        # Stores tuples of (mount_path, router_instance)
+        self._mounted_routers: List[tuple[str, "Router"]] = []
         self._sub_routers: List[Router] = []
 
     @overload
@@ -53,6 +55,30 @@ class Router:
            Later added sub-routers are checked first (LIFO order for matching)."""
         self._sub_routers.append(router)
 
+    def mount(self, path: str, router: "Router"):
+        """Mounts a router at a specific path.
+        
+        Unlike add_router which adds a router with full request path access,
+        mount prefixes all routes in the mounted router with the given path.
+        
+        Args:
+            path: The path prefix where the router should be mounted.
+                 Should start with a '/' and not end with one.
+            router: The router instance to mount at the specified path.
+            
+        Examples:
+            >>> api_router = Router()
+            >>> api_router.add_route("/users", users_handler)
+            >>> main_router.mount("/api", api_router)
+            # Now "/api/users" will be handled by users_handler
+        """
+        if not path.startswith('/'):
+            path = '/' + path
+        if path.endswith('/'):
+            path = path[:-1]
+            
+        self._mounted_routers.append((path, router))
+
     def resolve_route(self, request_path: str, request_method: str) -> tuple[Callable, Dict[str, Any]] | None:
         """Recursively finds a handler for the given path and method.
 
@@ -71,7 +97,29 @@ class Router:
         collected_allowed_methods: set[str] = set()
         found_path_match_but_not_method = False
 
-        # 1. Check sub-routers in reverse order of addition (LIFO for matching)
+        # 1. Check mounted routers first
+        for mount_path, mounted_router in self._mounted_routers:
+            if request_path.startswith(mount_path):
+                # Strip the mount path prefix for the mounted router
+                sub_path = request_path[len(mount_path):]
+                if not sub_path:
+                    sub_path = "/"
+                elif not sub_path.startswith("/"):
+                    sub_path = "/" + sub_path
+                
+                try:
+                    resolved_in_mounted = mounted_router.resolve_route(sub_path, request_method)
+                    if resolved_in_mounted:
+                        return resolved_in_mounted  # Handler found and method matched in mounted router
+                except HTTPMethodNotAllowedException as e:
+                    # Mounted router matched the path but not the method
+                    collected_allowed_methods.update(e.allowed_methods)
+                    found_path_match_but_not_method = True
+                except HTTPNotFoundException:
+                    # Mounted router did not find the path. Continue search.
+                    pass
+
+        # 2. Check sub-routers in reverse order of addition (LIFO for matching)
         for sub_router in reversed(self._sub_routers):
             try:
                 resolved_in_sub = sub_router.resolve_route(request_path, request_method)
@@ -87,7 +135,7 @@ class Router:
                 # Sub-router did not find the path at all. Continue search.
                 pass
 
-        # 2. Check own routes
+        # 3. Check own routes
         for path_pattern, route_specific_methods, handler_callable in self._routes:
             match_info = self._match_path(request_path, path_pattern)
             if match_info is not None:  # Path matches
@@ -101,7 +149,7 @@ class Router:
                     if route_specific_methods:
                         collected_allowed_methods.update(route_specific_methods)
         
-        # 3. After checking all sub-routers and own routes:
+        # 4. After checking all mounted routers, sub-routers and own routes:
         if found_path_match_but_not_method and collected_allowed_methods:
             # We found one or more path matches, but no method matches for that path.
             # And we have a list of methods that *would* have been allowed.
