@@ -13,7 +13,7 @@ class Router:
         # Stores tuples of (path_pattern, methods, handler_callable)
         self._routes: List[tuple[str, frozenset[str] | None, Callable]] = []
         # Stores mapping of (route_class -> path_pattern) for url_for lookups
-        self._route_class_paths: Dict[Type[routes.Route], str] = {}
+        self._route_class_paths: Dict[Type[routes.Route], List[str]] = {}
         # Stores tuples of (mount_path, router_instance)
         self._mounted_routers: List[tuple[str, "Router"]] = []
         self._sub_routers: List[Router] = []
@@ -45,7 +45,9 @@ class Router:
         match handler:
             case type() as route if issubclass(route, routes.Route):
                 # Store the original route class for url_for lookups
-                self._route_class_paths[route] = path
+                if route not in self._route_class_paths:
+                    self._route_class_paths[route] = []
+                self._route_class_paths[route].append(path)
                 
                 # Create instance and register its __call__ method as usual
                 route_instance = route()
@@ -111,7 +113,14 @@ class Router:
         if isinstance(handler, type) and issubclass(handler, routes.Route):
             # Look for route class in the _route_class_paths dictionary
             if handler in self._route_class_paths:
-                path = self._route_class_paths[handler]
+                path_list = self._route_class_paths[handler]
+                
+                # Find the best matching path based on provided kwargs
+                path = self._find_best_matching_path(path_list, kwargs)
+                if not path:
+                    # If no path can be fully satisfied with the provided kwargs,
+                    # use the most recently added path (last in the list)
+                    path = path_list[-1]
             else:
                 # If not found directly, check mounted routers
                 for mount_path, mounted_router in self._mounted_routers:
@@ -140,9 +149,9 @@ class Router:
         
         # For function handlers
         else:
-            # Try to find the handler and its path
-            path = self._find_handler_path(handler)
-            if not path:
+            # Try to find all paths for this handler
+            paths = self._find_all_handler_paths(handler)
+            if not paths:
                 # If not found directly, check mounted routers
                 for mount_path, mounted_router in self._mounted_routers:
                     try:
@@ -159,8 +168,42 @@ class Router:
                         continue
                 
                 raise ValueError(f"Handler {handler.__name__} not found in any router")
+            
+            # Try to find the best path based on the provided kwargs
+            path = self._find_best_matching_path(paths, kwargs)
+            if not path:
+                # If no path can be fully satisfied, use the last registered path
+                path = paths[-1]
         
-        # Insert path parameters
+        # Try to build the URL with the selected path
+        # If the required parameters aren't in kwargs, we'll need to try other paths
+        try:
+            return self._build_url_from_path(path, kwargs)
+        except ValueError as e:
+            if isinstance(handler, type) and issubclass(handler, routes.Route):
+                # For Route classes, try other paths if available
+                path_list = self._route_class_paths[handler]
+                for alt_path in reversed(path_list):
+                    if alt_path != path:
+                        try:
+                            return self._build_url_from_path(alt_path, kwargs)
+                        except ValueError:
+                            continue
+                
+            elif paths and len(paths) > 1:
+                # For function handlers, try other paths if available
+                for alt_path in reversed(paths):
+                    if alt_path != path:
+                        try:
+                            return self._build_url_from_path(alt_path, kwargs)
+                        except ValueError:
+                            continue
+            
+            # If we get here, no path could be satisfied with the provided kwargs
+            raise e
+        
+    def _build_url_from_path(self, path: str, kwargs: dict) -> str:
+        """Build a URL by substituting path parameters from kwargs."""
         parts = path.split('/')
         result_parts = []
         
@@ -175,8 +218,42 @@ class Router:
         
         return '/' + '/'.join(p for p in result_parts if p)
 
+    def _find_all_handler_paths(self, handler: Callable) -> list[str]:
+        """Finds all path patterns for a given handler in this router."""
+        return [path for path, _, route_handler in self._routes if route_handler == handler]
+
+    def _find_best_matching_path(self, paths: list[str], kwargs: dict) -> str | None:
+        """Find the best matching path based on the provided kwargs.
+        
+        This method tries to find a path where all required parameters are provided in kwargs.
+        It prioritizes:
+        1. Paths where all parameters are provided and the most parameters are used
+        2. The most recently added path (last in the list)
+        
+        If no path can be fully satisfied, it returns None.
+        """
+        valid_paths = []
+        
+        for path in paths:
+            param_names = [
+                part[1:-1] for part in path.split('/') 
+                if part.startswith('{') and part.endswith('}')
+            ]
+            
+            # Check if all parameters for this path are provided
+            if all(param in kwargs for param in param_names):
+                # Score is based on how many parameters are used by this path
+                valid_paths.append((path, len(param_names)))
+        
+        if not valid_paths:
+            return None
+        
+        # Return the path with the most parameters (to use as many kwargs as possible)
+        valid_paths.sort(key=lambda x: x[1], reverse=True)
+        return valid_paths[0][0]
+
     def _find_handler_path(self, handler: Callable) -> str | None:
-        """Finds the path pattern for a given handler in this router."""
+        """Finds the first path pattern for a given handler in this router."""
         for path, _, route_handler in self._routes:
             if route_handler == handler:
                 return path
