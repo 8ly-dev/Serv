@@ -76,11 +76,8 @@ class App:
     def add_plugin(self, plugin: Plugin):
         self._plugins.append(plugin)
 
-    async def emit(self, event: str, *, container: Container | None = None, **kwargs):
-        container = container or self._container
-        async with asyncio.TaskGroup() as tg:
-            for plugin in self._plugins:
-                tg.create_task(container.call(plugin.on, event, **kwargs))
+    def emit(self, event: str, *, container: Container = dependency(), **kwargs) -> Task:
+        return container.call(self._emit.emit_sync, event, **kwargs)
     
     async def handle_lifespan(self, scope: Scope, receive: Receive, send: Send):
         async for event in self._lifespan_iterator(receive):
