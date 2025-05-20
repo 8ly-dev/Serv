@@ -7,7 +7,13 @@ from typing import AsyncIterator, Awaitable, Callable
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
 from bevy.registries import Registry
-from asgiref.typing import Scope, ASGIReceiveCallable as Receive, ASGISendCallable as Send
+from asgiref.typing import (
+    Scope,
+    ASGIReceiveCallable as Receive,
+    ASGISendCallable as Send,
+    LifespanShutdownCompleteEvent,
+    LifespanStartupCompleteEvent,
+)
 
 from serv.plugins import Plugin
 from serv.requests import Request
