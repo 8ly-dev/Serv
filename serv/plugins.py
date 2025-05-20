@@ -8,13 +8,15 @@ from inspect import isawaitable
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, List, Callable, Type, Optional
+from typing import Any, Dict, List, Callable, Type, Optional, TYPE_CHECKING
 
 from bevy import dependency, get_container
 from bevy.containers import Container
 import yaml
 
-from serv.routing import Router
+# Avoid circular imports by only importing Router for type checking
+if TYPE_CHECKING:
+    from serv.routing import Router
 
 
 type PluginMapping = dict[str, list[str]]
@@ -75,7 +77,7 @@ class Plugin:
 
         return raw_config_data
     
-    def setup_routers(self, container: Container = dependency()) -> List[Router]:
+    def setup_routers(self, container: Container = dependency()) -> List["Router"]:
         """
         Sets up routers defined in the plugin configuration.
         Returns a list of created Router instances.
@@ -84,23 +86,35 @@ class Plugin:
         ```yaml
         routers:
           - name: api_router  # Optional, used for reference
+            settings:  # Optional settings for this router
+              auth_required: true
+              rate_limit: 100
             routes:
               - path: /users
-                handler: users.UserRoute  # Import path to Route class
-                # OR
-                handler_method: handle_users  # Method on this plugin
+                handler: users:UserRoute  # Import path to Route class
+                settings:  # Optional settings for this route
+                  db_table: users
+                  cache_ttl: 300
+              - path: /posts
+                handler_method: handle_posts  # Method on this plugin
                 methods: [GET, POST]  # Optional, only used with handler_method
+                settings:
+                  db_table: posts
             mount_at: /api  # Optional, path to mount this router
             mount_to: main_router  # Optional, name of router to mount to
         ```
         """
+        # Import Router here to avoid circular import
+        from serv.routing import Router
+        
         created_routers = []
         router_instances = {}
         
         # First pass: create all routers
         for router_config in self._router_configs:
             router_name = router_config.get("name", f"router_{len(router_instances)}")
-            router = Router()
+            router_settings = router_config.get("settings", {})
+            router = Router(settings=router_settings)
             router_instances[router_name] = router
             created_routers.append(router)
             
@@ -124,18 +138,21 @@ class Plugin:
         
         return created_routers
     
-    def _add_route_from_config(self, router: Router, route_config: Dict[str, Any], container: Container) -> None:
+    def _add_route_from_config(self, router: Any, route_config: Dict[str, Any], container: Container) -> None:
         """Add a route to a router based on route configuration."""
         path = route_config.get("path")
         if not path:
             return
+            
+        # Extract route settings if any
+        settings = route_config.get("settings", {})
             
         # Handle route defined as an importable class
         if "handler" in route_config:
             handler_path = route_config["handler"]
             handler_class = self._import_handler(handler_path)
             if handler_class:
-                router.add_route(path, handler_class)
+                router.add_route(path, handler_class, settings=settings)
         
         # Handle route defined as a method on this plugin
         elif "handler_method" in route_config:
@@ -143,7 +160,7 @@ class Plugin:
             if hasattr(self, method_name):
                 handler_method = getattr(self, method_name)
                 methods = route_config.get("methods")
-                router.add_route(path, handler_method, methods=methods)
+                router.add_route(path, handler_method, methods=methods, settings=settings)
     
     def _import_handler(self, handler_path: str) -> Optional[Type]:
         """Import a handler class from a string path.
@@ -204,6 +221,9 @@ class Plugin:
             app: The Serv application instance.
             container: The dependency injection container.
         """
+        # Import Router here to avoid circular import
+        from serv.routing import Router
+        
         # Set up routers from config if any are defined
         if self._router_configs:
             routers = self.setup_routers(container)
@@ -213,4 +233,5 @@ class Plugin:
             if len(routers) == 1 and not any(
                 "mount_to" in config for config in self._router_configs
             ):
-                container.set(Router, routers[0])
+                # Container.set is not available, use instances attribute directly
+                container.instances[Router] = routers[0]
