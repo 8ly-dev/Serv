@@ -7,6 +7,7 @@ from collections import defaultdict
 from inspect import isawaitable
 from pathlib import Path
 import re
+import sys
 from typing import Any
 
 from bevy import get_container
@@ -52,7 +53,8 @@ class Plugin:
         """
         Returns a dictionary of configuration options for the plugin.
         """
-        plugin_path = search_for_plugin_directory(Path(__file__).parent)
+        module_path = sys.modules[self.__module__].__file__
+        plugin_path = search_for_plugin_directory(Path(module_path).parent)
         config_file_path = plugin_path / "plugin.yaml"
         if not config_file_path.exists():
             return {}
