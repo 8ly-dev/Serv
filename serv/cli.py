@@ -14,6 +14,7 @@ from bevy import dependency # For dependency injection
 from serv.config import import_module_from_string, load_raw_config, setup_app_from_config, DEFAULT_CONFIG_FILE, import_from_string, ServConfigError
 from serv.app import App as DefaultApp # Default app
 from serv.plugins import Plugin, search_for_plugin_directory # For generated plugin file
+from serv.loader import ServLoader
 
 
 # Logging setup
@@ -675,125 +676,100 @@ def handle_app_details_command(args_ns):
         logger.error(f"An unexpected error occurred while displaying app details: {e}", exc_info=logger.level == logging.DEBUG)
         print(f"An unexpected error occurred: {e}")
 
-def _get_configured_app_factory(app_module_str: str, config_path_str: str | None):
+def _get_configured_app_factory(app_module_str: str, config_path_str: str | None, args=None):
     def factory():
-        logger.debug(f"App factory called for '{app_module_str}' with config '{config_path_str}'")
-        app_obj = None
-
-        # Create a new event loop or get the current one
+        # Get the app and config path from the factory variables
         try:
-            loop = asyncio.get_running_loop()
-            logger.debug("Using existing asyncio event loop")
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            logger.debug("Created new asyncio event loop")
-
-        try:
-            if app_module_str == "serv.app:App":
-                app_obj = DefaultApp()
-            else:
-                imported = import_from_string(app_module_str)
-                if callable(imported) and not isinstance(imported, DefaultApp.__class__):
-                    logger.debug(f"Imported '{app_module_str}' is a callable factory. Calling it.")
-                    app_obj = imported()
-                else:
-                    app_obj = imported
-
-            if app_obj is None:
-                raise ImportError(f"Could not load app object from '{app_module_str}'")
-
-            if isinstance(app_obj, DefaultApp) or (hasattr(app_obj, 'plugins_config') and hasattr(app_obj, 'router')):
-                config_data = load_raw_config(config_path_str)
-
-                should_load_welcome_plugin_by_default = False
-                if not config_data: # No config file found or it was empty
-                    logger.info(f"No configuration file found or it's empty for '{app_module_str}'.")
-                    if isinstance(app_obj, DefaultApp):
-                        should_load_welcome_plugin_by_default = True
-                elif not config_data.get("plugins") and not config_data.get("middleware"):
-                    logger.info(f"Configuration file '{config_path_str}' exists but no plugins/middleware are defined.")
-                    should_load_welcome_plugin_by_default = True
-                else: # Config data was loaded
-                    logger.info(f"Applying configuration to '{app_module_str}'.")
-                    setup_app_from_config(app_obj, config_data)
-                    # Check if plugins and middleware are both empty after attempting to apply config
-                    if isinstance(app_obj, DefaultApp) and \
-                       not config_data.get("plugins", []) and \
-                       not config_data.get("middleware", []):
-                        logger.debug("Configuration applied, but no plugins or middleware were defined.")
-                        should_load_welcome_plugin_by_default = True
-
-                if should_load_welcome_plugin_by_default:
-                    logger.debug("Attempting to load bundled WelcomePlugin by default.")
-                    try:
-                        from serv.bundled_plugins.welcome import WelcomePlugin
-                        welcome_plugin_instance = WelcomePlugin()
-                        if not hasattr(welcome_plugin_instance, 'name') or not welcome_plugin_instance.name:
-                                welcome_plugin_instance.name = "Serv Welcome Plugin (Bundled)"
-                        if not hasattr(welcome_plugin_instance, 'version') or not welcome_plugin_instance.version:
-                                welcome_plugin_instance.version = "bundled"
-
-                        # Check if welcome plugin or its route is already present (e.g. if user manually added it)
-                        # This is a basic check; a more robust check might involve inspecting routes.
-                        already_loaded = False
-                        if hasattr(app_obj, 'plugins'): # Assuming app has a list of added plugin instances
-                            for p_instance in app_obj.plugins:
-                                if isinstance(p_instance, WelcomePlugin):
-                                    already_loaded = True
-                                    logger.debug("WelcomePlugin instance already found in app.plugins.")
-                                    break
-
-                        if not already_loaded:
-                            app_obj.add_plugin(welcome_plugin_instance)
-                            logger.info(f"Successfully added bundled '{welcome_plugin_instance.name}' to the application.")
-
-                            if hasattr(welcome_plugin_instance, 'on_app_startup'):
-                                    welcome_plugin_instance.on_app_startup(app_obj)
-                                    logger.debug(f"Executed on_app_startup for '{welcome_plugin_instance.name}'.")
+            # Load config first
+            app_obj = None
+            raw_config = {}
+            config_path = Path(config_path_str) if config_path_str else None
+            
+            if config_path and config_path.exists():
+                raw_config = load_raw_config(config_path)
+                if not raw_config or not isinstance(raw_config, dict):
+                    print(f"Warning: Config file '{config_path}' is empty or not a valid YAML dictionary.")
+                    raw_config = {}
+            elif config_path_str:
+                print(f"Warning: Config file '{config_path_str}' not found.")
+            
+            # Next, try to import the app module
+            if app_module_str:
+                print(f"Loading app from '{app_module_str}'...")
+                try:
+                    if ":" in app_module_str:
+                        if getattr(args, 'factory', False):
+                            # This is referring to a factory function
+                            factory_callable = import_from_string(app_module_str)
+                            app_obj = factory_callable()
                         else:
-                            logger.debug("Skipping automatic loading of WelcomePlugin as it seems to be already present.")
-
-                    except ImportError as e:
-                        logger.warning(f"Could not import bundled WelcomePlugin: {e}. Ensure it exists at serv.bundled_plugins.welcome")
-                    except Exception as e:
-                        logger.error(f"Error loading or starting bundled WelcomePlugin: {e}", exc_info=logger.level == logging.DEBUG)
+                            # This is a direct app instance
+                            app_obj = import_from_string(app_module_str)
+                    else:
+                        # Basic module, assume app variable
+                        module = importlib.import_module(app_module_str)
+                        if hasattr(module, 'app'):
+                            app_obj = module.app
+                        else:
+                            print(f"App module '{app_module_str}' imported, but no 'app' variable found. Please specify the full path to the app instance (e.g., 'module:app').")
+                            return None
+                except ImportError as e:
+                    print(f"Error importing app from '{app_module_str}': {e}")
+                    return None
             else:
-                logger.debug(f"Imported app '{app_module_str}' is not a Serv App instance. Skipping Serv config application.")
-
+                # No app module provided, create a default app
+                app_obj = DefaultApp()
+            
+            # Apply Serv configuration to the app if it's a Serv app
+            if app_obj and isinstance(app_obj, DefaultApp):
+                # Create the loader with plugin and middleware directories from args
+                plugin_dirs = getattr(args, 'plugin_dirs', ['./plugins'])
+                middleware_dirs = getattr(args, 'middleware_dirs', ['./middleware'])
+                loader = ServLoader(plugin_dirs=plugin_dirs, middleware_dirs=middleware_dirs)
+                
+                print(f"Configuring Serv app from '{config_path_str if config_path_str else 'default settings'}'...")
+                if raw_config:
+                    setup_app_from_config(app_obj, raw_config)
+            else:
+                print(f"Imported app '{app_module_str}' is not a Serv App instance. Skipping Serv config application.")
+            
             return app_obj
-
-        except ImportError:
-            logger.error(f"Could not import app module '{app_module_str}'.", exc_info=logger.level == logging.DEBUG)
-            sys.exit(1)
         except Exception as e:
-            logger.error(f"Error loading or configuring app '{app_module_str}' in factory: {e}", exc_info=logger.level == logging.DEBUG)
-            sys.exit(1)
+            print(f"Error configuring app: {e}")
+            return None
+    
+    # Return the factory function
     return factory
 
 
 async def handle_launch_command(args_ns):
     """Handles the 'launch' command to start the Uvicorn server."""
-    app_module_str = args_ns.app_module
+    app_module_str = args_ns.app
     app_target: any
 
     if args_ns.factory:
-        app_target_factory = _get_configured_app_factory(app_module_str, args_ns.config)
+        app_target_factory = _get_configured_app_factory(app_module_str, args_ns.config, args_ns)
         app_target = app_target_factory
         logger.debug(f"Using application factory: '{app_module_str}' (via Serv wrapper factory).")
     else:
         if args_ns.reload:
-            app_target_factory = _get_configured_app_factory(app_module_str, args_ns.config)
+            app_target_factory = _get_configured_app_factory(app_module_str, args_ns.config, args_ns)
             app_target = app_target_factory
             logger.debug(f"Running '{app_module_str}' with reload, using Serv's app factory for configuration.")
         else:
             try:
-                temp_factory = _get_configured_app_factory(app_module_str, args_ns.config)
+                temp_factory = _get_configured_app_factory(app_module_str, args_ns.config, args_ns)
                 app_target = temp_factory()
                 logger.debug(f"Running pre-configured app instance for '{app_module_str}'.")
             except Exception as e:
                 logger.warning(f"Could not pre-load/configure '{app_module_str}', passing string to Uvicorn: {e}")
                 app_target = app_module_str
+
+    # If validate-only flag is set, exit after loading the app
+    if args_ns.validate_only:
+        print("App, config, plugins, and middleware loaded successfully.")
+        print("Validation complete. Exiting without starting the server.")
+        return
 
     uvicorn_log_level = "debug" if logger.level == logging.DEBUG else "info"
     num_workers = None
@@ -837,8 +813,8 @@ async def handle_launch_command(args_ns):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Serv: A sleek, modern Python web framework CLI.",
-        formatter_class=argparse.RawTextHelpFormatter # Preserves formatting in help messages
+        prog="serv",
+        description="Command-line interface for the Serv web framework."
     )
     serv_version = "0.1.0-dev" # Placeholder
 
@@ -853,218 +829,94 @@ def main():
         help="Enable debug logging for Serv CLI and potentially the app."
     )
 
-    # Top-level subparsers
-    top_level_subparsers = parser.add_subparsers(title="Available command groups", dest="command_group")
-
-    # --- App Command Group ---
-    app_parser = top_level_subparsers.add_parser(
-        "app",
-        help="Manage your Serv application.",
-        description="Commands for managing your Serv application."
+    # Common parser for commands that use the application
+    app_parent_parser = argparse.ArgumentParser(add_help=False)
+    app_parent_parser.add_argument('--app', '-a',
+                            help='Application module and app instance in the format "module.path:app_instance"',
+                            default=None)
+    app_parent_parser.add_argument('--config', '-c',
+                            help=f'Path to config file. Default: {DEFAULT_CONFIG_FILE}',
+                            default=DEFAULT_CONFIG_FILE)
+    # Add plugin and middleware directory arguments
+    app_parent_parser.add_argument('--plugin-dirs',
+                            help='Comma-separated list of plugin directories to search',
+                            default='./plugins')
+    app_parent_parser.add_argument('--middleware-dirs', '-m',
+                            help='Comma-separated list of middleware directories to search',
+                            default='./middleware')
+    
+    # Subparsers for subcommands
+    subparsers = parser.add_subparsers(title="commands", dest="command", required=False,
+                                       help="Command to execute")
+    
+    # Launch parser
+    launch_parser = subparsers.add_parser('launch', parents=[app_parent_parser], 
+                                        help='Launch the Serv application.')
+    launch_parser.add_argument('--host', 
+                             help='Bind socket to this host. Default: 127.0.0.1',
+                             default='127.0.0.1')
+    launch_parser.add_argument('--port', '-p', type=int,
+                             help='Bind socket to this port. Default: 8000',
+                             default=8000)
+    launch_parser.add_argument('--reload', action='store_true',
+                             help='Enable auto-reload.')
+    launch_parser.add_argument('--workers', '-w', type=int,
+                             help='Number of worker processes. Defaults to 1.',
+                             default=1)
+    launch_parser.add_argument('--factory', action='store_true',
+                             help="Treat APP_MODULE as an application factory string (e.g., 'module:create_app')."
     )
-    app_subparsers = app_parser.add_subparsers(title="App commands", dest="app_command", required=True)
-
-    # app init command
-    app_init_parser = app_subparsers.add_parser(
-        "init",
-        help="Initialize a new Serv project (creates serv.config.yaml).",
-        description="Guides you through creating a 'serv.config.yaml' file in your current directory."
+    launch_parser.add_argument('--validate-only', action='store_true',
+                             help="Load and configure the app, plugins, and middleware but don't start the server."
     )
-    app_init_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite 'serv.config.yaml' if it already exists without prompting."
-    )
-    app_init_parser.set_defaults(func=handle_init_command)
-
-    # app details command
-    app_details_parser = app_subparsers.add_parser(
-        "details",
-        help="Display the application's loaded configuration from serv.config.yaml.",
-        description="Loads and displays the contents of serv.config.yaml in a readable format."
-    )
-    # This command might also benefit from a --config option if we want to specify a different file
-    # For now, it uses the same logic as `launch` (env var, default, or a future global --config)
-    app_details_parser.set_defaults(func=handle_app_details_command)
-
-    # --- Plugin Command Group ---
-    plugin_parser = top_level_subparsers.add_parser(
-        "plugin",
-        help="Manage Serv plugins.",
-        description="Commands for creating, enabling, and disabling Serv plugins."
-    )
-    plugin_subparsers = plugin_parser.add_subparsers(title="Plugin commands", dest="plugin_command", required=True)
-
-    # plugin create command
-    plugin_create_parser = plugin_subparsers.add_parser(
-        "create",
-        aliases=['new'],
-        help="Create a new Serv plugin structure.",
-        description="Scaffolds a new plugin directory with 'plugin.yaml' and a 'main.py' template."
-    )
-    plugin_create_parser.set_defaults(func=handle_create_plugin_command)
-
-    # plugin enable command
-    plugin_enable_parser = plugin_subparsers.add_parser(
-        "enable",
-        help="Enable a Serv plugin by adding it to serv.config.yaml.",
-        description="Enables a plugin. Accepts a simple plugin name (found in ./plugins/) or a full module.path:Class string."
-    )
-    plugin_enable_parser.add_argument(
-        "plugin_identifier",
-        help="The name of the plugin in ./plugins/ (e.g., my_plugin) or full import string (e.g., mypackage.mod:MyPlugin)."
-    )
-    plugin_enable_parser.set_defaults(func=handle_enable_plugin_command)
-
-    # plugin disable command
-    plugin_disable_parser = plugin_subparsers.add_parser(
-        "disable",
-        help="Disable a Serv plugin by removing it from serv.config.yaml.",
-        description="Disables a plugin. Accepts a simple plugin name (found in ./plugins/) or a full module.path:Class string."
-    )
-    plugin_disable_parser.add_argument(
-        "plugin_identifier",
-        help="The name of the plugin in ./plugins/ (e.g., my_plugin) or full import string (e.g., mypackage.mod:MyPlugin)."
-    )
-    plugin_disable_parser.set_defaults(func=handle_disable_plugin_command)
-
-    # --- Middleware Command Group ---
-    mw_parser = top_level_subparsers.add_parser(
-        "middleware",
-        help="Manage Serv middleware.",
-        description="Commands for enabling and disabling Serv middleware."
-    )
-    mw_subparsers = mw_parser.add_subparsers(title="Middleware commands", dest="middleware_command", required=True)
-
-    # middleware enable command
-    mw_enable_parser = mw_subparsers.add_parser(
-        "enable",
-        help="Enable a Serv middleware by adding it to serv.config.yaml.",
-        description="Enables a middleware. Expects a full module.path:CallableName string."
-    )
-    mw_enable_parser.add_argument(
-        "middleware_entry_string",
-        help="The full import string for the middleware (e.g., mypackage.mod:MyMiddlewareFactory)."
-    )
-    mw_enable_parser.set_defaults(func=handle_enable_middleware_command)
-
-    # middleware disable command
-    mw_disable_parser = mw_subparsers.add_parser(
-        "disable",
-        help="Disable a Serv middleware by removing it from serv.config.yaml.",
-        description="Disables a middleware. Expects a full module.path:CallableName string."
-    )
-    mw_disable_parser.add_argument(
-        "middleware_entry_string",
-        help="The full import string for the middleware (e.g., mypackage.mod:MyMiddlewareFactory)."
-    )
-    mw_disable_parser.set_defaults(func=handle_disable_middleware_command)
-
-    # middleware create command
-    mw_create_parser = mw_subparsers.add_parser(
-        "create",
-        aliases=['new'],
-        help="Create a new Serv middleware structure.",
-        description="Scaffolds a new middleware Python file in the 'middleware' directory."
-    )
-    mw_create_parser.set_defaults(func=handle_create_middleware_command)
-
-    # --- Launch Command ---
-    launch_parser = top_level_subparsers.add_parser(
-        "launch",
-        help="Launch the Serv development server (default command if none specified).",
-        description="Starts a Uvicorn server for your Serv application."
-    )
-    launch_parser.add_argument(
-        "app_module",
-        nargs="?",
-        default="serv.app:App",
-        help=("App to run, e.g., 'my_app.main:app' or 'my_project.app_factory:create_app'.\n"
-              "Default: 'serv.app:App' (basic Serv instance).")
-    )
-    launch_parser.add_argument(
-        "--host", default=os.getenv("SERV_HOST", "127.0.0.1"),
-        help="Bind socket to this host. Default: 127.0.0.1 (or SERV_HOST env var)."
-    )
-    launch_parser.add_argument(
-        "--port", type=int, default=int(os.getenv("SERV_PORT", "8000")),
-        help="Bind socket to this port. Default: 8000 (or SERV_PORT env var)."
-    )
-    launch_parser.add_argument(
-        "--reload", action="store_true", default=bool(os.getenv("SERV_RELOAD")),
-        help="Enable auto-reload on code changes (or SERV_RELOAD env var)."
-    )
-    launch_parser.add_argument(
-        "--workers", type=int, default=int(os.getenv("SERV_WORKERS", "1")) if os.getenv("SERV_WORKERS") else None,
-        help="Number of worker processes. Default: 1. Use 0 for auto based on CPU count (Uvicorn default)."
-    )
-    launch_parser.add_argument(
-        "--config", default=os.getenv("SERV_CONFIG_PATH"),
-        help=("Path to Serv configuration file (serv.config.yaml).\n"
-              f"Default: '{DEFAULT_CONFIG_FILE}' or 'serv.config.yaml' in CWD (or SERV_CONFIG_PATH env var).")
-    )
-    launch_parser.add_argument(
-        "--factory", action="store_true", default=False,
-        help="Treat APP_MODULE as an application factory string (e.g., 'module:create_app')."
-    )
+    # Important: Remove duplicate plugin/middleware args since they're inherited from app_parent_parser
     launch_parser.set_defaults(func=handle_launch_command)
-
-    args = parser.parse_args()
-
-    if args.debug or os.getenv("SERV_DEBUG"):
+    
+    # ... existing subparsers ...
+    
+    # Process args
+    args_ns = parser.parse_args()
+    
+    # Process comma-separated directory lists into actual lists
+    if hasattr(args_ns, 'plugin_dirs') and isinstance(args_ns.plugin_dirs, str):
+        args_ns.plugin_dirs = [d.strip() for d in args_ns.plugin_dirs.split(',') if d.strip()]
+    
+    if hasattr(args_ns, 'middleware_dirs') and isinstance(args_ns.middleware_dirs, str):
+        args_ns.middleware_dirs = [d.strip() for d in args_ns.middleware_dirs.split(',') if d.strip()]
+    
+    if args_ns.debug or os.getenv("SERV_DEBUG"):
+        os.environ["SERV_DEBUG"] = "1"
         logger.setLevel(logging.DEBUG)
-        for h in logger.handlers:
-            h.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'))
         logger.debug("Debug logging enabled.")
-
-    current_args_to_use = args
-
-    if not hasattr(args, 'command_group') or args.command_group is None:
-        # No command group specified, default to 'launch'
-        # Reparse as if 'launch' was the command, preserving other args.
-        non_command_cli_args = []
-        skip_next = False
-        for i, arg_val in enumerate(sys.argv[1:]):
-            if skip_next:
-                skip_next = False
-                continue
-            if arg_val in ["--version", "--debug"]:
-                continue
-            if arg_val in ["--help", "-h"] and i == 0 :
-                 parser.print_help()
-                 sys.exit(0)
-            non_command_cli_args.append(arg_val)
-
+    
+    current_args_to_use = args_ns
+    
+    if not hasattr(args_ns, 'command') or args_ns.command is None:
+        # No command specified, default to 'launch'
+        non_command_cli_args = sys.argv[1:]
+        logger.debug(f"No command specified. Defaulting to 'launch'. Using CLI args: {non_command_cli_args}")
         try:
             launch_specific_args = launch_parser.parse_args(non_command_cli_args)
             for global_arg_name in ['debug', 'version']:
-                 if hasattr(args, global_arg_name):
-                    setattr(launch_specific_args, global_arg_name, getattr(args, global_arg_name))
+                if hasattr(args_ns, global_arg_name):
+                    setattr(launch_specific_args, global_arg_name, getattr(args_ns, global_arg_name))
             current_args_to_use = launch_specific_args
             current_args_to_use.func = handle_launch_command # Ensure func is set
         except SystemExit:
+            # If there's a parsing error, let's use the original args to show help
             parser.print_help()
             sys.exit(1)
-
-    # Dispatch to the appropriate handler function
-    if hasattr(current_args_to_use, 'func') and callable(current_args_to_use.func):
-        result = current_args_to_use.func(current_args_to_use)
-        if isawaitable(result):
-            asyncio.run(result)
-    else:
-        # If no func is set (e.g., 'serv app' or 'serv plugin' without subcommand),
-        # print help for that command group.
-        if hasattr(current_args_to_use, 'command_group'):
-            if current_args_to_use.command_group == 'app':
-                app_parser.print_help()
-            elif current_args_to_use.command_group == 'plugin':
-                plugin_parser.print_help()
-            elif current_args_to_use.command_group == 'middleware':
-                mw_parser.print_help()
-            else: # Should not happen if command_group is one of the defined ones
-                parser.print_help()
+    
+    if hasattr(current_args_to_use, 'func'):
+        # Use async if the handler is async
+        handler = current_args_to_use.func
+        if asyncio.iscoroutinefunction(handler):
+            asyncio.run(handler(current_args_to_use))
         else:
-            parser.print_help() # Fallback to main help
+            handler(current_args_to_use)
+    else:
+        # No command found, show help
+        parser.print_help()
 
 if __name__ == "__main__":
     main()
