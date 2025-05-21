@@ -4,6 +4,24 @@ version: {plugin_version}
 author: {plugin_author}
 description: {plugin_description}
 
+# Base settings for the plugin
+settings:
+  # Add your plugin's default settings here
+  # example_setting: "default value"
+
+# Define entry points for this plugin (other Plugin subclasses exposed by this plugin)
+# Each entry point is loaded along with the main plugin
+entry_points:
+  # - entry: plugin.submodule:EntryPointClass  # Import path relative to the plugin directory
+  #   config:                                  # Optional configuration for this entry point
+  #     ep_setting: value
+
+# Define middleware provided by this plugin
+middleware:
+  # - entry: plugin.middleware:MiddlewareClass  # Import path relative to the plugin directory
+  #   config:                                   # Optional configuration for this middleware
+  #     mw_setting: value
+
 # Optional: Define a schema for your plugin's configuration.
 # This helps with validation and can be used for documentation.
 # config_schema:

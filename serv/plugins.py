@@ -8,7 +8,7 @@ from inspect import isawaitable
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, List, Callable, Type, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Callable, Type, Optional, TypeVar, TYPE_CHECKING, cast
 
 from bevy import dependency, get_container
 from bevy.containers import Container
@@ -53,27 +53,73 @@ class Plugin:
             event_name = event.group(1)
             cls.__plugins__[event_name].append(name)
     
-    def __init__(self, *, stand_alone: bool = False):
+    def __init__(self, *, stand_alone: bool = False, config: dict[str, Any] = None):
         """Initialize the plugin.
         
         Loads plugin configuration and sets up any defined routers and routes
         if they are configured in the plugin.yaml file.
+        
+        Args:
+            stand_alone: If True, don't attempt to load plugin.yaml
+            config: Optional configuration override to merge with plugin.yaml settings
         """
         self._stand_alone = stand_alone
-        self._config = {} if stand_alone else self.config()
-        self._router_configs = self._config.get("routers", [])
+        
+        # Load base configuration from plugin.yaml
+        self._base_config = {} if stand_alone else self._load_plugin_yaml()
+        
+        # Merge with provided config (overrides plugin.yaml settings)
+        self._settings = self._base_config.get("settings", {})
+        if config:
+            self._settings.update(config)
+            
+        # Extract metadata
+        self._name = self._base_config.get("name", self.__class__.__name__)
+        self._version = self._base_config.get("version", "0.0.0")
+        self._description = self._base_config.get("description", "")
+        self._author = self._base_config.get("author", "")
+        
+        # Set up routers if configured
+        self._router_configs = self._base_config.get("routers", [])
 
     @property
     def plugin_dir(self) -> Path:
+        """Get the plugin directory (where plugin.yaml is located)."""
         module_path = sys.modules[self.__module__].__file__
         if self._stand_alone:
             return Path(module_path).parent
 
         return search_for_plugin_directory(Path(module_path).parent)
+    
+    @property
+    def name(self) -> str:
+        """Get the plugin name from plugin.yaml or class name."""
+        return self._name
+    
+    @property
+    def version(self) -> str:
+        """Get the plugin version from plugin.yaml."""
+        return self._version
+    
+    @property
+    def description(self) -> str:
+        """Get the plugin description from plugin.yaml."""
+        return self._description
+    
+    @property
+    def author(self) -> str:
+        """Get the plugin author from plugin.yaml."""
+        return self._author
+    
+    @property
+    def settings(self) -> dict[str, Any]:
+        """Get the plugin settings (merged from plugin.yaml and config override)."""
+        return self._settings
 
-    def config(self) -> dict[str, Any]:
+    def _load_plugin_yaml(self) -> dict[str, Any]:
         """
-        Returns a dictionary of configuration options for the plugin.
+        Load the plugin.yaml file from the plugin directory.
+        Contains plugin metadata, entry points, middleware, and base settings.
         """
         config_file_path = self.plugin_dir / "plugin.yaml"
         if not config_file_path.exists():
@@ -83,6 +129,24 @@ class Plugin:
             raw_config_data = yaml.safe_load(f)
 
         return raw_config_data
+    
+    def get_entry_points(self) -> list[dict[str, Any]]:
+        """
+        Get the list of entry points defined in plugin.yaml.
+        
+        Returns:
+            List of entry point configurations
+        """
+        return self._base_config.get("entry_points", [])
+    
+    def get_middleware(self) -> list[dict[str, Any]]:
+        """
+        Get the list of middleware defined in plugin.yaml.
+        
+        Returns:
+            List of middleware configurations
+        """
+        return self._base_config.get("middleware", [])
     
     def setup_routers(self, container: Container = dependency()) -> List["Router"]:
         """

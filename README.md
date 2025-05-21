@@ -23,6 +23,13 @@ Serv is a powerful and intuitive ASGI web framework for Python, designed for ult
 
 Serv provides a robust plugin and middleware loader that makes extending your application easy:
 
+### Configuration Layers
+
+Serv uses a two-layer configuration approach:
+
+1. **Application Configuration (`serv.config.yaml`)**: Defines which plugins are enabled and can override plugin settings.
+2. **Plugin Configuration (`plugin.yaml`)**: Defines plugin metadata, entry points, middleware, and default settings.
+
 ### Plugin Structure
 
 Plugins in Serv are packages that should have the following structure:
@@ -32,7 +39,7 @@ plugins/
   plugin_name/
     __init__.py
     main.py  # Contains your Plugin subclass
-    plugin.yaml  # Metadata about your plugin
+    plugin.yaml  # Metadata and configuration for your plugin
 ```
 
 The `plugin.yaml` file should contain:
@@ -42,8 +49,37 @@ name: My Plugin Name
 description: What my plugin does
 version: 0.1.0
 author: Your Name
-entry: plugins.plugin_name.main:PluginClass
+entry: plugin_name.main:PluginClass  # Main plugin entry point
+
+# Default settings for the plugin
+settings:
+  option1: default_value
+  option2: default_value
+
+# Additional entry points provided by this plugin
+entry_points:
+  - entry: plugin_name.submodule:AnotherPluginClass
+    config:
+      ep_option: value
+
+# Middleware provided by this plugin
+middleware:
+  - entry: plugin_name.middleware:MyMiddleware
+    config:
+      mw_option: value
 ```
+
+The application's `serv.config.yaml` then enables plugins and can override settings:
+
+```yaml
+plugins:
+  - plugin: my_plugin  # Directory name in plugins directory
+    settings:  # Optional settings override
+      option1: override_value
+  - plugin: another.module.path  # Dot notation for module path
+```
+
+Import paths in `plugin.yaml` are relative to the plugin directory, so a file at the root of the plugin would be referenced as `file:Thing`, while a file in a subdirectory would be referenced as `directory.file:Thing`.
 
 ### Middleware Structure
 
@@ -75,31 +111,22 @@ class MyMiddleware(ServMiddleware):
 
 ### Loading Plugins and Middleware
 
-You can specify plugin and middleware directories using the CLI:
+You can specify plugin directories using the CLI:
 
 ```
-python -m serv launch --plugin-dirs ./plugins,./custom_plugins --middleware-dirs ./middleware,./custom_middleware
+python -m serv launch --plugin-dirs ./plugins --config ./serv.config.yaml
 ```
 
 Or programmatically:
 
 ```python
 from serv.app import App
-from serv.loader import ServLoader
 
-# Create an app with custom plugin/middleware directories
+# Create an app with custom plugin directory and config
 app = App(
-    plugin_dirs=['./plugins', './custom_plugins'],
-    middleware_dirs=['./middleware', './custom_middleware']
+    config='./serv.config.yaml',
+    plugin_dir='./plugins'
 )
-
-# Load all available plugins and middleware
-app.load_plugins()
-app.load_middleware_packages()
-
-# Or load specific ones
-app.load_plugin('auth', namespace='plugins')
-app.load_middleware('logging', namespace='middleware')
 ```
 
 ##  Quick Start

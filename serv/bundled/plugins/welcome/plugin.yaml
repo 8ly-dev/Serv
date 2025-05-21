@@ -1,5 +1,6 @@
 name: Welcome to Serv
-entry: serv.bundled.plugins.welcome:WelcomePlugin
 description: A simple plugin that helps you get started with Serv.
 version: 0.1.0
 author: Serv
+entry_points:
+  - entry: welcome:WelcomePlugin

@@ -124,7 +124,26 @@ class App:
         return self._load_plugins_from_config(plugins_config)
 
     def _load_plugins_from_config(self, plugins_config: list[dict[str, Any]]):
-        """Load plugins and middleware from a list of plugin configs."""
+        """Load plugins and middleware from a list of plugin configs.
+        
+        App config format:
+        ```yaml
+        plugins:
+          - plugin: my_plugin  # Directory name in plugin_dir
+            settings:  # Optional settings override for the plugin
+              option1: value1
+          - plugin: bundled.plugins.welcome  # Dot notation for module path
+        ```
+        
+        Each plugin's configuration is loaded from its plugin.yaml file, which defines:
+        - Plugin metadata (name, description, author, version)
+        - Entry points (multiple allowed)
+        - Middleware (multiple allowed)
+        - Base settings
+        
+        The settings in app config are merged with the plugin's settings, overriding any
+        duplicate keys.
+        """
         try:
             loaded_plugins, middleware_list = self._plugin_loader_instance.load_plugins(plugins_config)
             
@@ -137,16 +156,6 @@ class App:
             for middleware_factory in middleware_list:
                 self.add_middleware(middleware_factory)
                 
-            # Log empty entry points and middleware for tests that expect these logs
-            for plugin_spec in plugins_config:
-                plugin_name = plugin_spec.get("name", "Unknown Plugin")
-                if "entry points" in plugin_spec and not plugin_spec["entry points"]:
-                    logger.info(f"Plugin {plugin_name} has empty 'entry points' list")
-                if "middleware" in plugin_spec and not plugin_spec["middleware"]:
-                    logger.info(f"Plugin {plugin_name} has empty 'middleware' list")
-                if "entry points" not in plugin_spec and "middleware" not in plugin_spec:
-                    logger.info(f"Plugin {plugin_name} has no 'entry points' or 'middleware' sections")
-            
             # Auto-enable the welcome plugin if no plugins or middleware are registered
             if not self._plugins and not self._middleware:
                 self._enable_welcome_plugin()
@@ -166,7 +175,7 @@ class App:
             if welcome_plugin_path.exists():
                 logger.info("No plugins or middleware registered. Enabling welcome plugin.")
                 # Use the plugin loader to load the welcome plugin
-                success, plugin = self._plugin_loader_instance.load_plugin("welcome", "bundled.plugins")
+                success, plugin = self._plugin_loader_instance.load_plugin("welcome", "serv.bundled.plugins")
                 if success and plugin:
                     self.add_plugin(plugin)
                     logger.info("Welcome plugin enabled.")

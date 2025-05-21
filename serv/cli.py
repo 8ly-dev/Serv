@@ -163,8 +163,8 @@ def handle_init_command(args_ns):
 # Use 'python -m serv create-plugin' to scaffold a new plugin.
 # Example:
 # plugins:
-#   - entry: plugins.my_example_plugin.main:MyExamplePlugin
-#     config: # Optional configuration for the plugin
+#   - plugin: my_plugin  # Directory name in plugin_dir or dot notation (bundled.plugins.welcome)
+#     settings:  # Optional settings override for the plugin
 #       some_setting: "value"
 """
     yaml_middleware_comment = """
@@ -305,11 +305,19 @@ def handle_enable_plugin_command(args_ns):
         logger.error(f"Configuration file '{config_path}' not found. Please run 'serv init' first.")
         return
 
-    module_string, plugin_name_human = _resolve_plugin_module_string(plugin_identifier, Path.cwd())
-    name_to_log = plugin_name_human or module_string
+    # Check if identifier is a dot-notation path or a simple name
+    if ":" in plugin_identifier:
+        # Dot notation with class - extract just the module path without class
+        plugin_id = plugin_identifier.split(":")[0]
+        plugin_name_human = plugin_identifier  # We don't have a human name when using direct dot notation
+    else:
+        # Simple name or dot notation without class
+        plugin_id = plugin_identifier
+        module_string, plugin_name_human = _resolve_plugin_module_string(plugin_identifier, Path.cwd())
+        name_to_log = plugin_name_human or plugin_identifier
 
-    if not module_string:
-        logger.error(f"Could not resolve plugin '{plugin_identifier}'. Enable command aborted.")
+    if ":" in plugin_identifier and not plugin_id:
+        logger.error(f"Invalid plugin identifier format: '{plugin_identifier}'. Use a directory name or dot notation.")
         return
 
     try:
@@ -324,24 +332,31 @@ def handle_enable_plugin_command(args_ns):
             logger.error(f"'plugins' section in '{config_path}' is not a list. Aborting.")
             return
 
+        # Check for existing plugin entries
         found = False
         for plugin_entry in plugins_list:
-            if isinstance(plugin_entry, dict) and plugin_entry.get("entry") == module_string:
-                print(f"Plugin '{name_to_log}' ({module_string}) is already enabled.")
+            if isinstance(plugin_entry, dict) and plugin_entry.get("plugin") == plugin_id:
+                print(f"Plugin '{plugin_id}' is already enabled.")
+                found = True
+                break
+            # For backward compatibility, also check entry format
+            elif isinstance(plugin_entry, dict) and plugin_entry.get("entry") == plugin_id:
+                print(f"Plugin '{plugin_id}' is already enabled (in old format). Consider updating to new format.")
                 found = True
                 break
 
         if not found:
-            plugins_list.append({"entry": module_string, "config": {}})
+            # Add plugin with new format
+            plugins_list.append({"plugin": plugin_id, "settings": {}})
             config_data["plugins"] = plugins_list
 
             with open(config_path, 'w') as f:
                 yaml.dump(config_data, f, sort_keys=False, indent=2, default_flow_style=False)
-            print(f"Plugin '{name_to_log}' ({module_string}) enabled successfully.")
+            print(f"Plugin '{plugin_id}' enabled successfully.")
             print(f"It has been added to '{config_path}'.")
 
     except Exception as e:
-        logger.error(f"Error enabling plugin '{name_to_log}': {e}", exc_info=logger.level == logging.DEBUG)
+        logger.error(f"Error enabling plugin '{plugin_id}': {e}", exc_info=logger.level == logging.DEBUG)
 
 
 def handle_disable_plugin_command(args_ns):
@@ -354,12 +369,15 @@ def handle_disable_plugin_command(args_ns):
         logger.error(f"Configuration file '{config_path}' not found. Cannot disable plugin.")
         return
 
-    module_string, plugin_name_human = _resolve_plugin_module_string(plugin_identifier, Path.cwd())
-    name_to_log = plugin_name_human or module_string
-
-    if not module_string:
-        logger.error(f"Could not resolve plugin '{plugin_identifier}'. Disable command aborted.")
-        return
+    # Check if identifier is a dot-notation path or a simple name
+    if ":" in plugin_identifier:
+        # Dot notation with class - extract just the module path without class
+        plugin_id = plugin_identifier.split(":")[0]
+    else:
+        # Simple name or dot notation without class
+        plugin_id = plugin_identifier
+        # Try to resolve for better error messages, but don't require it for disabling
+        module_string, plugin_name_human = _resolve_plugin_module_string(plugin_identifier, Path.cwd())
 
     try:
         with open(config_path, 'r') as f:
@@ -375,19 +393,27 @@ def handle_disable_plugin_command(args_ns):
             return
 
         original_count = len(plugins_list)
-        updated_plugins_list = [p for p in plugins_list if not (isinstance(p, dict) and p.get("entry") == module_string)]
+        
+        # Check both plugin and entry fields for backward compatibility
+        updated_plugins_list = [
+            p for p in plugins_list 
+            if not (isinstance(p, dict) and (
+                p.get("plugin") == plugin_id or 
+                p.get("entry") == plugin_id
+            ))
+        ]
 
         if len(updated_plugins_list) < original_count:
             config_data["plugins"] = updated_plugins_list
             with open(config_path, 'w') as f:
                 yaml.dump(config_data, f, sort_keys=False, indent=2, default_flow_style=False)
-            print(f"Plugin '{name_to_log}' ({module_string}) disabled successfully.")
+            print(f"Plugin '{plugin_id}' disabled successfully.")
             print(f"It has been removed from '{config_path}'.")
         else:
-            print(f"Plugin '{name_to_log}' ({module_string}) was not found in the enabled plugins list in '{config_path}'.")
+            print(f"Plugin '{plugin_id}' was not found in the enabled plugins list in '{config_path}'.")
 
     except Exception as e:
-        logger.error(f"Error disabling plugin '{name_to_log}': {e}", exc_info=logger.level == logging.DEBUG)
+        logger.error(f"Error disabling plugin '{plugin_id}': {e}", exc_info=logger.level == logging.DEBUG)
 
 
 def handle_enable_middleware_command(args_ns):

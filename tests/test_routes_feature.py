@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from logging import exception
 from pathlib import Path
 
 import pytest
