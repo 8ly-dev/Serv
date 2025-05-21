@@ -1,8 +1,13 @@
 name: {plugin_name_human}
-entry: {plugin_entry_path}
+display_name: {plugin_name_human}
+description: {plugin_description}
 version: {plugin_version}
 author: {plugin_author}
-description: {plugin_description}
+entry: {plugin_entry_path}
+
+# Settings for the plugin
+settings:
+  example_setting: "default value"
 
 # Base settings for the plugin
 settings:

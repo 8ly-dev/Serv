@@ -2,9 +2,14 @@ import pytest
 import pytest_asyncio
 import asyncio # Import asyncio
 from httpx import AsyncClient, ASGITransport # Import ASGITransport
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Optional, Callable, Any, Dict
 
 from serv.app import App
 from serv.responses import ResponseBuilder # For ResponseBuilder.clear() check
+from serv.plugins import Plugin
+
+from tests.e2e_test_helpers import create_test_client, TestAppBuilder
 
 # @pytest.fixture(scope="session")
 # def event_loop():
@@ -39,15 +44,101 @@ async def app() -> App:
         ResponseBuilder.clear = clear_stub
 
     _app = App(dev_mode=True)
-    # If your app requires explicit startup/shutdown for some test setups (e.g., background tasks):
-    # async with _app.lifespan_context():
-    #     yield _app
-    # For now, assuming direct instantiation is enough for most tests via httpx.AsyncClient(app=_app)
     return _app
 
 @pytest_asyncio.fixture
 async def client(app: App) -> AsyncClient:
+    """Legacy client fixture using the basic app instance."""
     # Use ASGITransport for the app
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as c:
-        yield c 
+        yield c
+
+@asynccontextmanager
+async def create_test_client(
+    app_factory: Callable[[], App] = None,
+    plugins: list[Plugin] = None,
+    config: Dict[str, Any] = None,
+    base_url: str = "http://testserver",
+    use_lifespan: bool = True
+) -> AsyncGenerator[AsyncClient, None]:
+    """
+    Create a test client for end-to-end testing with a fully configured App.
+    
+    Args:
+        app_factory: Optional function that returns a fully configured App instance
+        plugins: Optional list of plugins to add to the app (if app_factory not provided)
+        config: Optional configuration to use when creating the app (if app_factory not provided)
+        base_url: Base URL to use for requests (default: "http://testserver")
+        use_lifespan: Whether to use the app's lifespan context for startup/shutdown (default: True)
+        
+    Returns:
+        An AsyncClient configured to communicate with the app
+    """
+    # Create the app if a factory wasn't provided
+    if app_factory:
+        app = app_factory()
+    else:
+        app = App(dev_mode=True)
+        
+        # Add plugins if provided
+        if plugins:
+            for plugin in plugins:
+                app.add_plugin(plugin)
+                
+        # Configure the app if configuration provided
+        # This is left as a placeholder for future implementation if needed
+    
+    # Set up the transport for the client
+    transport = ASGITransport(app=app)
+    
+    # Use the app's lifespan if requested
+    if use_lifespan:
+        async with app.lifespan_context():
+            async with AsyncClient(transport=transport, base_url=base_url) as client:
+                yield client
+    else:
+        async with AsyncClient(transport=transport, base_url=base_url) as client:
+            yield client
+
+@pytest_asyncio.fixture
+async def app_test_client():
+    """
+    Fixture that returns the create_test_client function.
+    
+    This allows tests to create test clients with custom app configurations.
+    
+    Usage:
+        ```
+        @pytest.mark.asyncio
+        async def test_custom_app(app_test_client):
+            async with app_test_client(plugins=[MyPlugin()]) as client:
+                response = await client.get("/my-endpoint")
+                assert response.status_code == 200
+        ```
+    """
+    return create_test_client
+
+@pytest.fixture
+def app_builder():
+    """
+    Fixture that returns a TestAppBuilder instance.
+    
+    This allows tests to create customized app instances with a fluent interface.
+    
+    Usage:
+        ```
+        @pytest.mark.asyncio
+        async def test_with_builder(app_builder):
+            builder = app_builder.with_plugin(MyPlugin())
+            
+            # Use as a factory for app instance
+            app = builder.build()
+            
+            # Or directly as a test client
+            async with builder.build_client() as client:
+                response = await client.get("/my-endpoint")
+                assert response.status_code == 200
+        ```
+    """
+    return TestAppBuilder() 

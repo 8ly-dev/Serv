@@ -135,9 +135,14 @@ def handle_init_command(args_ns):
         if overwrite_prompt is None or overwrite_prompt.lower() != 'yes':
             print("Initialization cancelled by user.")
             return
-
-    site_name = prompt_user("Enter site name", "My Serv Site") or "My Serv Site"
-    site_description = prompt_user("Enter site description", "A new website powered by Serv") or "A new website powered by Serv"
+    
+    # For non-interactive mode, use default values
+    if getattr(args_ns, 'non_interactive', False) or (args_ns.force and config_path.exists()):
+        site_name = "My Serv Site"
+        site_description = "A new website powered by Serv"
+    else:
+        site_name = prompt_user("Enter site name", "My Serv Site") or "My Serv Site"
+        site_description = prompt_user("Enter site description", "A new website powered by Serv") or "A new website powered by Serv"
 
     config_content = {
         "site_info": {
@@ -201,14 +206,21 @@ def handle_create_plugin_command(args_ns):
     """Handles the 'create-plugin' command."""
     logger.debug("Create plugin command started.")
 
-    plugin_name_human = prompt_user("Plugin Name (e.g., 'My Awesome Plugin')")
-    if not plugin_name_human:
-        logger.error("Plugin name cannot be empty. Aborting.")
-        return
+    # For non-interactive mode (--force), use default values
+    if getattr(args_ns, 'force', False) and getattr(args_ns, 'non_interactive', False):
+        plugin_name_human = "Test Plugin"
+        plugin_author = "Test Author"
+        plugin_description = "A test plugin for Serv"
+        plugin_version = "1.0.0"
+    else:
+        plugin_name_human = prompt_user("Plugin Name (e.g., 'My Awesome Plugin')")
+        if not plugin_name_human:
+            logger.error("Plugin name cannot be empty. Aborting.")
+            return
 
-    plugin_author = prompt_user("Author", "Your Name") or "Your Name"
-    plugin_description = prompt_user("Description", "A cool Serv plugin.") or "A cool Serv plugin."
-    plugin_version = prompt_user("Version", "0.1.0") or "0.1.0"
+        plugin_author = prompt_user("Author", "Your Name") or "Your Name"
+        plugin_description = prompt_user("Description", "A cool Serv plugin.") or "A cool Serv plugin."
+        plugin_version = prompt_user("Version", "0.1.0") or "0.1.0"
 
     class_name = to_pascal_case(plugin_name_human)
     module_base_name = to_snake_case(plugin_name_human)
@@ -418,7 +430,7 @@ def handle_disable_plugin_command(args_ns):
 
 def handle_enable_middleware_command(args_ns):
     """Handles the 'enable-middleware' command."""
-    middleware_entry_string = args_ns.middleware_entry_string
+    middleware_entry_string = args_ns.middleware_identifier
     logger.debug(f"Attempting to enable middleware: '{middleware_entry_string}'...")
 
     config_path = Path.cwd() / DEFAULT_CONFIG_FILE
@@ -464,7 +476,7 @@ def handle_enable_middleware_command(args_ns):
 
 def handle_disable_middleware_command(args_ns):
     """Handles the 'disable-middleware' command."""
-    middleware_entry_string = args_ns.middleware_entry_string
+    middleware_entry_string = args_ns.middleware_identifier
     logger.debug(f"Attempting to disable middleware: '{middleware_entry_string}'...")
 
     config_path = Path.cwd() / DEFAULT_CONFIG_FILE
@@ -778,7 +790,7 @@ def _get_configured_app(app_module_str: str | None, args_ns) -> App:
         logger.error(f"Failed to configure and instantiate application: {e}")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"An unexpected error occurred during app instantiation: {e}", exc_info=logger.level == logging.DEBUG)
+        logger.error(f"An unexpected error occurred during app instantiation: {e}", exc_info=dev_mode_status)
         sys.exit(1)
 
 
@@ -910,6 +922,82 @@ def main():
     )
     # Important: Remove duplicate plugin/middleware args since they're inherited from app_parent_parser
     launch_parser.set_defaults(func=handle_launch_command)
+
+    # App commands
+    app_parser = subparsers.add_parser('app',
+                                      help='App management commands')
+    app_subparsers = app_parser.add_subparsers(title="app commands", dest="app_command", required=True,
+                                             help="App command to execute")
+    
+    # App init command
+    app_init_parser = app_subparsers.add_parser('init',
+                                              help='Initialize a new Serv project')
+    app_init_parser.add_argument('--force', action='store_true',
+                               help='Force overwrite of existing config file')
+    app_init_parser.add_argument('--non-interactive', action='store_true', dest='non_interactive',
+                               help='Non-interactive mode with default values (for testing)')
+    app_init_parser.set_defaults(func=handle_init_command)
+    
+    # App details command
+    app_details_parser = app_subparsers.add_parser('details',
+                                                 help='Display application configuration')
+    app_details_parser.set_defaults(func=handle_app_details_command)
+    
+    # Plugin commands
+    plugin_parser = subparsers.add_parser('plugin',
+                                        help='Plugin management commands')
+    plugin_subparsers = plugin_parser.add_subparsers(title="plugin commands", dest="plugin_command", required=True,
+                                                   help="Plugin command to execute")
+    
+    # Plugin create command
+    plugin_create_parser = plugin_subparsers.add_parser('create',
+                                                      help='Create a new plugin')
+    plugin_create_parser.add_argument('--force', action='store_true',
+                                    help='Force overwrite of existing plugin')
+    plugin_create_parser.add_argument('--non-interactive', action='store_true', dest='non_interactive',
+                                    help='Non-interactive mode with default values (for testing)')
+    plugin_create_parser.set_defaults(func=handle_create_plugin_command)
+    
+    # Plugin enable command
+    plugin_enable_parser = plugin_subparsers.add_parser('enable',
+                                                      help='Enable a plugin')
+    plugin_enable_parser.add_argument('plugin_identifier',
+                                    help='Plugin identifier (directory name or module path)')
+    plugin_enable_parser.set_defaults(func=handle_enable_plugin_command)
+    
+    # Plugin disable command
+    plugin_disable_parser = plugin_subparsers.add_parser('disable',
+                                                       help='Disable a plugin')
+    plugin_disable_parser.add_argument('plugin_identifier',
+                                     help='Plugin identifier (directory name or module path)')
+    plugin_disable_parser.set_defaults(func=handle_disable_plugin_command)
+    
+    # Middleware commands
+    middleware_parser = subparsers.add_parser('middleware',
+                                            help='Middleware management commands')
+    middleware_subparsers = middleware_parser.add_subparsers(title="middleware commands", dest="middleware_command", required=True,
+                                                           help="Middleware command to execute")
+    
+    # Middleware create command
+    middleware_create_parser = middleware_subparsers.add_parser('create',
+                                                              help='Create a new middleware')
+    middleware_create_parser.add_argument('--force', action='store_true',
+                                        help='Force overwrite of existing middleware')
+    middleware_create_parser.set_defaults(func=handle_create_middleware_command)
+    
+    # Middleware enable command
+    middleware_enable_parser = middleware_subparsers.add_parser('enable',
+                                                              help='Enable a middleware')
+    middleware_enable_parser.add_argument('middleware_identifier',
+                                        help='Middleware identifier (file name without .py extension)')
+    middleware_enable_parser.set_defaults(func=handle_enable_middleware_command)
+    
+    # Middleware disable command
+    middleware_disable_parser = middleware_subparsers.add_parser('disable',
+                                                               help='Disable a middleware')
+    middleware_disable_parser.add_argument('middleware_identifier',
+                                         help='Middleware identifier (file name without .py extension)')
+    middleware_disable_parser.set_defaults(func=handle_disable_middleware_command)
 
     # ... existing subparsers ...
 

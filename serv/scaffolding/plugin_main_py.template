@@ -1,22 +1,24 @@
 from serv.plugins import Plugin
 from serv.app import App
-# from serv.routes import Route
-# from serv.responses import TextResponse, JSONResponse, Template
-# from typing import Annotated
-# import logging
+from bevy import dependency
+from serv.routing import Router
+from serv.responses import ResponseBuilder
+import logging
 
-# logger = logging.getLogger(__name__) # Optional: get a logger specific to your plugin
-
-# Example Route (Uncomment and modify if your plugin provides routes)
-# class {class_name}Route(Route):
-#     async def handle_get(self, request):
-#         # Access plugin's own config: self.plugin_config (if Plugin class is enhanced)
-#         # Or from app: app_plugin_config = request.app.plugins_config.get('{module_base_name}', {{}})
-#         # message = app_plugin_config.get("greeting", "Hello from {class_name}!")
-#         message = "Hello from {class_name}!"
-#         return TextResponse(message)
+logger = logging.getLogger(__name__)
 
 class {class_name}(Plugin):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._stand_alone = True
+    
+    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+        router.add_route("/hello", self._hello_handler, methods=["GET"])
+        
+    async def _hello_handler(self, response: ResponseBuilder = dependency()):
+        response.content_type("text/plain")
+        response.body("Hello from {module_base_name} plugin!")
+
     def on_load(self) -> None:
         '''Called when the plugin is loaded.
         
@@ -94,10 +96,6 @@ class {class_name}(Plugin):
     # def on_app_route_added(self, app: App, path: str, route_handler) -> None:
     #     '''Called after a route has been added to the application's router.'''
     #     pass
-    #
-    # def on_app_request_begin(self, app: App) -> None:
-    #    '''Called at the beginning of every request, before routing.'''
-    #    pass
     #
     # def on_app_request_end(self, app: App, response, exc: Exception | None) -> None:
     #    '''Called at the end of every request, after a response is generated or an exception occurs.'''

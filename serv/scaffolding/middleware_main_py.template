@@ -1,3 +1,9 @@
+"""
+{mw_description}
+
+This middleware adds functionality to Serv applications.
+"""
+from typing import Callable, Awaitable
 import logging
 from bevy import dependency # For dependency injection
 
@@ -6,7 +12,38 @@ from serv.request import Request as ServRequest
 from serv.response import ResponseBuilder as ServResponseBuilder # Or your actual Response type if not ResponseBuilder
 from serv.middleware import ServMiddleware # Import the base class
 
-logger = logging.getLogger(__name__) # Get a logger specific to this middleware module
+logger = logging.getLogger(__name__)
+
+async def {middleware_class_name}(handler):
+    """
+    A middleware for {mw_name_human}.
+    
+    Args:
+        handler: The next handler in the middleware chain.
+        
+    Returns:
+        An ASGI handler function.
+    """
+    async def middleware_handler(app, scope, receive, send):
+        # Example: Add a custom header to responses
+        async def custom_send(message):
+            if message["type"] == "http.response.start":
+                # Add a custom header
+                headers = message.get("headers", [])
+                headers.append((b"X-Middleware", b"{middleware_class_name}"))
+                message["headers"] = headers
+            await send(message)
+        
+        # Log the request
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            method = scope.get("method", "")
+            logger.info(f"{middleware_class_name}: {method} {path}")
+        
+        # Call the next handler
+        await handler(app, scope, receive, custom_send)
+    
+    return middleware_handler
 
 class {middleware_class_name}(ServMiddleware):
     """
