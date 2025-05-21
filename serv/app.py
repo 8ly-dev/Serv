@@ -7,7 +7,7 @@ import inspect
 from asyncio import get_running_loop, Task
 from collections import defaultdict
 from itertools import chain
-from typing import AsyncIterator, Awaitable, Callable, Any
+from typing import AsyncIterator, Awaitable, Callable, Any, get_type_hints
 from pathlib import Path
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
@@ -28,8 +28,9 @@ from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.injectors import inject_request_object
 from serv.routing import Router, HTTPNotFoundException
-from serv.exceptions import HTTPMethodNotAllowedException
+from serv.exceptions import HTTPMethodNotAllowedException, ServException
 from serv.middleware import ServMiddleware
+from serv.plugin_loader import PluginLoader
 
 logger = logging.getLogger(__name__)
 
@@ -76,17 +77,26 @@ class App:
 
         self._plugin_loader = ServLoader(plugin_dir)
         self._plugins: dict[Path, list[Plugin]] = defaultdict(list)
+        
+        # Initialize the plugin loader
+        self._plugin_loader_instance = PluginLoader(self._plugin_loader)
+        
         self._emit = EventEmitter(self._plugins)
 
         self._init_container()
         self._register_default_error_handlers()
-        self._load_plugins(self._config.get("plugins", []))
+        
+        # Load plugins using the new PluginLoader
+        self._load_plugins_from_config(self._config.get("plugins", []))
 
     def _load_config(self, config_path: str) -> dict[str, Any]:
         return load_raw_config(config_path)
 
     def _init_container(self):
+        # Register hooks for injection
         inject_request_object.register_hook(self._registry)
+        
+        # Set up container instances
         self._container.instances[App] = self
         self._container.instances[Container] = self._container
         self._container.instances[Registry] = self._registry
@@ -94,322 +104,151 @@ class App:
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
         self.add_error_handler(HTTPMethodNotAllowedException, self._default_405_handler)
-        # Add more default handlers as needed
 
     def add_error_handler(self, error_type: type[Exception], handler: Callable[[Exception], Awaitable[None]]):
         self._error_handlers[error_type] = handler
-        self.emit("error_handler.loaded", error_type=error_type, handler=handler, container=self._container)
 
     def add_middleware(self, middleware: Callable[[], AsyncIterator[None]]):
         self._middleware.append(middleware)
-        self.emit("middleware.loaded", middleware=middleware, container=self._container)
 
     def add_plugin(self, plugin: Plugin):
+        if plugin.plugin_dir not in self._plugins:
+            self._plugins[plugin.plugin_dir] = []
         self._plugins[plugin.plugin_dir].append(plugin)
-        self.emit("plugin.loaded", plugin=plugin, container=self._container)
 
     def get_plugin(self, path: Path) -> Plugin | None:
-        return self._plugins.get(path)
+        return self._plugins.get(path, [None])[0]
 
     def _load_plugins(self, plugins_config: list[dict[str, Any]]):
-        """Load plugins from a list of plugin configs and add them to the app.
+        """Legacy method, delegates to _load_plugins_from_config."""
+        return self._load_plugins_from_config(plugins_config)
 
-        Args:
-            plugins_config: List of plugin configs (usually from serv.config.yaml)
-        """
-        exceptions = []
-        loaded_plugins_count = 0
-        loaded_middleware_count = 0
-
-        for plugin_spec in plugins_config:
-            plugin_name = plugin_spec.get("name", "Unknown Plugin")
-            # Load plugin entry points
-            if "entry points" in plugin_spec:
-                try:
-                    if not isinstance(plugin_spec["entry points"], list):
-                        raise TypeError(f"'entry points' must be a list for plugin '{plugin_name}', got {type(plugin_spec['entry points']).__name__}")
-                    
-                    for entry_point_config in plugin_spec["entry points"]:
-                        try:
-                            plugin_instance = self._load_plugin_entry_point(entry_point_config)
-                            self.add_plugin(plugin_instance)
-                            loaded_plugins_count += 1
-                            # Safely get entry string for logging
-                            entry_str = entry_point_config.get('entry') if isinstance(entry_point_config, dict) else str(entry_point_config)
-                            logger.info(f"Loaded plugin entry point for {plugin_name} from {entry_str}")
-                        except Exception as e:
-                            # Safely get entry string for error logging
-                            entry_str = entry_point_config.get('entry') if isinstance(entry_point_config, dict) else str(entry_point_config)
-                            logger.warning(f"Failed to load plugin entry point for {plugin_name} from {entry_str}")
-                            e.add_note(f" - Plugin: {plugin_name}")
-                            e.add_note(f" - Entry point config: {entry_point_config}")
-                            exceptions.append(e)
-                except TypeError as e:
-                    logger.warning(f"Invalid entry points configuration for plugin {plugin_name}: {e}")
-                    exceptions.append(e)
-
-            # Load middleware from plugin
-            if "middleware" in plugin_spec:
-                try:
-                    if not isinstance(plugin_spec["middleware"], list):
-                        raise TypeError(f"'middleware' must be a list for plugin '{plugin_name}', got {type(plugin_spec['middleware']).__name__}")
-                    
-                    for middleware_config_entry in plugin_spec["middleware"]:
-                        try:
-                            middleware_factory = self._load_middleware_entry_point(middleware_config_entry)
-                            self.add_middleware(middleware_factory)
-                            loaded_middleware_count += 1
-                            # Safely get entry string for logging
-                            entry_str = middleware_config_entry.get('entry') if isinstance(middleware_config_entry, dict) else str(middleware_config_entry)
-                            logger.info(f"Loaded middleware for {plugin_name} from {entry_str}")
-                        except Exception as e:
-                            # Safely get entry string for error logging
-                            entry_str = middleware_config_entry.get('entry') if isinstance(middleware_config_entry, dict) else str(middleware_config_entry)
-                            logger.warning(f"Failed to load middleware for {plugin_name} from {entry_str}")
-                            e.add_note(f" - Plugin: {plugin_name}")
-                            e.add_note(f" - Middleware config: {middleware_config_entry}")
-                            exceptions.append(e)
-                except TypeError as e:
-                    logger.warning(f"Invalid middleware configuration for plugin {plugin_name}: {e}")
-                    exceptions.append(e)
-
-        # Log empty entry points and middleware cases
-        for plugin_spec in plugins_config:
-            plugin_name = plugin_spec.get("name", "Unknown Plugin")
-            if "entry points" in plugin_spec and not plugin_spec["entry points"]:
-                logger.info(f"Plugin {plugin_name} has empty 'entry points' list")
-            if "middleware" in plugin_spec and not plugin_spec["middleware"]:
-                logger.info(f"Plugin {plugin_name} has empty 'middleware' list")
-            if "entry points" not in plugin_spec and "middleware" not in plugin_spec:
-                logger.info(f"Plugin {plugin_name} has no 'entry points' or 'middleware' sections")
-
-        logger.info(f"Loaded {loaded_plugins_count} plugin entry points and {loaded_middleware_count} middleware entries.")
-        if exceptions:
-            logger.warning(f"Encountered {len(exceptions)} errors during plugin and middleware loading.")
-            raise ExceptionGroup("Exceptions raised while loading plugins and middleware", exceptions)
-
-    def _load_plugin_entry_point(self, entry_point_config: dict[str, Any]) -> Plugin:
-        if not isinstance(entry_point_config, dict):
-            raise ValueError(f"Invalid plugin entry point config: {entry_point_config!r}")
-
-        entry = entry_point_config.get("entry")
-        if not entry:
-            raise ValueError(f"Plugin entry point config missing 'entry': {entry_point_config!r}")
-
-        if ":" not in entry:
-            raise ValueError(f"Invalid plugin entry point, must use format 'module.path:ClassName': {entry!r}")
-
-        module_path, class_name = entry.split(":", 1)
-        plugin_module = self._plugin_loader.load_package(module_path)
-        if not plugin_module:
-            raise ImportError(f"Failed to load plugin module: {module_path!r}")
-
-        plugin_class = getattr(plugin_module, class_name, None)
-        if not plugin_class:
-            raise ImportError(f"Failed to import plugin class {class_name!r} from {module_path!r}")
-
-        if not issubclass(plugin_class, Plugin):
-            raise ValueError(f"Plugin class {class_name!r} does not inherit from {Plugin.__name__!r}")
-        
-        plugin_config = entry_point_config.get("config", {})
+    def _load_plugins_from_config(self, plugins_config: list[dict[str, Any]]):
+        """Load plugins and middleware from a list of plugin configs."""
         try:
-            return plugin_class(config=plugin_config) if plugin_config else plugin_class()
-        except TypeError as e:
-            # Check if the error is due to an unexpected keyword argument 'config'
-            # This is a bit fragile as it depends on the error message string.
-            if "unexpected keyword argument 'config'" in str(e) or \
-               (hasattr(e, "name") and e.name == "config" and "got an unexpected keyword argument" in str(e)): # More robust for some Python versions
-                logger.debug(f"Plugin {class_name} constructor does not accept 'config'. Instantiating without it.")
-                return plugin_class()
-            raise # re-raise if it's a different TypeError
+            loaded_plugins, middleware_list = self._plugin_loader_instance.load_plugins(plugins_config)
+            
+            # Add loaded plugins to our app's list
+            for plugin_dir, plugins in loaded_plugins.items():
+                for plugin in plugins:
+                    self.add_plugin(plugin)
+                    
+            # Add middleware to our app's list
+            for middleware_factory in middleware_list:
+                self.add_middleware(middleware_factory)
+                
+            # Log empty entry points and middleware for tests that expect these logs
+            for plugin_spec in plugins_config:
+                plugin_name = plugin_spec.get("name", "Unknown Plugin")
+                if "entry points" in plugin_spec and not plugin_spec["entry points"]:
+                    logger.info(f"Plugin {plugin_name} has empty 'entry points' list")
+                if "middleware" in plugin_spec and not plugin_spec["middleware"]:
+                    logger.info(f"Plugin {plugin_name} has empty 'middleware' list")
+                if "entry points" not in plugin_spec and "middleware" not in plugin_spec:
+                    logger.info(f"Plugin {plugin_name} has no 'entry points' or 'middleware' sections")
+                    
+        except ExceptionGroup as eg:
+            # Propagate any exceptions from plugin loading
+            raise eg
+            
+        return loaded_plugins, middleware_list
+
+    # Backward compatibility methods
+    def _load_plugin_entry_point(self, entry_point_config: dict[str, Any]) -> Plugin:
+        """Backward compatibility method that delegates to PluginLoader."""
+        return self._plugin_loader_instance._load_plugin_entry_point(entry_point_config)
 
     def _load_middleware_entry_point(self, middleware_config: dict[str, Any]) -> Callable[[], AsyncIterator[None]]:
-        if not isinstance(middleware_config, dict):
-            raise ValueError(f"Invalid middleware config: {middleware_config!r}")
-
-        entry = middleware_config.get("entry")
-        if not entry:
-            raise ValueError(f"Middleware config missing 'entry': {middleware_config!r}")
-
-        if ":" not in entry:
-            raise ValueError(f"Invalid middleware entry, must use format 'module.path:ClassNameOrFactory': {entry!r}")
-
-        module_path, object_name = entry.split(":", 1)
-        middleware_module = self._plugin_loader.load_package(module_path)
-        if not middleware_module:
-            raise ImportError(f"Failed to load middleware module: {module_path!r}")
-
-        middleware_obj = getattr(middleware_module, object_name, None)
-        if not middleware_obj:
-            raise ImportError(f"Failed to import middleware {object_name!r} from {module_path!r}")
-
-        mw_config = middleware_config.get("config", {})
-
-        if inspect.isclass(middleware_obj) and issubclass(middleware_obj, ServMiddleware):
-            def factory(): # This factory will be stored and called by the app
-                return middleware_obj(config=mw_config)
-            return factory
-        elif callable(middleware_obj):
-            # For raw callables (like async generator functions or factories that don't take config directly via constructor)
-            # we pass it as is. Config handling would need to be internal to the factory or through other means.
-            if mw_config:
-                logger.warning(
-                    f"Middleware {object_name} from {module_path} is a direct callable/factory; "
-                    f"'config' provided in plugin spec may not be automatically passed to its instantiation by Serv. "
-                    f"Ensure the factory handles its own configuration if needed, or use a ServMiddleware subclass."
-                )
-            return middleware_obj 
-        else:
-            raise ValueError(f"Middleware entry {object_name!r} from {module_path!r} is not a ServMiddleware subclass or a callable factory.")
+        """Backward compatibility method that delegates to PluginLoader."""
+        return self._plugin_loader_instance._load_middleware_entry_point(middleware_config)
 
     def _load_plugin_from_config(self, config: dict[str, Any]) -> Plugin:
         # This method is now primarily for backward compatibility if an old-style config is encountered.
-        # The main loading path is via _load_plugins and _load_plugin_entry_point.
-        if "entry" in config and ":" in config["entry"] and "entry points" not in config and "middleware" not in config:
-            logger.warning(
-                f"Plugin configuration for '{config['entry']}' is using the deprecated single 'entry' field. "
-                f"Consider migrating to the new structure with 'name' and 'entry points'."
-            )
-            # Adapt to the new entry point structure for processing
-            entry_point_config = {"entry": config["entry"], "config": config.get("config", {})}
-            return self._load_plugin_entry_point(entry_point_config)
+        # The main loading path is via _load_plugins_from_config and PluginLoader.
+        if not isinstance(config, dict):
+            raise ValueError(f"Invalid plugin config: {config!r}")
 
-        # If it's not a simple, old-style config, it should be handled by the new _load_plugins logic.
-        # This path indicates a malformed or unexpected configuration structure if reached directly with new format items.
-        raise ValueError(
-            f"_load_plugin_from_config was called with an unexpected configuration structure: {config}. "
-            f"Ensure plugin configurations follow the documented format (either old style with single 'entry' "
-            f"or new style with 'name', 'entry points', and/or 'middleware')."
-        )
-        
+        entry = config.get("entry")
+        if not entry:
+            raise ValueError(f"Plugin config missing 'entry': {config!r}")
+
+        plugin_config = config.get("config", {})
+        return self._load_plugin_entry_point({"entry": entry, "config": plugin_config})
+
     def load_plugin(self, package_name: str, namespace: str = None) -> bool:
-        """Load a plugin from the plugin directories.
-        
+        """Load a plugin from a package name.
+
         Args:
-            package_name: Name of the plugin package to load
-            namespace: Optional namespace to look in (defaults to first found)
-            
+            package_name: The name of the package to load
+            namespace: Optional namespace to restrict search
+
         Returns:
-            True if plugin was loaded successfully, False otherwise
+            True if the plugin was loaded successfully
         """
-        plugin_module = self._plugin_loader.load_package("plugin", package_name, namespace)
-        if not plugin_module:
-            logger.warning(f"Failed to load plugin {package_name}")
-            return False
-            
-        # First, try to find the class by looking for a name in plugin.yaml
-        plugin_dir = None
-        for search_path in self._plugin_loader.get_search_paths("plugin"):
-            if namespace and search_path.name != namespace:
-                continue
-                
-            potential_dir = search_path / package_name
-            if potential_dir.exists() and (potential_dir / "plugin.yaml").exists():
-                plugin_dir = potential_dir
-                break
-                
-        if plugin_dir and (plugin_dir / "plugin.yaml").exists():
-            try:
-                import yaml
-                with open(plugin_dir / "plugin.yaml", 'r') as f:
-                    plugin_yaml = yaml.safe_load(f)
-                    
-                if plugin_yaml and "entry" in plugin_yaml:
-                    entry = plugin_yaml["entry"]
-                    if ":" in entry:
-                        module_path, class_name = entry.split(":", 1)
-                        # If this is a module.class format, extract just the class name
-                        class_name = class_name.split(".")[-1]
-                        
-                        # Check if this class exists in the module we loaded
-                        if hasattr(plugin_module, class_name):
-                            plugin_class = getattr(plugin_module, class_name)
-                            if isinstance(plugin_class, type) and issubclass(plugin_class, Plugin):
-                                plugin_instance = plugin_class()
-                                self.add_plugin(plugin_instance)
-                                logger.info(f"Loaded plugin {package_name} ({class_name})")
-                                return True
-            except Exception as e:
-                logger.warning(f"Error loading plugin from plugin.yaml: {e}")
-                
-        logger.warning(f"Could not find Plugin subclass in {package_name}")
+        success, plugin = self._plugin_loader_instance.load_plugin(package_name, namespace)
+        if success and plugin:
+            self.add_plugin(plugin)
+            return True
         return False
-        
+
     def load_middleware(self, package_name: str, namespace: str = None) -> bool:
-        """Load middleware from the middleware directories.
-        
+        """Load middleware from a package name.
+
         Args:
-            package_name: Name of the middleware package to load
-            namespace: Optional namespace to look in (defaults to first found)
-            
+            package_name: The name of the package to load
+            namespace: Optional namespace to restrict search
+
         Returns:
-            True if middleware was loaded successfully, False otherwise
+            True if the middleware was loaded successfully
         """
-        middleware_module = self._plugin_loader.load_package("middleware", package_name, namespace)
-        if not middleware_module:
-            logger.warning(f"Failed to load middleware {package_name}")
-            return False
-        
-        # First try to find something that ends with _middleware
-        for attr_name in dir(middleware_module):
-            attr = getattr(middleware_module, attr_name)
-            if callable(attr) and attr_name.endswith('_middleware'):
-                self.add_middleware(attr)
-                logger.info(f"Loaded middleware {package_name}.{attr_name}")
-                return True
-                
-        # Try to find any callable that looks like a middleware factory
-        for attr_name in dir(middleware_module):
-            attr = getattr(middleware_module, attr_name)
-            if callable(attr) and not attr_name.startswith('_'):
-                try:
-                    # Check if it's a function that might return an async iterator
-                    sig = inspect.signature(attr)
-                    if len(sig.parameters) <= 1:  # 0 or 1 parameter (config)
-                        # It might be a middleware factory
-                        self.add_middleware(attr)
-                        logger.info(f"Loaded middleware {package_name}.{attr_name}")
-                        return True
-                except (ValueError, TypeError):
-                    continue
-                
-        logger.warning(f"Could not find middleware factory in {package_name}")
+        success, middleware_factory = self._plugin_loader_instance.load_middleware_from_package(package_name, namespace)
+        if success and middleware_factory:
+            self.add_middleware(middleware_factory)
+            return True
         return False
-        
+
     def load_plugins(self) -> int:
-        """Load all available plugins.
-        
+        """Load all plugins from the plugin directories.
+
         Returns:
             Number of plugins loaded
         """
-        loaded_count = 0
-        available = self._plugin_loader.list_available("plugin")
+        plugins_count = 0
+        plugins_dir = Path(self._plugin_loader.plugin_dir)
         
-        for namespace, packages in available.items():
-            for package_name in packages:
-                if self.load_plugin(package_name, namespace):
-                    loaded_count += 1
+        if not plugins_dir.exists():
+            logger.warning(f"Plugin directory {plugins_dir} does not exist.")
+            return 0
+            
+        for plugin_dir in plugins_dir.iterdir():
+            if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
+                if self.load_plugin(plugin_dir.name):
+                    plugins_count += 1
                     
-        return loaded_count
-        
+        return plugins_count
+
     def load_middleware_packages(self) -> int:
-        """Load all available middleware.
-        
+        """Load all middleware packages from the plugin directories.
+
         Returns:
-            Number of middleware loaded
+            Number of middleware packages loaded
         """
-        loaded_count = 0
-        available = self._plugin_loader.list_available("middleware")
+        middleware_count = 0
+        plugins_dir = Path(self._plugin_loader.plugin_dir)
         
-        for namespace, packages in available.items():
-            for package_name in packages:
-                if self.load_middleware(package_name, namespace):
-                    loaded_count += 1
+        if not plugins_dir.exists():
+            logger.warning(f"Plugin directory {plugins_dir} does not exist.")
+            return 0
+            
+        for plugin_dir in plugins_dir.iterdir():
+            if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
+                if self.load_middleware(plugin_dir.name):
+                    middleware_count += 1
                     
-        return loaded_count
+        return middleware_count
 
     def emit(self, event: str, *, container: Container = dependency(), **kwargs) -> Task:
-        return container.call(self._emit.emit_sync, event, **kwargs)
+        return self._emit.emit_sync(event, container=container, **kwargs)
 
     async def handle_lifespan(self, scope: Scope, receive: Receive, send: Send):
         async for event in self._lifespan_iterator(receive):
@@ -426,148 +265,119 @@ class App:
                     await send(LifespanShutdownCompleteEvent(type="lifespan.shutdown.complete"))
 
     def _get_template_locations(self) -> list[Path]:
-        """Get a list of template locations to search for templates.
+        """Get the template locations for this app.
 
-        The order of precedence is:
-        1. Templates in the CWD/templates directory (if it exists)
-        2. Templates in the serv/templates directory
+        Returns a list of paths to search for templates in. The default implementation returns:
+        1. ./templates/error - Default directory for error templates
+
         """
-        template_locations = []
+        result = []
+        # Add ./templates/error for error templates
+        error_templates_path = Path("./templates/error")
+        result.append(error_templates_path)
 
-        # Check for templates in the current working directory
-        cwd_templates = Path.cwd() / "templates"
-        if cwd_templates.exists() and cwd_templates.is_dir():
-            template_locations.append(cwd_templates)
+        # Create the directories if they don't exist
+        for path in result:
+            if not path.exists():
+                logger.debug(f"Creating template directory: {path}")
+                path.mkdir(parents=True, exist_ok=True)
 
-        # Add the serv/templates directory
-        serv_templates = Path(__file__).parent / "templates"
-        if serv_templates.exists() and serv_templates.is_dir():
-            template_locations.append(serv_templates)
-
-        return template_locations
+        return result
 
     def _render_template(self, template_name: str, context: dict[str, Any]) -> str:
-        """Render a template with the given context."""
+        """Render a template with the given context.
+
+        Args:
+            template_name: Name of the template to render
+            context: Context to render the template with
+
+        Returns:
+            Rendered template as a string
+        """
         template_locations = self._get_template_locations()
-        if not template_locations:
-            # Fallback to simple HTML if no template locations are found
-            return f"<html><body><h1>{context.get('error_title', 'Error')}</h1><p>{context.get('error_message', '')}</p></body></html>"
-
-        env = Environment(
-            loader=FileSystemLoader(template_locations),
-            autoescape=select_autoescape(['html', 'xml'])
-        )
-
+        env = Environment(loader=FileSystemLoader(template_locations), 
+                         autoescape=select_autoescape(["html", "xml"]))
+        
+        # Try to load the template
         try:
             template = env.get_template(template_name)
-            return template.render(**context)
         except Exception as e:
-            logger.error(f"Error rendering template {template_name}: {e}")
-            # Fallback to simple HTML if template rendering fails
-            return f"<html><body><h1>{context.get('error_title', 'Error')}</h1><p>{context.get('error_message', '')}</p></body></html>"
+            logger.exception(f"Failed to load template {template_name}")
+            # Special case for error templates - provide a fallback
+            if template_name.startswith("error/"):
+                status_code = context.get("status_code", 500)
+                error_title = context.get("error_title", "Error")
+                error_message = context.get("error_message", "An error occurred")
+                
+                return f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>{status_code} {error_title}</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }}
+                        h1 {{ color: #d00; }}
+                        pre {{ background: #f4f4f4; padding: 10px; border-radius: 5px; }}
+                    </style>
+                </head>
+                <body>
+                    <h1>{status_code} {error_title}</h1>
+                    <p>{error_message}</p>
+                </body>
+                </html>
+                """
+            raise
+            
+        # Render the template
+        return template.render(**context)
 
     @inject
     async def _default_error_handler(self, error: Exception, response: ResponseBuilder = dependency(), request: Request = dependency()):
-        status_code = getattr(error, 'status_code', 500)
+        logger.exception("Unhandled exception", exc_info=error)
+        
+        # Check if the error is a ServException subclass and use its status code
+        status_code = getattr(error, "status_code", 500) if isinstance(error, ServException) else 500
         response.set_status(status_code)
         
         # Check if the client accepts HTML
         accept_header = request.headers.get("accept", "")
-
-        # Prepare error data for JSON response
-        error_data = {
-            "status_code": status_code,
-            "error": type(error).__name__,
-            "message": str(error),
-            "path": request.path,
-            "method": request.method
-        }
-
-        # For 500 errors, add stack trace information if appropriate
-        if status_code == 500:
-            error_chain = []
-            current_exc = error.__context__ or error.__cause__
-            chain_count = 0
-
-            while current_exc and chain_count < 10:  # Limit depth to prevent infinite loops
-                error_chain.append({
-                    "type": type(current_exc).__name__,
-                    "message": str(current_exc)
-                })
-
-                next_exc = current_exc.__context__ or current_exc.__cause__
-                if next_exc is current_exc:  # Break if we're in a loop
-                    break
-                current_exc = next_exc
-                chain_count += 1
-
-            if error_chain:
-                error_data["error_chain"] = error_chain
-
         if "text/html" in accept_header:
-            # Use HTML response with templates
+            # Use HTML response
             response.content_type("text/html")
-            
-            # Prepare context for the template
             context = {
                 "status_code": status_code,
-                "error_title": f"Error {status_code}",
-                "error_message": str(error) if self._dev_mode else "An error occurred while processing your request.",
-                "error_type": type(error).__name__ if self._dev_mode else "Internal Server Error",
-                "error_str": str(error) if self._dev_mode else "An error occurred while processing your request.",
+                "error_title": "Error",
+                "error_message": "An unexpected error occurred.",
+                "error_type": type(error).__name__,
+                "error_str": str(error),
+                "traceback": "".join(traceback.format_exception(error)),
                 "request_path": request.path,
                 "request_method": request.method,
-                "show_details": status_code == 500  # Only show details for 500 errors
+                "show_details": self._dev_mode
             }
-
-            # Process error chain for 500 errors with full traceback
-            if status_code == 500 and self._dev_mode:
-                error_chain = []
-                current_exc = error.__context__ or error.__cause__
-                chain_count = 0
-
-                while current_exc and chain_count < 10:
-                    formatted_tb = "".join(traceback.format_exception(type(current_exc), current_exc, current_exc.__traceback__))
-                    error_chain.append({
-                        "type": type(current_exc).__name__,
-                        "message": str(current_exc),
-                        "traceback": formatted_tb
-                    })
-
-                    next_exc = current_exc.__context__ or current_exc.__cause__
-                    if next_exc is current_exc:
-                        break
-                    current_exc = next_exc
-                    chain_count += 1
-
-                if error_chain:
-                    context["error_chain"] = error_chain
-
-                # Add traceback for the main error
-                context["traceback"] = "".join(traceback.format_exception(type(error), error, error.__traceback__))
-
-            # Try to use a specific template for this status code, fall back to generic_error.html
-            template_name = f"error/{status_code}.html" if status_code in [404, 405, 500] else "error/generic_error.html"
-            html_content = self._render_template(template_name, context)
+            
+            html_content = self._render_template("error/500.html", context)
             response.body(html_content)
         elif "application/json" in accept_header:
             # Use JSON response
-            if not self._dev_mode:
-                error_data.pop("error_chain", None)
-                error_data.pop("traceback", None)
-
             response.content_type("application/json")
+            error_data = {
+                "status_code": status_code,
+                "error": type(error).__name__,
+                "message": str(error) if self._dev_mode else "An unexpected error occurred.",
+                "path": request.path,
+                "method": request.method
+            }
+            
+            if self._dev_mode:
+                error_data["traceback"] = traceback.format_exception(error)
+                
             response.body(json.dumps(error_data))
         else:
             # Use plaintext response
-            message = f"{status_code} Error: "
-            if self._dev_mode:
-                message += f"{type(error).__name__}: {error}\n\n{traceback.format_exc()}"
-            else:
-                message += "An error occurred while processing your request."
-
             response.content_type("text/plain")
-            response.body(message)
+            error_message = f"{status_code} Error: {type(error).__name__}: {error}" if self._dev_mode else f"{status_code} Error: An unexpected error occurred."
+            response.body(error_message)
 
     @inject
     async def _default_404_handler(self, error: HTTPNotFoundException, response: ResponseBuilder = dependency(), request: Request = dependency()):
@@ -581,9 +391,8 @@ class App:
             context = {
                 "status_code": HTTPNotFoundException.status_code,
                 "error_title": "Not Found",
-                "error_message": f"The requested resource was not found.",
-                "error_type": type(error).__name__,
-                "error_str": str(error),
+                "error_message": error.args[0] if error.args else "The requested resource was not found.",
+                "error_type": "NotFound",
                 "request_path": request.path,
                 "request_method": request.method,
                 "show_details": False
@@ -731,6 +540,8 @@ class App:
 
         for middleware_factory in self._middleware:
             try:
+                # For middleware functions, use container.call to properly inject dependencies
+                # Don't await the result since it's an async generator
                 middleware_iterator = container.call(middleware_factory)
                 await anext(middleware_iterator)
             except Exception as e:

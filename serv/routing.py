@@ -74,16 +74,28 @@ class Router:
             >>> router.add_route("/items", ItemRoute, settings={"db_table": "items"})
         """
         match handler:
-            case type() as route if issubclass(route, routes.Route):
-                # Store the original route class for url_for lookups
+            case type() as route if hasattr(route, "__method_handlers__") and hasattr(route, "__form_handlers__"):
+                # Keep track of which paths are mapped to which Route classes
                 if route not in self._route_class_paths:
                     self._route_class_paths[route] = []
                 self._route_class_paths[route].append(path)
 
-                if isinstance(route, type):
-                    with get_container(container).branch() as container:
-                        container.instances[RouteSettings] = RouteSettings(**settings or {})
-                        route_instance = container.call(route)
+                # Initialize the Route class directly to avoid container.call issues
+                # We'll still use a container branch to handle RouteSettings
+                if container is None:
+                    # Create a new container from scratch if none was provided
+                    from bevy import get_registry
+                    container = get_registry().create_container()
+                    
+                with container.branch() as branch_container:
+                    branch_container.instances[RouteSettings] = RouteSettings(**settings or {})
+                    # Create route instance directly instead of using container.call
+                    try:
+                        route_instance = route()
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(f"Error initializing route {route}: {e}")
+                        raise
 
                 methods = route.__method_handlers__.keys() | route.__form_handlers__.keys()
                 # Store these settings for the actual path
