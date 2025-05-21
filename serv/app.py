@@ -3,6 +3,7 @@ import contextlib
 import json
 import logging
 import traceback
+import inspect
 from asyncio import get_running_loop, Task
 from collections import defaultdict
 from itertools import chain
@@ -28,6 +29,7 @@ from serv.responses import ResponseBuilder
 from serv.injectors import inject_request_object
 from serv.routing import Router, HTTPNotFoundException
 from serv.exceptions import HTTPMethodNotAllowedException
+from serv.middleware import ServMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -109,45 +111,61 @@ class App:
     def get_plugin(self, path: Path) -> Plugin | None:
         return self._plugins.get(path)
 
-    def _load_plugins(self, plugins: list[dict[str, Any]]):
+    def _load_plugins(self, plugins_config: list[dict[str, Any]]):
         """Load plugins from a list of plugin configs and add them to the app.
 
         Args:
-            plugins: List of plugin configs (usually from serv.config.yaml)
+            plugins_config: List of plugin configs (usually from serv.config.yaml)
         """
         exceptions = []
-        loaded_plugins = list()
-        for plugin_config in plugins:
-            try:
-                plugin = self._load_plugin_from_config(plugin_config)
-            except Exception as e:
-                logger.warning(f"Failed to load plugin {plugin_config['entry']}")
-                e.add_note(f" - Plugin entrypoint {plugin_config['entry']}")
-                exceptions.append(e)
-                continue
-            else:
-                self.add_plugin(plugin)
-                loaded_plugins.append(plugin)
-                logger.info(f"Loaded plugin {plugin.plugin_dir}")
+        loaded_plugins_count = 0
+        loaded_middleware_count = 0
 
-        logger.info(f"Loaded {len(loaded_plugins)} plugins")
+        for plugin_spec in plugins_config:
+            plugin_name = plugin_spec.get("name", "Unknown Plugin")
+            # Load plugin entry points
+            if "entry points" in plugin_spec:
+                for entry_point_config in plugin_spec["entry points"]:
+                    try:
+                        plugin_instance = self._load_plugin_entry_point(entry_point_config)
+                        self.add_plugin(plugin_instance)
+                        loaded_plugins_count += 1
+                        logger.info(f"Loaded plugin entry point for {plugin_name} from {entry_point_config.get('entry')}")
+                    except Exception as e:
+                        logger.warning(f"Failed to load plugin entry point for {plugin_name} from {entry_point_config.get('entry')}")
+                        e.add_note(f" - Plugin: {plugin_name}")
+                        e.add_note(f" - Entry point config: {entry_point_config}")
+                        exceptions.append(e)
+
+            # Load middleware from plugin
+            if "middleware" in plugin_spec:
+                for middleware_config_entry in plugin_spec["middleware"]:
+                    try:
+                        middleware_factory = self._load_middleware_entry_point(middleware_config_entry)
+                        self.add_middleware(middleware_factory)
+                        loaded_middleware_count += 1
+                        logger.info(f"Loaded middleware for {plugin_name} from {middleware_config_entry.get('entry')}")
+                    except Exception as e:
+                        logger.warning(f"Failed to load middleware for {plugin_name} from {middleware_config_entry.get('entry')}")
+                        e.add_note(f" - Plugin: {plugin_name}")
+                        e.add_note(f" - Middleware config: {middleware_config_entry}")
+                        exceptions.append(e)
+
+        logger.info(f"Loaded {loaded_plugins_count} plugin entry points and {loaded_middleware_count} middleware entries.")
         if exceptions:
-            logger.warning(f"Failed to load {len(exceptions)} plugins")
-            exception = ExceptionGroup("Exceptions raised while loading plugins", exceptions)
-            exception.add_note(f" - Successfully loaded {len(loaded_plugins)} plugins.")
-            exception.add_note(f" - Failed to load {len(exceptions)} plugins.")
-            raise exception
+            logger.warning(f"Encountered {len(exceptions)} errors during plugin and middleware loading.")
+            raise ExceptionGroup("Exceptions raised while loading plugins and middleware", exceptions)
 
-    def _load_plugin_from_config(self, config: dict[str, Any]) -> Plugin:
-        if not isinstance(config, dict):
-            raise ValueError(f"Invalid plugin config: {config!r}")
+    def _load_plugin_entry_point(self, entry_point_config: dict[str, Any]) -> Plugin:
+        if not isinstance(entry_point_config, dict):
+            raise ValueError(f"Invalid plugin entry point config: {entry_point_config!r}")
 
-        entry = config.get("entry")
+        entry = entry_point_config.get("entry")
         if not entry:
-            raise ValueError(f"Plugin config missing 'entry': {config!r}")
+            raise ValueError(f"Plugin entry point config missing 'entry': {entry_point_config!r}")
 
         if ":" not in entry:
-            raise ValueError(f"Invalid plugin entry, must use format 'module.path:ClassName': {entry!r}")
+            raise ValueError(f"Invalid plugin entry point, must use format 'module.path:ClassName': {entry!r}")
 
         module_path, class_name = entry.split(":", 1)
         plugin_module = self._plugin_loader.load_package(module_path)
@@ -156,12 +174,81 @@ class App:
 
         plugin_class = getattr(plugin_module, class_name, None)
         if not plugin_class:
-            raise ImportError(f"Failed to import plugin {class_name!r} from {module_path!r}")
+            raise ImportError(f"Failed to import plugin class {class_name!r} from {module_path!r}")
 
         if not issubclass(plugin_class, Plugin):
             raise ValueError(f"Plugin class {class_name!r} does not inherit from {Plugin.__name__!r}")
+        
+        plugin_config = entry_point_config.get("config", {})
+        try:
+            return plugin_class(config=plugin_config) if plugin_config else plugin_class()
+        except TypeError as e:
+            # Check if the error is due to an unexpected keyword argument 'config'
+            # This is a bit fragile as it depends on the error message string.
+            if "unexpected keyword argument 'config'" in str(e) or \
+               (hasattr(e, "name") and e.name == "config" and "got an unexpected keyword argument" in str(e)): # More robust for some Python versions
+                logger.debug(f"Plugin {class_name} constructor does not accept 'config'. Instantiating without it.")
+                return plugin_class()
+            raise # re-raise if it's a different TypeError
 
-        return plugin_class()
+    def _load_middleware_entry_point(self, middleware_config: dict[str, Any]) -> Callable[[], AsyncIterator[None]]:
+        if not isinstance(middleware_config, dict):
+            raise ValueError(f"Invalid middleware config: {middleware_config!r}")
+
+        entry = middleware_config.get("entry")
+        if not entry:
+            raise ValueError(f"Middleware config missing 'entry': {middleware_config!r}")
+
+        if ":" not in entry:
+            raise ValueError(f"Invalid middleware entry, must use format 'module.path:ClassNameOrFactory': {entry!r}")
+
+        module_path, object_name = entry.split(":", 1)
+        middleware_module = self._plugin_loader.load_package(module_path)
+        if not middleware_module:
+            raise ImportError(f"Failed to load middleware module: {module_path!r}")
+
+        middleware_obj = getattr(middleware_module, object_name, None)
+        if not middleware_obj:
+            raise ImportError(f"Failed to import middleware {object_name!r} from {module_path!r}")
+
+        mw_config = middleware_config.get("config", {})
+
+        if inspect.isclass(middleware_obj) and issubclass(middleware_obj, ServMiddleware):
+            def factory(): # This factory will be stored and called by the app
+                return middleware_obj(config=mw_config)
+            return factory
+        elif callable(middleware_obj):
+            # For raw callables (like async generator functions or factories that don't take config directly via constructor)
+            # we pass it as is. Config handling would need to be internal to the factory or through other means.
+            if mw_config:
+                logger.warning(
+                    f"Middleware {object_name} from {module_path} is a direct callable/factory; "
+                    f"'config' provided in plugin spec may not be automatically passed to its instantiation by Serv. "
+                    f"Ensure the factory handles its own configuration if needed, or use a ServMiddleware subclass."
+                )
+            return middleware_obj 
+        else:
+            raise ValueError(f"Middleware entry {object_name!r} from {module_path!r} is not a ServMiddleware subclass or a callable factory.")
+
+    def _load_plugin_from_config(self, config: dict[str, Any]) -> Plugin:
+        # This method is now primarily for backward compatibility if an old-style config is encountered.
+        # The main loading path is via _load_plugins and _load_plugin_entry_point.
+        if "entry" in config and ":" in config["entry"] and "entry points" not in config and "middleware" not in config:
+            logger.warning(
+                f"Plugin configuration for '{config['entry']}' is using the deprecated single 'entry' field. "
+                f"Consider migrating to the new structure with 'name' and 'entry points'."
+            )
+            # Adapt to the new entry point structure for processing
+            entry_point_config = {"entry": config["entry"], "config": config.get("config", {})}
+            return self._load_plugin_entry_point(entry_point_config)
+
+        # If it's not a simple, old-style config, it should be handled by the new _load_plugins logic.
+        # This path indicates a malformed or unexpected configuration structure if reached directly with new format items.
+        raise ValueError(
+            f"_load_plugin_from_config was called with an unexpected configuration structure: {config}. "
+            f"Ensure plugin configurations follow the documented format (either old style with single 'entry' "
+            f"or new style with 'name', 'entry points', and/or 'middleware')."
+        )
         
     def load_plugin(self, package_name: str, namespace: str = None) -> bool:
         """Load a plugin from the plugin directories.
@@ -173,14 +260,14 @@ class App:
         Returns:
             True if plugin was loaded successfully, False otherwise
         """
-        plugin_module = self._loader.load_package("plugin", package_name, namespace)
+        plugin_module = self._plugin_loader.load_package("plugin", package_name, namespace)
         if not plugin_module:
             logger.warning(f"Failed to load plugin {package_name}")
             return False
             
         # First, try to find the class by looking for a name in plugin.yaml
         plugin_dir = None
-        for search_path in self._loader.get_search_paths("plugin"):
+        for search_path in self._plugin_loader.get_search_paths("plugin"):
             if namespace and search_path.name != namespace:
                 continue
                 
@@ -226,7 +313,7 @@ class App:
         Returns:
             True if middleware was loaded successfully, False otherwise
         """
-        middleware_module = self._loader.load_package("middleware", package_name, namespace)
+        middleware_module = self._plugin_loader.load_package("middleware", package_name, namespace)
         if not middleware_module:
             logger.warning(f"Failed to load middleware {package_name}")
             return False
@@ -240,7 +327,6 @@ class App:
                 return True
                 
         # Try to find any callable that looks like a middleware factory
-        import inspect
         for attr_name in dir(middleware_module):
             attr = getattr(middleware_module, attr_name)
             if callable(attr) and not attr_name.startswith('_'):
@@ -265,7 +351,7 @@ class App:
             Number of plugins loaded
         """
         loaded_count = 0
-        available = self._loader.list_available("plugin")
+        available = self._plugin_loader.list_available("plugin")
         
         for namespace, packages in available.items():
             for package_name in packages:
@@ -281,7 +367,7 @@ class App:
             Number of middleware loaded
         """
         loaded_count = 0
-        available = self._loader.list_available("middleware")
+        available = self._plugin_loader.list_available("middleware")
         
         for namespace, packages in available.items():
             for package_name in packages:
