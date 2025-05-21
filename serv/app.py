@@ -49,13 +49,14 @@ class App:
     It is responsible for handling the incoming requests and delegating them to the appropriate routes.
     """
 
-    def __init__(self, plugin_dirs: list[str] = None, middleware_dirs: list[str] = None):
+    def __init__(self, plugin_dirs: list[str] = None, middleware_dirs: list[str] = None, dev_mode: bool = False):
         """Initialize a new Serv application.
         
         Args:
             plugin_dirs: list of directories to search for plugins (default: ['./plugins'])
             middleware_dirs: list of directories to search for middleware (default: ['./middleware'])
         """
+        self._dev_mode = dev_mode
         self._registry = get_registry()
         self._container = self._registry.create_container()
         self._plugins = defaultdict(list)
@@ -351,16 +352,16 @@ class App:
             context = {
                 "status_code": status_code,
                 "error_title": f"Error {status_code}",
-                "error_message": str(error),
-                "error_type": type(error).__name__,
-                "error_str": str(error),
+                "error_message": str(error) if self._dev_mode else "An error occurred while processing your request.",
+                "error_type": type(error).__name__ if self._dev_mode else "Internal Server Error",
+                "error_str": str(error) if self._dev_mode else "An error occurred while processing your request.",
                 "request_path": request.path,
                 "request_method": request.method,
                 "show_details": status_code == 500  # Only show details for 500 errors
             }
 
             # Process error chain for 500 errors with full traceback
-            if status_code == 500:
+            if status_code == 500 and self._dev_mode:
                 error_chain = []
                 current_exc = error.__context__ or error.__cause__
                 chain_count = 0
@@ -391,12 +392,22 @@ class App:
             response.body(html_content)
         elif "application/json" in accept_header:
             # Use JSON response
+            if not self._dev_mode:
+                error_data.pop("error_chain", None)
+                error_data.pop("traceback", None)
+
             response.content_type("application/json")
             response.body(json.dumps(error_data))
         else:
             # Use plaintext response
+            message = f"{status_code} Error: "
+            if self._dev_mode:
+                message += f"{type(error).__name__}: {error}\n\n{traceback.format_exc()}"
+            else:
+                message += "An error occurred while processing your request."
+
             response.content_type("text/plain")
-            response.body(f"{status_code} Error: {error}")
+            response.body(message)
 
     @inject
     async def _default_404_handler(self, error: HTTPNotFoundException, response: ResponseBuilder = dependency(), request: Request = dependency()):
@@ -556,7 +567,6 @@ class App:
     async def _run_middleware_stack(self, container: Container, request_instance: Request):
         stack = []
         error_to_propagate = None
-        # The router instance is now fetched from the container where it was set earlier.
         router_instance = container.get(Router)
 
         for middleware_factory in self._middleware:
