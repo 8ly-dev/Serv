@@ -38,7 +38,7 @@ async def app() -> App:
             self_rb._has_content_type = False
         ResponseBuilder.clear = clear_stub
 
-    _app = App()
+    _app = App(dev_mode=True)
     # If your app requires explicit startup/shutdown for some test setups (e.g., background tasks):
     # async with _app.lifespan_context():
     #     yield _app

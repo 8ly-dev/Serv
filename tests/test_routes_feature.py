@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from logging import exception
+from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
@@ -93,6 +94,7 @@ class RouteTestPlugin(Plugin):
         self.route_class = route_class
         self.router_instance_id_at_registration = None
         self.plugin_registered_route = False
+        self._stand_alone = True
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         # Using app.request.begin as it seems to be a point where router_instance is available
@@ -274,8 +276,8 @@ async def test_raw_dict_handler_without_response_type_errors(app: App, client: A
     assert response.status_code == 500
     # Check for the app's default error handler output, which should include the TypeError info
     text = response.text
-    assert "Error 500" in text
-    assert "TypeError" in text 
+    assert "500 Error" in text
+    assert "TypeError" in text
     assert "returned a \'dict\' but was expected to return a Response instance" in text
     assert plugin.plugin_registered_route
 
@@ -291,7 +293,7 @@ async def test_raw_string_handler_without_response_type_errors(app: App, client:
     response = await client.get("/test_raw_string_error")
     assert response.status_code == 500
     text = response.text
-    assert "Error 500" in text
+    assert "500 Error" in text
     assert "TypeError" in text
     assert "returned a \'str\' but was expected to return a Response instance" in text
     assert plugin.plugin_registered_route

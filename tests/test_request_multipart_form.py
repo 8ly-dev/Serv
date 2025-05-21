@@ -57,9 +57,12 @@ class MultipartTestRoutePlugin(Plugin):
     def __init__(self, path: str, route_class: Type[Route]):
         self.path = path
         self.route_class = route_class
+        self.plugin_registered_route = False
+        self._stand_alone = True
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self.route_class)
+        self.plugin_registered_route = True
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_single_file(app: App, client: AsyncClient):

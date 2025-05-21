@@ -15,6 +15,7 @@ class RouteAddingPlugin(Plugin):
         self.methods = methods
         self.was_called = False
         self.received_kwargs = None
+        self._stand_alone = True
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler_wrapper, methods=self.methods)
@@ -32,6 +33,7 @@ class RouteAddingPlugin(Plugin):
 class EventWatcherPlugin(Plugin):
     def __init__(self):
         self.events_seen = []
+        self._stand_alone = True
 
     async def on(self, event_name: str, **kwargs: Any) -> None:
         self.events_seen.append((event_name, kwargs))

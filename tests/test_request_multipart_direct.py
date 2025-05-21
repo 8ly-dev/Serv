@@ -16,6 +16,7 @@ class DirectHandlerPlugin(Plugin):
         self.path = path
         self.handler = handler
         self.methods = methods
+        self._stand_alone = True
 
     async def on_app_request_before_router(self, router_instance: Router = dependency(), **kwargs):
         router_instance.add_route(self.path, self.handler, methods=self.methods)

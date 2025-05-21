@@ -17,7 +17,7 @@ from serv.responses import ResponseBuilder # For type hinting if needed
 
 @pytest_asyncio.fixture
 async def demo_app():
-    app = App()
+    app = App(dev_mode=True)
     # Add routes to the routers directly as they are in the demo
     # form_router and welcome_router are already configured in their import
     app.add_middleware(cookie_based_router_middleware)
