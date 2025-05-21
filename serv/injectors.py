@@ -15,17 +15,26 @@ class Header(_Marker):
         self.name = name
         self.default = default
 
+    def __repr__(self):
+        return f"<Inject:Header({self.name!r}, default={self.default!r})>"
+
 
 class Cookie(_Marker):
     def __init__(self, name: str, default: str | None = None):
         self.name = name
         self.default = default
 
+    def __repr__(self):
+        return f"<Inject:Cookie({self.name!r}, default={self.default!r})>"
+
 
 class Query(_Marker):
     def __init__(self, name: str, default: str | None = None):
         self.name = name
         self.default = default
+
+    def __repr__(self):
+        return f"<Inject:Query({self.name!r}, default={self.default!r})>"
 
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY
