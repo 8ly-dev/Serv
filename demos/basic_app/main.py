@@ -26,24 +26,19 @@ class BasicAppPlugin(Plugin):
 
 # If the script is run directly, start the Uvicorn server
 if __name__ == "__main__":
-    try:
-        import uvicorn
-    except ImportError:
-        print("Uvicorn is not installed. Please install it with: pip install uvicorn")
-    else:
+    async def main():
+        try:
+            import uvicorn
+        except ImportError:
+            print("Uvicorn is not installed. Please install it with: pip install uvicorn")
+            return
+
         print("Starting Serv basic demo on http://127.0.0.1:8000")
         print("Press Ctrl+C to stop.")
 
-        # Create a new event loop or get the current one
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
         # Create an app instance inside the event loop
         app = App()
-        app.add_plugin(BasicAppPlugin())
+        app.add_plugin(BasicAppPlugin(stand_alone=True))
 
         # Configure and run Uvicorn with the same loop
         config = uvicorn.Config(
@@ -53,4 +48,6 @@ if __name__ == "__main__":
             loop="asyncio",
         )
         server = uvicorn.Server(config)
-        loop.run_until_complete(server.serve())
+        await server.serve()
+
+    asyncio.run(main())
