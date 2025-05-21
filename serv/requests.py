@@ -184,9 +184,7 @@ class Request:
                 return False
             raise ValueError(f"Cannot coerce {value!r} to bool.")
         
-        print("Target type", target_type)
         if target_type is FileUpload:
-            print("FileUpload", value)
             return FileUpload(
                 filename=value["filename"],
                 content_type=value["content_type"],
