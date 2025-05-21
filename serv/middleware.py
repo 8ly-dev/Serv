@@ -6,8 +6,9 @@ class ServMiddleware:
     """
     Base class for Serv middleware, providing enter, leave, and on_error hooks.
     """
-    def __init__(self, container: Container = dependency()):
+    def __init__(self, config: dict | None = None, container: Container = dependency()):
         self._container = container
+        self._config = config
 
     def __aiter__(self):
         return self._create_iterator()
