@@ -309,18 +309,7 @@ class App:
         1. ./templates/error - Default directory for error templates
 
         """
-        result = []
-        # Add ./templates/error for error templates
-        error_templates_path = Path("./templates/error")
-        result.append(error_templates_path)
-
-        # Create the directories if they don't exist
-        for path in result:
-            if not path.exists():
-                logger.debug(f"Creating template directory: {path}")
-                path.mkdir(parents=True, exist_ok=True)
-
-        return result
+        return [Path.cwd() / "templates", Path(__file__).parent / "templates"]
 
     def _render_template(self, template_name: str, context: dict[str, Any]) -> str:
         """Render a template with the given context.
@@ -333,8 +322,7 @@ class App:
             Rendered template as a string
         """
         template_locations = self._get_template_locations()
-        env = Environment(loader=FileSystemLoader(template_locations), 
-                         autoescape=select_autoescape(["html", "xml"]))
+        env = Environment(loader=FileSystemLoader(template_locations))
         
         # Try to load the template
         try:

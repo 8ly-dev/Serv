@@ -91,7 +91,7 @@ class Jinja2Response(Response):
             raise RuntimeError("Jinja2Response cannot be used outside of a plugin.")
 
         return [
-            Path.cwd() / "templates" / plugin.config()["name"],
+            Path.cwd() / "templates" / plugin.name,
             plugin.plugin_dir / "templates",
         ]
 
