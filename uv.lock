@@ -2,6 +2,12 @@ version = 1
 revision = 1
 requires-python = ">=3.13"
 
+[manifest]
+overrides = [
+    { name = "bevy", specifier = ">=3.0.0b4,<4.0.0" },
+    { name = "tramp", specifier = ">=2025.0.0,<2026.0.0" },
+]
+
 [[package]]
 name = "anyio"
 version = "4.9.0"
@@ -26,11 +32,14 @@ wheels = [
 
 [[package]]
 name = "bevy"
-version = "3.0.0b2"
+version = "3.0.0b4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e1/f5/cc40c68a34d565a98ccfc866601f1b7f46893ca59d1949ba22061a651978/bevy-3.0.0b2.tar.gz", hash = "sha256:6d5b5743bbb8ef1c745c2b23034c94a70d57f1db046e59307cacaf12c4d777f2", size = 11471 }
+dependencies = [
+    { name = "tramp" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/86/91/9e9df6551d5c09c375a3c07a25ada53c97239e4537b2ddac6b2f8a26e0ae/bevy-3.0.0b4.tar.gz", hash = "sha256:347dfb78285c20600ceb58bc4e2019c1c29cf00745d4966e465350624b6b6024", size = 11548 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0a/82/3daf69b350429070c373970e7d6edb3f5fb342e09a4705a857421eb9f74f/bevy-3.0.0b2-py3-none-any.whl", hash = "sha256:e8da7e7b64f2dc985794a88989482a27a34464810410cc3b516372c27cd3fa64", size = 12783 },
+    { url = "https://files.pythonhosted.org/packages/c0/58/1769a025b3710c708820c95baa7f4a43c8c1afe4654458fbb8590b471c8e/bevy-3.0.0b4-py3-none-any.whl", hash = "sha256:0770cb6ed49793a59b7ae91f3c83de59fa791bed0ed4749d2d69601a8bd7ae1f", size = 12873 },
 ]
 
 [[package]]
@@ -44,14 +53,14 @@ wheels = [
 
 [[package]]
 name = "click"
-version = "8.1.8"
+version = "8.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/2e/0090cbf739cee7d23781ad4b89a9894a41538e4fcf4c31dcdd705b78eb8b/click-8.1.8.tar.gz", hash = "sha256:ed53c9d8990d83c2a27deae68e4ee337473f6330c040a31d4225c9574d16096a", size = 226593 }
+sdist = { url = "https://files.pythonhosted.org/packages/60/6c/8ca2efa64cf75a977a0d7fac081354553ebe483345c734fb6b6515d96bbc/click-8.2.1.tar.gz", hash = "sha256:27c491cc05d968d271d5a1db13e3b5a184636d9d930f148c50b038f0d0646202", size = 286342 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/d4/7ebdbd03970677812aac39c869717059dbb71a4cfc033ca6e5221787892c/click-8.1.8-py3-none-any.whl", hash = "sha256:63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2", size = 98188 },
+    { url = "https://files.pythonhosted.org/packages/85/32/10bb5764d90a8eee674e9dc6f4db6a0ab47c8c4d0d83c27f7c39ac415a4d/click-8.2.1-py3-none-any.whl", hash = "sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b", size = 102215 },
 ]
 
 [[package]]
@@ -182,11 +191,11 @@ wheels = [
 
 [[package]]
 name = "pluggy"
-version = "1.5.0"
+version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/96/2d/02d4312c973c6050a18b314a5ad0b3210edb65a906f868e31c111dede4a6/pluggy-1.5.0.tar.gz", hash = "sha256:2cffa88e94fdc978c4c574f15f9e59b7f4201d439195c3715ca9e2486f1d0cf1", size = 67955 }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/5f/e351af9a41f866ac3f1fac4ca0613908d9a41741cfcf2228f4ad853b697d/pluggy-1.5.0-py3-none-any.whl", hash = "sha256:44e1ad92c8ca002de6377e165f3e0f1be63266ab4d554740532335b9d75ea669", size = 20556 },
+    { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538 },
 ]
 
 [[package]]
@@ -256,7 +265,7 @@ wheels = [
 
 [[package]]
 name = "serv"
-version = "0.1.0a3"
+version = "0.1.0a4"
 source = { editable = "." }
 dependencies = [
     { name = "asgiref" },
@@ -281,7 +290,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "asgiref", specifier = ">=3.8.1" },
-    { name = "bevy", specifier = ">=3.0.0b2" },
+    { name = "bevy", specifier = ">=3.0.0b4" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "nubby", specifier = ">=0.1.2" },
     { name = "python-multipart", specifier = ">=0.0.20" },
