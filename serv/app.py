@@ -151,25 +151,6 @@ class App:
                                 return True
             except Exception as e:
                 logger.warning(f"Error loading plugin from plugin.yaml: {e}")
-        
-        # If we couldn't find it in plugin.yaml, try to find any Plugin subclass
-        for attr_name in dir(plugin_module):
-            attr = getattr(plugin_module, attr_name)
-            if isinstance(attr, type) and issubclass(attr, Plugin) and attr is not Plugin:
-                plugin_instance = attr()
-                self.add_plugin(plugin_instance)
-                logger.info(f"Loaded plugin {package_name}.{attr_name}")
-                return True
-                
-        # As a last resort, try to match the class name with the package name
-        plugin_class_name = ''.join(word.capitalize() for word in package_name.split('_'))
-        if hasattr(plugin_module, plugin_class_name):
-            plugin_class = getattr(plugin_module, plugin_class_name)
-            if isinstance(plugin_class, type) and issubclass(plugin_class, Plugin):
-                plugin_instance = plugin_class()
-                self.add_plugin(plugin_instance)
-                logger.info(f"Loaded plugin {package_name}")
-                return True
                 
         logger.warning(f"Could not find Plugin subclass in {package_name}")
         return False
