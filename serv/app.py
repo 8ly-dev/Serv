@@ -4,7 +4,7 @@ import json
 import logging
 import traceback
 from asyncio import get_running_loop, Task
-from typing import AsyncIterator, Awaitable, Callable, List, Dict, Any
+from typing import AsyncIterator, Awaitable, Callable, Any
 from pathlib import Path
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
@@ -47,12 +47,12 @@ class App:
     It is responsible for handling the incoming requests and delegating them to the appropriate routes.
     """
 
-    def __init__(self, plugin_dirs: List[str] = None, middleware_dirs: List[str] = None):
+    def __init__(self, plugin_dirs: list[str] = None, middleware_dirs: list[str] = None):
         """Initialize a new Serv application.
         
         Args:
-            plugin_dirs: List of directories to search for plugins (default: ['./plugins'])
-            middleware_dirs: List of directories to search for middleware (default: ['./middleware'])
+            plugin_dirs: list of directories to search for plugins (default: ['./plugins'])
+            middleware_dirs: list of directories to search for middleware (default: ['./middleware'])
         """
         self._registry = get_registry()
         self._container = self._registry.create_container()
@@ -259,7 +259,7 @@ class App:
                     await self._async_exit_stack.aclose()
                     await send(LifespanShutdownCompleteEvent(type="lifespan.shutdown.complete"))
 
-    def _get_template_locations(self) -> List[Path]:
+    def _get_template_locations(self) -> list[Path]:
         """Get a list of template locations to search for templates.
 
         The order of precedence is:
@@ -280,7 +280,7 @@ class App:
 
         return template_locations
 
-    def _render_template(self, template_name: str, context: Dict[str, Any]) -> str:
+    def _render_template(self, template_name: str, context: dict[str, Any]) -> str:
         """Render a template with the given context."""
         template_locations = self._get_template_locations()
         if not template_locations:
