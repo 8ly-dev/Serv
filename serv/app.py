@@ -79,18 +79,21 @@ class App:
         self._plugins: dict[Path, list[Plugin]] = defaultdict(list)
         
         # Initialize the plugin loader
-        self._plugin_loader_instance = PluginLoader(self._plugin_loader)
+        self._plugin_loader_instance = PluginLoader(self, self._plugin_loader)
         
         self._emit = EventEmitter(self._plugins)
 
         self._init_container()
         self._register_default_error_handlers()
+        self._init_plugins(self._config.get("plugins", []))
         
-        # Load plugins using the new PluginLoader
-        self._load_plugins_from_config(self._config.get("plugins", []))
-
     def _load_config(self, config_path: str) -> dict[str, Any]:
         return load_raw_config(config_path)
+
+    def _init_plugins(self, plugins_config: list[dict[str, Any]]):
+        loaded_plugins, loaded_middleware = self._plugin_loader_instance.load_plugins(plugins_config)
+        if not loaded_plugins and not loaded_middleware:
+            self._enable_welcome_plugin()
 
     def _init_container(self):
         # Register hooks for injection
@@ -112,9 +115,10 @@ class App:
         self._middleware.append(middleware)
 
     def add_plugin(self, plugin: Plugin):
-        if plugin.plugin_dir not in self._plugins:
-            self._plugins[plugin.plugin_dir] = []
-        self._plugins[plugin.plugin_dir].append(plugin)
+        path = plugin.__plugin_spec__.path
+        if path not in self._plugins:
+            self._plugins[path] = []
+        self._plugins[path].append(plugin)
 
     def get_plugin(self, path: Path) -> Plugin | None:
         return self._plugins.get(path, [None])[0]
@@ -123,73 +127,13 @@ class App:
         """Legacy method, delegates to _load_plugins_from_config."""
         return self._load_plugins_from_config(plugins_config)
 
-    def _load_plugins_from_config(self, plugins_config: list[dict[str, Any]]):
-        """Load plugins and middleware from a list of plugin configs.
-        
-        App config format:
-        ```yaml
-        plugins:
-          - plugin: my_plugin  # Directory name in plugin_dir
-            settings:  # Optional settings override for the plugin
-              option1: value1
-          - plugin: bundled.plugins.welcome  # Dot notation for module path
-        ```
-        
-        Each plugin's configuration is loaded from its plugin.yaml file, which defines:
-        - Plugin metadata (name, description, author, version)
-        - Entry points (multiple allowed)
-        - Middleware (multiple allowed)
-        - Base settings
-        
-        The settings in app config are merged with the plugin's settings, overriding any
-        duplicate keys.
-        """
-        try:
-            loaded_plugins, middleware_list = self._plugin_loader_instance.load_plugins(plugins_config)
-            
-            # Add loaded plugins to our app's list
-            for plugin_dir, plugins in loaded_plugins.items():
-                for plugin in plugins:
-                    self.add_plugin(plugin)
-                    
-            # Add middleware to our app's list
-            for middleware_factory in middleware_list:
-                self.add_middleware(middleware_factory)
-                
-            # Auto-enable the welcome plugin if no plugins or middleware are registered
-            if not self._plugins and not self._middleware:
-                self._enable_welcome_plugin()
-                    
-        except ExceptionGroup as eg:
-            # Propagate any exceptions from plugin loading
-            raise eg
-            
-        return loaded_plugins, middleware_list
-        
     def _enable_welcome_plugin(self):
         """Enable the bundled welcome plugin if no other plugins are registered."""
-        try:
-            from importlib.resources import files
-            welcome_plugin_path = files('serv.bundled.plugins.welcome')
-            
-            if welcome_plugin_path.exists():
-                logger.info("No plugins or middleware registered. Enabling welcome plugin.")
-                # Use the plugin loader to load the welcome plugin
-                success, plugin = self._plugin_loader_instance.load_plugin("welcome", "serv.bundled.plugins")
-                if success and plugin:
-                    self.add_plugin(plugin)
-                    logger.info("Welcome plugin enabled.")
-                    return True
-                else:
-                    logger.warning("Failed to load welcome plugin.")
-            else:
-                logger.warning("Welcome plugin not found in bundled plugins.")
-        except ImportError as e:
-            logger.warning(f"Failed to import welcome plugin: {e}")
-        except Exception as e:
-            logger.warning(f"Error enabling welcome plugin: {e}")
-        
-        return False
+        plugin_spec, exceptions = self._plugin_loader_instance.load_plugin("serv.bundled.plugins.welcome")
+        if exceptions:
+            raise ExceptionGroup("Exceptions raised while loading welcome plugin", exceptions)
+
+        return True
 
     # Backward compatibility methods
     def _load_plugin_entry_point(self, entry_point_config: dict[str, Any]) -> Plugin:
@@ -305,9 +249,7 @@ class App:
     def _get_template_locations(self) -> list[Path]:
         """Get the template locations for this app.
 
-        Returns a list of paths to search for templates in. The default implementation returns:
-        1. ./templates/error - Default directory for error templates
-
+        Returns a list of paths to search for templates.
         """
         return [Path.cwd() / "templates", Path(__file__).parent / "templates"]
 

@@ -33,9 +33,8 @@ class ServLoader:
         Args:
             directory: Directory to search for packages (default: './packages')
         """
-        self.directory = directory
-        self._module_cache: Dict[str, ModuleType] = {}
-    
+        self.directory = Path(directory)
+
     def get_search_path(self) -> Path:
         """
         Get the search path.
@@ -45,32 +44,7 @@ class ServLoader:
         """
         path = Path(self.directory).resolve()
         return path if path.exists() and path.is_dir() else Path()
-    
-    def list_available(self) -> Dict[str, List[str]]:
-        """
-        List all available packages in the search path.
-        
-        Returns:
-            Dictionary mapping namespace to list of package names
-        """
-        result: Dict[str, List[str]] = {}
-        
-        search_path = self.get_search_path()
-        if not search_path.exists():
-            return result
-            
-        namespace = search_path.name
-        packages = []
-        
-        for item in search_path.iterdir():
-            if item.is_dir() and (item / "__init__.py").exists():
-                packages.append(item.name)
-        
-        if packages:
-            result[namespace] = packages
-        
-        return result
-    
+
     def load_package(self, 
                      package_name: str,
                      namespace: Optional[str] = None) -> Optional[ModuleType]:
@@ -104,10 +78,6 @@ class ServLoader:
         # Create import name in the format 'namespace.package_name'
         import_name = f"{search_path.name}.{package_name}"
         
-        # Return from cache if already loaded
-        if import_name in self._module_cache:
-            return self._module_cache[import_name]
-            
         # If not in sys.modules, we need to add the directory
         # to sys.modules with appropriate namespace
         if import_name not in sys.modules:
@@ -135,7 +105,6 @@ class ServLoader:
                 spec.loader.exec_module(module)
                 
                 # Update our local cache
-                self._module_cache[import_name] = module
                 return module
             except Exception as e:
                 logger.error(f"Error loading {import_name}: {e}")
@@ -146,32 +115,8 @@ class ServLoader:
         else:
             # Already in sys.modules, just return it
             module = sys.modules[import_name]
-            self._module_cache[import_name] = module
             return module
-    
-    def load_all(self) -> Dict[str, Dict[str, ModuleType]]:
-        """
-        Load all available packages.
-        
-        Returns:
-            Dictionary mapping namespace to a dict of package_name -> module
-        """
-        result: Dict[str, Dict[str, ModuleType]] = {}
-        available = self.list_available()
-        
-        for namespace, packages in available.items():
-            namespace_packages: Dict[str, ModuleType] = {}
-            
-            for package_name in packages:
-                module = self.load_package(package_name, namespace)
-                if module:
-                    namespace_packages[package_name] = module
-            
-            if namespace_packages:
-                result[namespace] = namespace_packages
-        
-        return result
-    
+
     def import_path(self, import_path: str) -> Optional[Union[ModuleType, object]]:
         """
         Import a module or object using a dotted path.

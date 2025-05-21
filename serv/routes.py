@@ -12,6 +12,7 @@ from bevy.containers import Container
 
 import serv
 from serv.exceptions import HTTPMethodNotAllowedException
+from serv.plugin_loader import find_plugin_spec, PluginSpec
 from serv.plugins import Plugin, search_for_plugin_directory
 from serv.requests import Request
 from serv.responses import ResponseBuilder
@@ -86,13 +87,13 @@ class Jinja2Response(Response):
         return template.generate_async(**self.context)
 
     @staticmethod
-    def _get_template_locations(plugin: Plugin):
+    def _get_template_locations(plugin: PluginSpec):
         if not plugin:
             raise RuntimeError("Jinja2Response cannot be used outside of a plugin.")
 
         return [
             Path.cwd() / "templates" / plugin.name,
-            plugin.plugin_dir / "templates",
+            plugin.path / "templates",
         ]
 
 
@@ -314,11 +315,9 @@ class Route:
             return self._plugin
 
         try:
-            plugin_path = search_for_plugin_directory(Path(sys.modules[self.__module__].__file__).parent)
+            self._plugin = find_plugin_spec(Path(sys.modules[self.__module__].__file__))
         except Exception:
             type(self)._plugin = None
-        else:
-            self._plugin = app.get_plugin(plugin_path)
 
         return self._plugin
 
@@ -337,7 +336,6 @@ class Route:
                             parsed_form = await request.form(form_type, data=form_data)
                             handler = getattr(self, name_in_list)
                             handler_name = name_in_list
-                            is_form_handler = True
                             args_to_pass = [parsed_form]
                             break
                         except Exception as e:
