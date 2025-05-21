@@ -1,36 +1,61 @@
-import inspect
-from typing import Callable, Awaitable, List, Dict, Any, Sequence, Type, overload, Optional
+from typing import Callable, Awaitable, dataclass_transform, Any, Sequence, Type, overload
 from bevy import dependency, inject
-from bevy.containers import Container
+from bevy.containers import Container, get_container
 
-from serv.requests import Request
 from serv.exceptions import HTTPNotFoundException, HTTPMethodNotAllowedException
 import serv.routes as routes
 
 
+@dataclass_transform()
+class RouteSettings:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
 class Router:
-    def __init__(self, settings: Dict[str, Any] = None):
+    def __init__(self, settings: dict[str, Any] = None):
         # Stores tuples of (path_pattern, methods, handler_callable, settings)
-        self._routes: List[tuple[str, frozenset[str] | None, Callable, Dict[str, Any]]] = []
+        self._routes: list[tuple[str, frozenset[str] | None, Callable, dict[str, Any]]] = []
         # Stores mapping of (route_class -> path_pattern) for url_for lookups
-        self._route_class_paths: Dict[Type[routes.Route], List[str]] = {}
+        self._route_class_paths: dict[Type[routes.Route], list[str]] = {}
         # Stores mapping of route path patterns to settings
-        self._route_settings: Dict[str, Dict[str, Any]] = {}
+        self._route_settings: dict[str, dict[str, Any]] = {}
         # Stores tuples of (mount_path, router_instance)
-        self._mounted_routers: List[tuple[str, "Router"]] = []
-        self._sub_routers: List[Router] = []
+        self._mounted_routers: list[tuple[str, "Router"]] = []
+        self._sub_routers: list[Router] = []
         # Router-level settings
-        self._settings: Dict[str, Any] = settings or {}
+        self._settings: dict[str, Any] = settings or {}
 
     @overload
-    def add_route(self, path: str, handler: "Type[routes.Route]", *, settings: Dict[str, Any] = None):
+    def add_route(
+        self,
+        path: str,
+        handler: "Type[routes.Route]",
+        *,
+        settings: dict[str, Any] = None
+    ):
         ...
 
     @overload
-    def add_route(self, path: str, handler: "Callable[..., Awaitable[Any]]", methods: Sequence[str] | None = None, *, settings: Dict[str, Any] = None):
+    def add_route(
+        self,
+        path: str,
+        handler: "Callable[..., Awaitable[Any]]",
+        methods: Sequence[str] | None = None,
+        *,
+        settings: dict[str, Any] = None
+    ):
         ...
 
-    def add_route(self, path: str, handler: "Callable[..., Awaitable[Any]] | Type[routes.Route]", methods: Sequence[str] | None = None, *, settings: Dict[str, Any] = None):
+    def add_route(
+        self,
+        path: str,
+        handler: "Callable[..., Awaitable[Any]] | Type[routes.Route]",
+        methods: Sequence[str] | None = None,
+        *,
+        settings: dict[str, Any] = None,
+        container: Container = None,
+    ):
         """Adds a route to this router.
 
         This method can handle both direct route handlers and Route objects. For Route objects,
@@ -42,6 +67,7 @@ class Router:
             methods: A list of HTTP methods (e.g., ['GET', 'POST']). Only used when handler is a function.
                     If None, allows all methods.
             settings: Optional dictionary of settings to be added to the container when handling this route.
+            container: Optional container instance to use for dependency injection. If not provided, uses the global container.
 
         Examples:
             >>> router.add_route("/users", user_handler, ["GET", "POST"])
@@ -53,22 +79,16 @@ class Router:
                 if route not in self._route_class_paths:
                     self._route_class_paths[route] = []
                 self._route_class_paths[route].append(path)
-                
-                # Create instance and register its __call__ method as usual
-                # Pass settings to the route instance constructor if it has a settings parameter
-                if settings is not None and hasattr(route, "__init__"):
-                    sig = inspect.signature(route.__init__)
-                    if "settings" in sig.parameters:
-                        route_instance = route(settings=settings)
-                    else:
-                        route_instance = route()
-                else:
-                    route_instance = route()
-                
+
+                if isinstance(route, type):
+                    with get_container(container).branch() as container:
+                        container.instances[RouteSettings] = RouteSettings(**settings)
+                        route_instance = container.call(route)
+
                 methods = route.__method_handlers__.keys() | route.__form_handlers__.keys()
                 # Store these settings for the actual path
                 self._route_settings[path] = settings or {}
-                self.add_route(path, route_instance.__call__, methods, settings=settings)
+                self.add_route(path, route_instance.__call__, list(methods), settings=settings)
                 
             case _:
                 normalized_methods = frozenset(m.upper() for m in methods) if methods else None
@@ -267,7 +287,7 @@ class Router:
                 return path
         return None
 
-    def resolve_route(self, request_path: str, request_method: str) -> tuple[Callable, Dict[str, Any], Dict[str, Any]] | None:
+    def resolve_route(self, request_path: str, request_method: str) -> tuple[Callable, dict[str, Any], dict[str, Any]] | None:
         """Recursively finds a handler for the given path and method.
 
         Args:
@@ -372,7 +392,7 @@ class Router:
         # No route matched the path at all, or a path was matched but it didn't lead to a 405 (e.g. ill-defined route).
         return None
 
-    def _match_path(self, request_path: str, path_pattern: str) -> Dict[str, Any] | None:
+    def _match_path(self, request_path: str, path_pattern: str) -> dict[str, Any] | None:
         """Performs path matching. 
         Currently supports exact matches and simple {param} captures.
         Returns a dict of path parameters if matched, else None.
