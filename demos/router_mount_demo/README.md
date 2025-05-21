@@ -1,68 +1,55 @@
-# Router Mount Demo
+# Serv Framework - Router Mount Demo
 
-This demo shows how to use the new router mounting feature in Serv.
+This demo showcases how to structure a Serv application with multiple `Router` instances mounted at different paths, including nested mounts for API versioning.
 
-## What is Router Mounting?
+## Features Demonstrated
 
-Router mounting allows you to attach a router to another router at a specific path prefix. This is useful for:
+*   Creating multiple `Router` instances.
+*   Mounting routers at different base paths (`main_router.mount("/api", api_router)`).
+*   Nested mounting (`api_router.mount("/v1", api_v1_router)`).
+*   Class-based routes (`HomePage`, `AboutPage`, `UsersAPI`, `ArticlesAPI`) using `serv.routes.Route`.
+*   Function-based handlers (`admin_dashboard_handler`, `admin_users_handler`).
+*   Using `Annotated` return types with `Jinja2Response` and `JsonResponse`.
+*   Serving HTML templates and JSON responses.
+*   Organizing route setup within a `Plugin`.
 
-1. **Organizing your routes** - Group related routes in separate routers
-2. **Creating modular applications** - Develop independent sections of your app separately
-3. **Versioning APIs** - Mount different API versions at different paths
-4. **Building composable applications** - Reuse route collections across different parts of your app
+## Files
 
-## How It Works
+*   `main.py`: The main application script, sets up the app, plugin, and routers.
+*   `templates/`: Directory containing HTML templates for the demo.
+    *   `home.html`
+    *   `about.html`
+    *   `admin/dashboard.html`
+    *   `admin/users.html`
+*   `README.md`: This file.
 
-The `mount()` method attaches a router at a specific path prefix:
+## Prerequisites
 
-```python
-# Create routers
-main_router = Router()
-api_router = Router()
+*   Python 3.8+
+*   Serv framework installed (e.g., `pip install -e .` from project root).
+*   `uvicorn` (`pip install uvicorn`).
 
-# Add routes to the API router
-api_router.add_route("/users", users_handler)
-api_router.add_route("/posts", posts_handler)
+## Running the Demo
 
-# Mount the API router at /api
-main_router.mount("/api", api_router)
-```
+1.  Ensure you are in the root directory of the Serv project.
+2.  Run the demo script directly:
+    ```bash
+    python demos/router_mount_demo/main.py
+    ```
+3.  The server will start (defaults to `http://127.0.0.1:8000`). You should see output indicating the server is running and listing accessible routes.
 
-With this setup:
-- `/api/users` will be handled by `users_handler`
-- `/api/posts` will be handled by `posts_handler`
+4.  Test the following endpoints in your browser or with `curl`:
+    *   `http://127.0.0.1:8000/` (Homepage)
+    *   `http://127.0.0.1:8000/about` (About Page)
+    *   `http://127.0.0.1:8000/admin` (Admin Dashboard)
+    *   `http://127.0.0.1:8000/admin/users` (Admin Users Page)
+    *   `http://127.0.0.1:8000/api/v1/users` (Users API)
+    *   `http://127.0.0.1:8000/api/v1/users/123` (Specific User API)
+    *   `http://127.0.0.1:8000/api/v1/articles` (Articles API)
+    *   `http://127.0.0.1:8000/api/v1/articles/456` (Specific Article API)
 
-## Key Features
+**Note on potential issues:** If you encounter an `ImportError` for `Template` or `JSON` from `serv.responses`, please ensure that `demos/router_mount_demo/main.py` uses `from serv.routes import Jinja2Response, JsonResponse` and that handlers return data suitable for these (e.g., `Annotated[Tuple[str, Dict], Jinja2Response]` or `Annotated[Dict, JsonResponse]`). The class-based routing features are sensitive to correct type hinting and response annotations.
 
-1. **Path Normalization**: Paths are automatically normalized, so both `/api` and `api` (without leading slash) work the same way.
+## Stopping the Demo
 
-2. **Nested Mounting**: You can mount routers onto other mounted routers, creating deep hierarchies:
-   ```python
-   api_v1_router = Router()
-   api_router.mount("/v1", api_v1_router)
-   main_router.mount("/api", api_router)
-   ```
-   This allows routing to `/api/v1/resource`.
-
-3. **Path Parameter Support**: Path parameters in mounted routers work as expected.
-
-## Difference Between `mount()` and `add_router()`
-
-- **`mount(path, router)`**: Attaches a router at a specific path prefix. The router only sees the part of the path after the mount point.
-- **`add_router(router)`**: Adds a router as a global sub-router that sees the entire request path.
-
-## Running This Demo
-
-```bash
-python -m demos.router_mount_demo.main
-```
-
-This will start a server with the following routes:
-- `/` - Home page
-- `/about` - About page
-- `/admin` - Admin dashboard
-- `/admin/users` - Admin users page
-- `/api/v1/users` - List of users API endpoint
-- `/api/v1/users/{id}` - Specific user API endpoint
-- `/api/v1/articles` - List of articles API endpoint
-- `/api/v1/articles/{id}` - Specific article API endpoint 
+Press `Ctrl+C` in the terminal where the script is running. 

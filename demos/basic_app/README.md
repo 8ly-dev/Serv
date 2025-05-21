@@ -5,10 +5,11 @@ This directory contains a basic demonstration of the Serv web framework.
 ## Features Demonstrated
 
 *   Basic application setup using `serv.app.App`.
-*   Defining routes using the `@app.add_route()` decorator.
+*   Defining a simple `serv.plugins.Plugin`.
+*   Adding routes within a plugin using `router.add_route()`.
 *   Simple asynchronous request handlers.
 *   Returning plain text and HTML responses using `serv.responses.ResponseBuilder`.
-*   Dependency injection for `ResponseBuilder` into handlers via `bevy.dependency()`.
+*   Dependency injection for `ResponseBuilder` and `Router` into handlers/plugin methods via `bevy.dependency()`.
 
 ## Files
 
@@ -39,13 +40,9 @@ pip install uvicorn bevy
 3.  The application will start, and you should see output similar to:
     ```
     Starting Serv basic demo on http://127.0.0.1:8000
-    Access it at:
-      http://127.0.0.1:8000/
-      http://127.0.0.1:8000/about
     Press Ctrl+C to stop.
     ```
-
-4.  Open your web browser and navigate to the following URLs:
+    You can then access the application at:
     *   `http://127.0.0.1:8000/` to see the plain text homepage.
     *   `http://127.0.0.1:8000/about` to see the HTML about page.
 

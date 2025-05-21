@@ -1,5 +1,6 @@
 import sys
 import pathlib
+import asyncio 
 
 # Add project root to sys.path
 # Assumes this script is in demos/complex_route_demo
@@ -10,21 +11,18 @@ if str(project_root) not in sys.path:
 
 from serv import App
 # Router is no longer directly used in main.py for route definition
-from plugins import DemoRoutesPlugin 
+from demos.complex_route_demo.plugins import DemoRoutesPlugin 
 # HomeRoute and SubmitRoute are used by the plugin, not directly here
 
+_app_instance = None # Keep instance at module level for factory
 
-def app():
-    _app = None
-    async def app_wrapper(scope, receive, send):
-        nonlocal _app
-        if _app is None:
-            _app = App()
-            _app.add_plugin(DemoRoutesPlugin(stand_alone=True))
-        await _app(scope, receive, send)
-
-    return app_wrapper
-
+def app_factory(): # Renamed for clarity
+    global _app_instance
+    if _app_instance is None:
+        # This will be called by Uvicorn, which should have a loop running.
+        _app_instance = App(dev_mode=True) 
+        _app_instance.add_plugin(DemoRoutesPlugin(stand_alone=True))
+    return _app_instance
 
 if __name__ == "__main__":
     try:
@@ -33,9 +31,12 @@ if __name__ == "__main__":
         print("Uvicorn is not installed. Please install it with: pip install uvicorn")
         print("You might also need bevy: pip install bevy")
     else:
-        print("Starting Serv complex route demo on http://127.0.0.1:8000")
+        print("Starting Serv complex route demo on http://127.0.0.1:8000 (dev_mode=True, factory)")
         print("Access it at:")
-        print("  http://127.0.0.1:8000/")
-        print("  http://127.0.0.1:8000/about")
+        print("  http://127.0.0.1:8000/ (GET)")
+        print("  http://127.0.0.1:8000/submit (POST via form on homepage)")
         print("Press Ctrl+C to stop.")
-        uvicorn.run(app, host="127.0.0.1", port=8000, factory=True)
+        
+        # Use the factory pattern. Uvicorn expects the import string or a callable that returns the app.
+        # Passing the factory function directly.
+        uvicorn.run("main:app_factory", host="127.0.0.1", port=8000, factory=True, reload=False) # Added reload=False for stability

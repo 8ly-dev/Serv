@@ -15,7 +15,7 @@ def app():
     async def app_wrapper(scope, receive, send):
         nonlocal _app
         if _app is None:
-            _app = App()
+            _app = App(dev_mode=True)
             _app.add_middleware(cookie_based_router_middleware)
 
         await _app(scope, receive, send)
