@@ -59,6 +59,7 @@ class Plugin:
         Loads plugin configuration and sets up any defined routers and routes
         if they are configured in the plugin.yaml file.
         """
+        self._stand_alone = stand_alone
         self._config = {} if stand_alone else self.config()
         self._router_configs = self._config.get("routers", [])
 
