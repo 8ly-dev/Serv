@@ -1,8 +1,8 @@
 """
-Plugin and middleware loader utility for Serv.
+Package loader utility for Serv.
 
-This module provides functionality to load plugins and middleware from directories
-without modifying sys.path. Plugins and middleware are loaded and namespaced with
+This module provides functionality to load packages from directories
+without modifying sys.path. Packages are loaded and namespaced with
 their respective folder names.
 """
 
@@ -12,174 +12,158 @@ import sys
 from importlib import import_module
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, List, Literal, Optional, TypeVar, Union, cast
+from typing import Dict, List, Optional, TypeVar, Union, cast
 
 logger = logging.getLogger(__name__)
 
-LoaderType = Literal["plugin", "middleware"]
 T = TypeVar("T")
 
 class ServLoader:
     """
-    Loader for Serv plugins and middleware.
+    Loader for Serv packages.
     
-    This class provides functionality to search for and load plugins/middleware
-    from specified directories without modifying sys.path.
+    This class provides functionality to search for and load packages
+    from a specified directory without modifying sys.path.
     """
     
-    def __init__(self, 
-                 plugin_dirs: List[str] = None,
-                 middleware_dirs: List[str] = None):
+    def __init__(self, directory: str = './packages'):
         """
-        Initialize the loader with plugin and middleware directories.
+        Initialize the loader with a directory.
         
         Args:
-            plugin_dirs: List of directories to search for plugins (default: ['./plugins'])
-            middleware_dirs: List of directories to search for middleware (default: ['./middleware'])
+            directory: Directory to search for packages (default: './packages')
         """
-        self.plugin_dirs = plugin_dirs or ['./plugins']
-        self.middleware_dirs = middleware_dirs or ['./middleware']
+        self.directory = directory
         self._module_cache: Dict[str, ModuleType] = {}
     
-    def get_search_paths(self, loader_type: LoaderType) -> List[Path]:
+    def get_search_path(self) -> Path:
         """
-        Get the list of search paths for the specified loader type.
+        Get the search path.
         
-        Args:
-            loader_type: Type of loader ('plugin' or 'middleware')
-            
         Returns:
-            List of Path objects representing search directories
+            Path object representing search directory
         """
-        if loader_type == "plugin":
-            paths = [Path(p).resolve() for p in self.plugin_dirs]
-        else:
-            paths = [Path(p).resolve() for p in self.middleware_dirs]
-            
-        return [p for p in paths if p.exists() and p.is_dir()]
+        path = Path(self.directory).resolve()
+        return path if path.exists() and path.is_dir() else Path()
     
-    def list_available(self, loader_type: LoaderType) -> Dict[str, List[str]]:
+    def list_available(self) -> Dict[str, List[str]]:
         """
-        List all available plugins or middleware in the search paths.
+        List all available packages in the search path.
         
-        Args:
-            loader_type: Type of loader ('plugin' or 'middleware')
-            
         Returns:
             Dictionary mapping namespace to list of package names
         """
         result: Dict[str, List[str]] = {}
         
-        for search_path in self.get_search_paths(loader_type):
-            namespace = search_path.name
-            packages = []
+        search_path = self.get_search_path()
+        if not search_path.exists():
+            return result
             
-            for item in search_path.iterdir():
-                if item.is_dir() and (item / "__init__.py").exists():
-                    packages.append(item.name)
-            
-            if packages:
-                result[namespace] = packages
+        namespace = search_path.name
+        packages = []
+        
+        for item in search_path.iterdir():
+            if item.is_dir() and (item / "__init__.py").exists():
+                packages.append(item.name)
+        
+        if packages:
+            result[namespace] = packages
         
         return result
     
     def load_package(self, 
-                     loader_type: LoaderType, 
                      package_name: str,
                      namespace: Optional[str] = None) -> Optional[ModuleType]:
         """
-        Load a specific package from the search paths.
+        Load a specific package from the search path.
         
         Args:
-            loader_type: Type of loader ('plugin' or 'middleware')
             package_name: Name of the package to load
-            namespace: Optional namespace to look in (if None, search all)
+            namespace: Optional namespace to look in (if None, use directory name)
             
         Returns:
             The loaded module or None if not found
         """
-        search_paths = self.get_search_paths(loader_type)
+        search_path = self.get_search_path()
+        if not search_path.exists():
+            logger.warning(f"Search path {self.directory} does not exist")
+            return None
+            
+        # If namespace is provided, verify it matches
+        if namespace and search_path.name != namespace:
+            logger.warning(f"Namespace {namespace} does not match directory name {search_path.name}")
+            return None
+            
+        package_path = search_path / package_name
+        init_path = package_path / "__init__.py"
         
-        # If namespace is provided, filter paths
-        if namespace:
-            search_paths = [p for p in search_paths if p.name == namespace]
+        if not init_path.exists():
+            logger.warning(f"Package {package_name} not found in {search_path}")
+            return None
             
-        for search_path in search_paths:
-            package_path = search_path / package_name
-            init_path = package_path / "__init__.py"
+        # Create import name in the format 'namespace.package_name'
+        import_name = f"{search_path.name}.{package_name}"
+        
+        # Return from cache if already loaded
+        if import_name in self._module_cache:
+            return self._module_cache[import_name]
             
-            if not init_path.exists():
-                continue
-                
-            # Create import name in the format 'namespace.package_name'
-            import_name = f"{search_path.name}.{package_name}"
+        # If not in sys.modules, we need to add the directory
+        # to sys.modules with appropriate namespace
+        if import_name not in sys.modules:
+            # Create parent namespace module if it doesn't exist
+            parent_module_name = search_path.name
+            if parent_module_name not in sys.modules:
+                # Create a namespace module
+                parent_module = ModuleType(parent_module_name)
+                parent_module.__path__ = [str(search_path)]
+                sys.modules[parent_module_name] = parent_module
             
-            # Return from cache if already loaded
-            if import_name in self._module_cache:
-                return self._module_cache[import_name]
-                
-            # If not in sys.modules, we need to add the directory
-            # to sys.modules with appropriate namespace
-            if import_name not in sys.modules:
-                # Create parent namespace module if it doesn't exist
-                parent_module_name = search_path.name
-                if parent_module_name not in sys.modules:
-                    # Create a namespace module
-                    parent_module = ModuleType(parent_module_name)
-                    parent_module.__path__ = [str(search_path)]
-                    sys.modules[parent_module_name] = parent_module
-                
-                # Now load the actual package - this will automatically be cached in sys.modules
-                try:
-                    spec = importlib.util.spec_from_file_location(
-                        import_name, 
-                        init_path,
-                        submodule_search_locations=[str(package_path)]
-                    )
-                    if spec is None or spec.loader is None:
-                        logger.warning(f"Could not create spec for {import_name}")
-                        continue
-                        
-                    module = importlib.util.module_from_spec(spec)
-                    sys.modules[import_name] = module
-                    spec.loader.exec_module(module)
+            # Now load the actual package - this will automatically be cached in sys.modules
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    import_name, 
+                    init_path,
+                    submodule_search_locations=[str(package_path)]
+                )
+                if spec is None or spec.loader is None:
+                    logger.warning(f"Could not create spec for {import_name}")
+                    return None
                     
-                    # Update our local cache
-                    self._module_cache[import_name] = module
-                    return module
-                except Exception as e:
-                    logger.error(f"Error loading {import_name}: {e}")
-                    # Remove from sys.modules if loading failed
-                    if import_name in sys.modules:
-                        del sys.modules[import_name]
-                    continue
-            else:
-                # Already in sys.modules, just return it
-                module = sys.modules[import_name]
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[import_name] = module
+                spec.loader.exec_module(module)
+                
+                # Update our local cache
                 self._module_cache[import_name] = module
                 return module
-        
-        logger.warning(f"Package {package_name} not found in any {loader_type} search paths")
-        return None
+            except Exception as e:
+                logger.error(f"Error loading {import_name}: {e}")
+                # Remove from sys.modules if loading failed
+                if import_name in sys.modules:
+                    del sys.modules[import_name]
+                return None
+        else:
+            # Already in sys.modules, just return it
+            module = sys.modules[import_name]
+            self._module_cache[import_name] = module
+            return module
     
-    def load_all(self, loader_type: LoaderType) -> Dict[str, Dict[str, ModuleType]]:
+    def load_all(self) -> Dict[str, Dict[str, ModuleType]]:
         """
-        Load all available plugins or middleware.
+        Load all available packages.
         
-        Args:
-            loader_type: Type of loader ('plugin' or 'middleware')
-            
         Returns:
             Dictionary mapping namespace to a dict of package_name -> module
         """
         result: Dict[str, Dict[str, ModuleType]] = {}
-        available = self.list_available(loader_type)
+        available = self.list_available()
         
         for namespace, packages in available.items():
             namespace_packages: Dict[str, ModuleType] = {}
             
             for package_name in packages:
-                module = self.load_package(loader_type, package_name, namespace)
+                module = self.load_package(package_name, namespace)
                 if module:
                     namespace_packages[package_name] = module
             
@@ -193,7 +177,7 @@ class ServLoader:
         Import a module or object using a dotted path.
         
         Args:
-            import_path: Path to import, can contain attribute access (e.g., 'plugins.auth.main:AuthPlugin')
+            import_path: Path to import, can contain attribute access (e.g., 'packages.auth.main:AuthPlugin')
             
         Returns:
             The imported module or object, or None if import fails

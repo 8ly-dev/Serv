@@ -3,7 +3,7 @@ import os
 import sys
 import importlib
 import asyncio
-from inspect import isawaitable
+from inspect import isawaitable, isclass
 from pathlib import Path
 import yaml  # PyYAML
 import logging
@@ -11,10 +11,10 @@ import uvicorn
 import re
 from bevy import dependency # For dependency injection
 
-from serv.config import import_module_from_string, load_raw_config, setup_app_from_config, DEFAULT_CONFIG_FILE, import_from_string, ServConfigError
-from serv.app import App as DefaultApp # Default app
+from serv.config import DEFAULT_CONFIG_FILE, ServConfigError, import_from_string # Keep DEFAULT_CONFIG_FILE and ServConfigError
+from serv.app import App # Updated App import
 from serv.plugins import Plugin, search_for_plugin_directory # For generated plugin file
-from serv.loader import ServLoader
+from serv.loader import ServLoader # May still be needed by some plugin logic, review later
 
 
 # Logging setup
@@ -72,7 +72,8 @@ def prompt_user(text: str, default: str | None = None) -> str:
         if default is not None:
             return default
 
-# --- Helper: Plugin Identifier Resolution ---
+# --- Helper: Plugin Identifier Resolution --- # This might need App context if plugins are only known by App
+# For now, assume it can work standalone for CLI enable/disable which modify config file directly.
 
 def _resolve_plugin_module_string(identifier: str, project_root: Path) -> tuple[str | None, str | None]:
     """Resolves a plugin identifier to its module string and name.
@@ -127,7 +128,7 @@ def _resolve_plugin_module_string(identifier: str, project_root: Path) -> tuple[
 def handle_init_command(args_ns):
     """Handles the 'init' command to create serv.config.yaml."""
     logger.debug("Init command started.")
-    config_path = Path.cwd() / "serv.config.yaml"
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
 
     if config_path.exists() and not args_ns.force:
         overwrite_prompt = prompt_user(f"'{config_path.name}' already exists in '{Path.cwd()}'. Overwrite? (yes/no)", "no")
@@ -179,11 +180,16 @@ def handle_init_command(args_ns):
     try:
         with open(config_path, "w") as f:
             f.write(yaml_header)
-            yaml.dump({"site_info": config_content["site_info"]}, f, sort_keys=False, indent=2, default_flow_style=False)
+            # Use a ServConfig structure for clarity, even if dumping parts
+            initial_site_info = config_content["site_info"]
+            initial_plugins: list = []
+            initial_middleware: list = []
+            
+            yaml.dump({"site_info": initial_site_info}, f, sort_keys=False, indent=2, default_flow_style=False)
             f.write(yaml_plugins_comment)
-            yaml.dump({"plugins": config_content["plugins"]}, f, sort_keys=False, indent=2, default_flow_style=False)
+            yaml.dump({"plugins": initial_plugins}, f, sort_keys=False, indent=2, default_flow_style=False)
             f.write(yaml_middleware_comment)
-            yaml.dump({"middleware": config_content["middleware"]}, f, sort_keys=False, indent=2, default_flow_style=False)
+            yaml.dump({"middleware": initial_middleware}, f, sort_keys=False, indent=2, default_flow_style=False)
 
         print(f"Successfully created '{config_path}'.")
         print("You can now configure your plugins and middleware in this file.")
@@ -281,7 +287,7 @@ def handle_create_plugin_command(args_ns):
             f.write(plugin_py_content_str)
         print(f"Created '{plugin_py_path}'")
         print(f"Plugin '{plugin_name_human}' created successfully in '{plugin_specific_dir}'.")
-        print(f"To use it, add its entry path to your 'serv.config.yaml':")
+        print(f"To use it, add its entry path to your '{DEFAULT_CONFIG_FILE}':")
         print(f"  - entry: {plugin_entry_path}")
         print(f"    config: {{}} # Optional config")
 
@@ -294,9 +300,9 @@ def handle_enable_plugin_command(args_ns):
     plugin_identifier = args_ns.plugin_identifier
     logger.debug(f"Attempting to enable plugin: '{plugin_identifier}'...")
 
-    config_path = Path.cwd() / "serv.config.yaml"
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
     if not config_path.exists():
-        logger.error(f"Configuration file '{config_path}' not found. Please run 'serv app init' first.")
+        logger.error(f"Configuration file '{config_path}' not found. Please run 'serv init' first.")
         return
 
     module_string, plugin_name_human = _resolve_plugin_module_string(plugin_identifier, Path.cwd())
@@ -343,7 +349,7 @@ def handle_disable_plugin_command(args_ns):
     plugin_identifier = args_ns.plugin_identifier
     logger.debug(f"Attempting to disable plugin: '{plugin_identifier}'...")
 
-    config_path = Path.cwd() / "serv.config.yaml"
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
     if not config_path.exists():
         logger.error(f"Configuration file '{config_path}' not found. Cannot disable plugin.")
         return
@@ -391,7 +397,7 @@ def handle_enable_middleware_command(args_ns):
 
     config_path = Path.cwd() / DEFAULT_CONFIG_FILE
     if not config_path.exists():
-        logger.error(f"Configuration file '{config_path}' not found. Please run 'serv app init' first.")
+        logger.error(f"Configuration file '{config_path}' not found. Please run 'serv init' first.")
         return
 
     if ":" not in middleware_entry_string:
@@ -532,10 +538,10 @@ def handle_create_middleware_command(args_ns):
 
         entry_path_to_suggest = f"middleware.{package_dir_name}.{python_main_file_name.replace('.py', '')}:{middleware_class_name}"
         print(f"Middleware '{mw_name_human}' created successfully in '{middleware_package_dir}'.")
-        print(f"To use it, add its entry path to your 'serv.config.yaml' under the 'middleware' section:")
+        print(f"To use it, add its entry path to your '{DEFAULT_CONFIG_FILE}' under the 'middleware' section:")
         print(f"  - entry: {entry_path_to_suggest}")
         print(f"    config: {{}} # Optional: Add any config key-value pairs here")
-        print(f"Then run: serv middleware enable {entry_path_to_suggest}")
+        print(f"Then run: serv enable-middleware {entry_path_to_suggest}")
 
     except IOError as e:
         logger.error(f"Error writing middleware file '{middleware_py_path}': {e}")
@@ -545,123 +551,155 @@ def handle_app_details_command(args_ns):
     """Handles the 'app details' command to display loaded configuration."""
     logger.debug("Displaying application configuration details...")
 
-    config_path_to_load = getattr(args_ns, 'config', None)
+    config_path_to_load_str = getattr(args_ns, 'config', None)
+    plugin_dir_str = getattr(args_ns, 'plugin_dirs', None) # Get from args if specified
+    dev_mode_flag = getattr(args_ns, 'dev', False)
 
     try:
-        raw_config = load_raw_config(config_path_to_load)
-        effective_config_path_str = config_path_to_load or os.getenv("SERV_CONFIG_PATH") or DEFAULT_CONFIG_FILE
-        effective_config_path = Path(effective_config_path_str).resolve()
+        # Instantiate App to load and process configuration
+        app_instance = App(
+            config=config_path_to_load_str, 
+            plugin_dir=plugin_dir_str, 
+            dev_mode=dev_mode_flag
+        )
 
-        if not raw_config and not effective_config_path.exists():
-            logger.info(f"No configuration file found at expected paths (checked: '{effective_config_path}', env var, default). Nothing to display.")
-            print(f"No configuration file loaded. Searched at: {effective_config_path}")
-            if not config_path_to_load:
-                 print(f"You can create one with 'serv app init'.")
-            return
+        effective_config_path = app_instance._raw_config.get("_config_file_path_") # Assuming App stores this
+        # If App doesn't store it, we might need to deduce it or have App expose it.
+        # For now, let's try to get it from where App loads it.
+        # A better way: app_instance.get_config_file_path() or app_instance.config_file_path
+        
+        # Fallback for config path if not directly available from app_instance._raw_config internal detail
+        if not effective_config_path:
+            if config_path_to_load_str:
+                effective_config_path = Path(config_path_to_load_str).resolve()
+            else:
+                default_path = Path.cwd() / DEFAULT_CONFIG_FILE
+                if default_path.exists():
+                    effective_config_path = default_path
+                else:
+                    effective_config_path = "(No config file loaded)" # Or some indicator
+        
+        raw_app_config = app_instance._raw_config
 
-        if not raw_config and effective_config_path.exists():
-            logger.info(f"Configuration file '{effective_config_path}' was found but is empty or invalid. Nothing to display.")
-            print(f"Configuration file loaded: {effective_config_path} (but it's empty or invalid)")
-            return
+        if not raw_app_config.get("plugins") and not raw_app_config.get("middleware") and not raw_app_config.get("site_info"):
+            if isinstance(effective_config_path, Path) and not effective_config_path.exists():
+                 logger.info(f"No configuration file found at '{effective_config_path}'. Nothing to display.")
+                 print(f"No configuration file found or loaded. Searched at: {effective_config_path}")
+                 if not config_path_to_load_str:
+                     print(f"You can create one with 'serv init'.")
+                 return
+            elif isinstance(effective_config_path, Path) and effective_config_path.exists():
+                 logger.info(f"Configuration file '{effective_config_path}' was found but appears empty or yielded no Serv configuration. Nothing to display.")
+                 print(f"Configuration file loaded: {effective_config_path} (but it appears effectively empty for Serv settings)")
+                 return
+            else: # No path, and empty config means no file was loaded
+                logger.info(f"No configuration specified and default not found. Nothing to display.")
+                print(f"No configuration file loaded (no path specified and default '{DEFAULT_CONFIG_FILE}' not found)." )
+                if not config_path_to_load_str:
+                     print(f"You can create one with 'serv init'.")
+                return
+
 
         print(f"\n--- Configuration Details ---")
-        print(f"Configuration file: {effective_config_path}")
-
-        local_plugin_names_map = {}
-        plugins_root_dir = Path.cwd() / "plugins"
-        if plugins_root_dir.is_dir():
-            for plugin_dir_item in plugins_root_dir.iterdir():
-                if plugin_dir_item.is_dir():
-                    plugin_yaml_path = plugin_dir_item / "plugin.yaml"
-                    if plugin_yaml_path.is_file():
-                        try:
-                            with open(plugin_yaml_path, 'r') as f_yaml:
-                                meta = yaml.safe_load(f_yaml)
-                            if isinstance(meta, dict):
-                                module_str = meta.get("entry")
-                                human_name = meta.get("name")
-                                if module_str and human_name:
-                                    local_plugin_names_map[module_str] = human_name
-                        except Exception as e_scan:
-                            logger.debug(f"Error scanning {plugin_yaml_path} for plugin name mapping: {e_scan}")
+        config_display_path = str(effective_config_path) if isinstance(effective_config_path, Path) else str(effective_config_path)
+        print(f"Configuration source: {config_display_path}")
+        if app_instance._dev_mode:
+            print(f"Development mode: Enabled")
+        if app_instance._plugin_dirs:
+            print(f"Plugin directories: {[str(p) for p in app_instance._plugin_dirs]}")
 
         print("\n[Site Information]")
-        site_info = raw_config.get("site_info")
-        if site_info and isinstance(site_info, dict):
+        site_info = app_instance.site_info # Access processed site_info
+        if site_info:
             for key, value in site_info.items():
                 print(f"  {key}: {value}")
-        elif site_info is not None:
-             print(f"  Site info is present but not in the expected format: {site_info}")
         else:
             print("  (No site information configured)")
 
         print("\n[Plugins]")
-        plugins = raw_config.get("plugins", [])
-        if plugins:
-            for i, plugin_entry in enumerate(plugins):
-                if isinstance(plugin_entry, dict):
-                    entry = plugin_entry.get("entry")
-                    if not entry:
-                        print(f"  - Plugin {i+1}: <Entry path not specified in serv.config.yaml>")
-                        continue
-                    try:
-                        module_import_path = entry.split(":")[0]
-                        module = import_module_from_string(module_import_path)
-                        plugin_path = search_for_plugin_directory(Path(module.__file__))
-                        plugin_settings = load_raw_config(plugin_path / "plugin.yaml")
-
-                        plugin_path_resolved = plugin_path.resolve()
-                        plugin_path_string = str(plugin_path_resolved)
-
-                        print(f"  - {plugin_settings.get('name')}")
-                        print(f"    - Entry: {entry}")
-                        print(f"    - Path: {plugin_path_string}")
-                    except ServConfigError as e_import:
-                        print(f"  - Plugin entry: {entry}")
-                        print(f"    - Error: Could not load/inspect plugin. {e_import}")
-                    except Exception as e_generic:
-                        print(f"  - Plugin entry: {entry}")
-                        print(f"    - Error: An unexpected error occurred while inspecting plugin: {e_generic}")
-
-                    plugin_config_value = plugin_entry.get("config")
-                    if isinstance(plugin_config_value, dict):
-                        if plugin_config_value:
-                            print(f"    - Config:")
-                            for key, value in plugin_config_value.items():
+        # Accessing app_instance._plugins which is Dict[Path, list[Plugin]]
+        # The structure of _plugins might be Dict[Path, List[PluginInstance]]
+        # We need to iterate through this and display info.
+        # The raw config might be more direct for displaying what *was* in the YAML.
+        
+        configured_plugins_in_yaml = raw_app_config.get("plugins", [])
+        if configured_plugins_in_yaml:
+            print("  (As configured in YAML):")
+            for i, plugin_entry_yaml in enumerate(configured_plugins_in_yaml):
+                if isinstance(plugin_entry_yaml, dict):
+                    entry_str = plugin_entry_yaml.get("entry", "<Entry not specified>")
+                    print(f"    - Entry: {entry_str}")
+                    plugin_cfg_yaml = plugin_entry_yaml.get("config")
+                    if isinstance(plugin_cfg_yaml, dict):
+                        if plugin_cfg_yaml:
+                            print(f"      Config (from YAML):")
+                            for key, value in plugin_cfg_yaml.items():
                                 print(f"        - {key}: {value}")
                         else:
-                            print("    - Config: (No config settings)")
-                    elif plugin_config_value is None:
-                        print("    - (No specific configuration provided)")
+                            print("      Config (from YAML): (No config settings)")
+                    elif plugin_cfg_yaml is None:
+                         print("      Config (from YAML): (Not specified)")
                     else:
-                        print(f"    - Config: <Invalid format: {plugin_config_value}>")
+                        print(f"      Config (from YAML): <Invalid format: {plugin_cfg_yaml}>")
                 else:
-                    print(f"  - Plugin {i+1}: <Invalid entry format: {plugin_entry}>")
+                    print(f"    - Invalid plugin entry format in YAML: {plugin_entry_yaml}")
+            print("\n  (Loaded plugin instances):")
+            if app_instance._plugins:
+                 for plugin_path_key, plugin_instances_list in app_instance._plugins.items():
+                    if not plugin_instances_list:
+                        print(f"    - Path key '{plugin_path_key}': No plugins loaded.")
+                        continue
+                    print(f"    - From source/path key '{plugin_path_key}':")
+                    for plugin_obj in plugin_instances_list:
+                        plugin_name = getattr(plugin_obj, 'name', plugin_obj.__class__.__name__)
+                        print(f"      - Instance: {plugin_name} ({plugin_obj.__class__.__module__}.{plugin_obj.__class__.__name__})")
+                        # If plugins have their specific loaded config, display it too
+                        # This requires plugin instances to store their config if needed for display
+                        # For example: if hasattr(plugin_obj, 'loaded_config') and plugin_obj.loaded_config:
+                        #    print(f"        Loaded Config: {plugin_obj.loaded_config}")
+            else:
+                print("    (No plugin instances currently loaded in the app object)")
         else:
-            print("  (No plugins configured)")
+            print("  (No plugins configured in YAML)")
+            if app_instance._plugins:
+                print("  (However, some plugin instances might be loaded programmatically - check app state if debugging)")
 
         print("\n[Middleware]")
-        middlewares = raw_config.get("middleware", [])
-        if middlewares:
-            for i, mw_entry in enumerate(middlewares):
-                if isinstance(mw_entry, dict):
-                    module = mw_entry.get("entry", "<Module not specified>")
-                    print(f"  - {module}")
-                    mw_config_value = mw_entry.get("config")
-                    if isinstance(mw_config_value, dict):
-                        if mw_config_value:
-                            for key, value in mw_config_value.items():
-                                print(f"    - {key}: {value}")
+        # Similar to plugins, display from raw_config and then what's loaded in App
+        configured_middleware_in_yaml = raw_app_config.get("middleware", [])
+        if configured_middleware_in_yaml:
+            print("  (As configured in YAML):")
+            for i, mw_entry_yaml in enumerate(configured_middleware_in_yaml):
+                if isinstance(mw_entry_yaml, dict):
+                    entry_str = mw_entry_yaml.get("entry", "<Entry not specified>")
+                    print(f"    - Entry: {entry_str}")
+                    mw_cfg_yaml = mw_entry_yaml.get("config")
+                    if isinstance(mw_cfg_yaml, dict):
+                        if mw_cfg_yaml:
+                            print(f"      Config (from YAML):")
+                            for key, value in mw_cfg_yaml.items():
+                                print(f"        - {key}: {value}")
                         else:
-                            print("    - Config: No Settings")
-                    elif mw_config_value is None:
-                        print("    - (No specific configuration provided)")
+                            print("      Config (from YAML): (No config settings)") 
+                    elif mw_cfg_yaml is None:
+                        print("      Config (from YAML): (Not specified)") 
                     else:
-                        print(f"    - Config: <Invalid format: {mw_config_value}>")
+                        print(f"      Config (from YAML): <Invalid format: {mw_cfg_yaml}>")
                 else:
-                    print(f"  - Middleware {i+1}: <Invalid entry format: {mw_entry}>")
+                    print(f"    - Invalid middleware entry format in YAML: {mw_entry_yaml}")
+            print("\n  (Loaded middleware handlers/factories):")
+            if app_instance._middleware: # This is a list of Callable[[], AsyncIterator[None]]
+                for i, mw_factory in enumerate(app_instance._middleware):
+                    mw_name = getattr(mw_factory, '__name__', str(mw_factory))
+                    # Trying to get module info is harder for factories unless they carry it.
+                    print(f"    - Handler/Factory {i+1}: {mw_name}")
+            else:
+                print("    (No middleware handlers/factories currently loaded in the app object)")
         else:
-            print("  (No middleware configured)")
+            print("  (No middleware configured in YAML)")
+            if app_instance._middleware:
+                print("  (However, some middleware might be loaded programmatically - check app state if debugging)")
+
 
         print("\n--------------------------------------------------")
 
@@ -672,94 +710,59 @@ def handle_app_details_command(args_ns):
         logger.error(f"An unexpected error occurred while displaying app details: {e}", exc_info=logger.level == logging.DEBUG)
         print(f"An unexpected error occurred: {e}")
 
-def _get_configured_app_factory(app_module_str: str, config_path_str: str | None, args=None):
-    def factory():
-        # Get the app and config path from the factory variables
-        try:
-            # Load config first
-            app_obj = None
-            raw_config = {}
-            config_path = Path(config_path_str) if config_path_str else None
+def _get_configured_app(app_module_str: str | None, args_ns) -> App:
+    """Helper to instantiate and configure the App object based on CLI args."""
+    
+    config_path = getattr(args_ns, 'config', None) # Path from --config, or None for default
+    plugin_dir_path = getattr(args_ns, 'plugin_dirs', None) # Path from --plugin-dirs or None
+    dev_mode_status = getattr(args_ns, 'dev', False)
+    
+    app_constructor_kwargs = {}
+    if config_path:
+        app_constructor_kwargs['config'] = config_path
+    if plugin_dir_path:
+        app_constructor_kwargs['plugin_dir'] = plugin_dir_path
+    if dev_mode_status:
+        app_constructor_kwargs['dev_mode'] = dev_mode_status
 
-            if config_path and config_path.exists():
-                raw_config = load_raw_config(config_path)
-                if not raw_config or not isinstance(raw_config, dict):
-                    print(f"Warning: Config file '{config_path}' is empty or not a valid YAML dictionary.")
-                    raw_config = {}
-            elif config_path_str:
-                print(f"Warning: Config file '{config_path_str}' not found.")
+    # The app_module_str is for custom App *classes*, not instances directly from config.
+    # If app_module_str is given, it means the user wants to use a *different App class*.
+    if app_module_str:
+        if ":" not in app_module_str:
+            logger.error(f"App module string '{app_module_str}' must use colon notation (module.path:ClassName). Using default App.")
+            app_class = App # Default serv.app.App
+        else:
+            try:
+                logger.info(f"Loading custom App class from '{app_module_str}'...")
+                app_class = import_from_string(app_module_str)
+                if not isclass(app_class) or not issubclass(app_class, App):
+                    logger.error(f"'{app_module_str}' did not resolve to a subclass of serv.app.App. Using default App.")
+                    app_class = App # Fallback to default
+            except ServConfigError as e:
+                logger.error(f"Error importing custom App class from '{app_module_str}': {e}. Using default App.")
+                app_class = App # Fallback to default
+    else:
+        app_class = App # Default serv.app.App
 
-            # Next, try to import the app module
-            if app_module_str:
-                print(f"Loading app from '{app_module_str}'...")
-                try:
-                    if ":" in app_module_str:
-                        if getattr(args, 'factory', False):
-                            # This is referring to a factory function
-                            factory_callable = import_from_string(app_module_str)
-                            app_obj = factory_callable()
-                        else:
-                            # This is a direct app instance
-                            app_obj = import_from_string(app_module_str)
-                    else:
-                        # Basic module, assume app variable
-                        module = importlib.import_module(app_module_str)
-                        if hasattr(module, 'app'):
-                            app_obj = module.app
-                        else:
-                            print(f"App module '{app_module_str}' imported, but no 'app' variable found. Please specify the full path to the app instance (e.g., 'module:app').")
-                            return None
-                except ImportError as e:
-                    print(f"Error importing app from '{app_module_str}': {e}")
-                    return None
-            else:
-                # No app module provided, create a default app
-                app_obj = DefaultApp()
-            
-            # Apply Serv configuration to the app if it's a Serv app
-            if app_obj and isinstance(app_obj, DefaultApp):
-                # Create the loader with plugin and middleware directories from args
-                plugin_dirs = getattr(args, 'plugin_dirs', ['./plugins'])
-                middleware_dirs = getattr(args, 'middleware_dirs', ['./middleware'])
-                loader = ServLoader(plugin_dirs=plugin_dirs, middleware_dirs=middleware_dirs)
-                
-                print(f"Configuring Serv app from '{config_path_str if config_path_str else 'default settings'}'...")
-                if raw_config:
-                    setup_app_from_config(app_obj, raw_config)
-            else:
-                print(f"Imported app '{app_module_str}' is not a Serv App instance. Skipping Serv config application.")
-
-            return app_obj
-        except Exception as e:
-            print(f"Error configuring app: {e}")
-            return None
-
-    # Return the factory function
-    return factory
+    try:
+        logger.info(f"Instantiating App ({app_class.__name__}) with arguments: {app_constructor_kwargs}")
+        app_instance = app_class(**app_constructor_kwargs)
+        logger.info("App instance created and configured.")
+        return app_instance
+    except ServConfigError as e:
+        logger.error(f"Failed to configure and instantiate application: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during app instantiation: {e}", exc_info=logger.level == logging.DEBUG)
+        sys.exit(1)
 
 
 async def handle_launch_command(args_ns):
     """Handles the 'launch' command to start the Uvicorn server."""
-    app_module_str = args_ns.app
-    app_target: any
-
-    if args_ns.factory:
-        app_target_factory = _get_configured_app_factory(app_module_str, args_ns.config, args_ns)
-        app_target = app_target_factory
-        logger.debug(f"Using application factory: '{app_module_str}' (via Serv wrapper factory).")
-    else:
-        if args_ns.reload:
-            app_target_factory = _get_configured_app_factory(app_module_str, args_ns.config, args_ns)
-            app_target = app_target_factory
-            logger.debug(f"Running '{app_module_str}' with reload, using Serv's app factory for configuration.")
-        else:
-            try:
-                temp_factory = _get_configured_app_factory(app_module_str, args_ns.config, args_ns)
-                app_target = temp_factory()
-                logger.debug(f"Running pre-configured app instance for '{app_module_str}'.")
-            except Exception as e:
-                logger.warning(f"Could not pre-load/configure '{app_module_str}', passing string to Uvicorn: {e}")
-                app_target = app_module_str
+    app_module_str = args_ns.app # This is for a custom App CLASS, not an instance string for uvicorn
+    
+    # _get_configured_app now handles loading the App class and instantiating it with config
+    app_target_instance = _get_configured_app(app_module_str, args_ns)
 
     # If dry-run flag is set, exit after loading the app
     if args_ns.dry_run:
@@ -785,7 +788,7 @@ async def handle_launch_command(args_ns):
     try:
         # Configure Uvicorn with the loop
         config = uvicorn.Config(
-            app_target,
+            app_target_instance, # Pass the app instance directly
             host=args_ns.host,
             port=args_ns.port,
             reload=args_ns.reload,
@@ -824,31 +827,43 @@ def main():
         action='store_true',
         help="Enable debug logging for Serv CLI and potentially the app."
     )
-
-    # Common parser for commands that use the application
-    app_parent_parser = argparse.ArgumentParser(add_help=False)
-    app_parent_parser.add_argument('--app', '-a',
-                            help='Application module and app instance in the format "module.path:app_instance"',
-                            default=None)
-    app_parent_parser.add_argument('--config', '-c',
-                            help=f'Path to config file. Default: {DEFAULT_CONFIG_FILE}',
-                            default=DEFAULT_CONFIG_FILE)
-    # Add plugin and middleware directory arguments
-    app_parent_parser.add_argument('--plugin-dirs',
-                            help='Comma-separated list of plugin directories to search',
-                            default='./plugins')
-    app_parent_parser.add_argument('--middleware-dirs', '-m',
-                            help='Comma-separated list of middleware directories to search',
-                            default='./middleware')
+    parser.add_argument(
+        '--app', '-a',
+        help='Custom application CLASS in the format "module.path:ClassName". If not provided, Serv\'s default App is'
+             ' used.',
+        default=None, # Default is to use serv.app.App
+    )
+    parser.add_argument(
+        '--config', '-c',
+        help=f'Path to config file. Default: ./{DEFAULT_CONFIG_FILE} or App default.',
+        default=None # App will handle its default if this is None
+    )
+    parser.add_argument(
+        '--plugin-dirs', # Name changed for consistency, was plugin_dirs before
+        help='Directory to search for plugins. Default: ./plugins or App default.',
+        default=None # App will handle its default
+    )
+    # No middleware_dirs needed at this top level, App handles its middleware sources via config
 
     # Subparsers for subcommands
     subparsers = parser.add_subparsers(title="commands", dest="command", required=False,
                                        help="Command to execute")
+    
+    # --- App Parent Parser --- (for commands that might need a configured app instance)
+    # Some commands like 'init' or 'create-plugin' don't need a fully configured app instance.
+    # Others like 'launch' or 'app details' do.
+    # The global --config, --plugin-dirs, --dev args can be used by commands that build an App instance.
+
+    # Create a parent parser for commands that operate on an app context
+    # This helps avoid redefining --config, --plugin-dirs, --dev for each of them.
+    # However, the current structure already puts these at the top level, which is fine.
+    # Let's ensure launch_parser correctly inherits/uses them.
 
     # Launch parser
-    launch_parser = subparsers.add_parser('launch', parents=[app_parent_parser], 
+    # Remove app_parent_parser inheritance if its args are now global
+    launch_parser = subparsers.add_parser('launch', #parents=[app_parent_parser], # app_parent_parser removed
                                         help='Launch the Serv application.')
-    launch_parser.add_argument('--host', 
+    launch_parser.add_argument('--host',
                              help='Bind socket to this host. Default: 127.0.0.1',
                              default='127.0.0.1')
     launch_parser.add_argument('--port', '-p', type=int,
@@ -865,6 +880,9 @@ def main():
     launch_parser.add_argument('--dry-run', action='store_true',
                              help="Load and configure the app, plugins, and middleware but don't start the server."
     )
+    launch_parser.add_argument('--dev', action='store_true',
+                             help="Enable development mode for the application."
+    )
     # Important: Remove duplicate plugin/middleware args since they're inherited from app_parent_parser
     launch_parser.set_defaults(func=handle_launch_command)
 
@@ -874,11 +892,11 @@ def main():
     args_ns = parser.parse_args()
 
     # Process comma-separated directory lists into actual lists
-    if hasattr(args_ns, 'plugin_dirs') and isinstance(args_ns.plugin_dirs, str):
-        args_ns.plugin_dirs = [d.strip() for d in args_ns.plugin_dirs.split(',') if d.strip()]
-
-    if hasattr(args_ns, 'middleware_dirs') and isinstance(args_ns.middleware_dirs, str):
-        args_ns.middleware_dirs = [d.strip() for d in args_ns.middleware_dirs.split(',') if d.strip()]
+    # if hasattr(args_ns, 'plugin_dirs') and isinstance(args_ns.plugin_dirs, str):
+    #     args_ns.plugin_dirs = [d.strip() for d in args_ns.plugin_dirs.split(',') if d.strip()]
+    #
+    # if hasattr(args_ns, 'middleware_dirs') and isinstance(args_ns.middleware_dirs, str):
+    #     args_ns.middleware_dirs = [d.strip() for d in args_ns.middleware_dirs.split(',') if d.strip()]
 
     if args_ns.debug or os.getenv("SERV_DEBUG"):
         os.environ["SERV_DEBUG"] = "1"

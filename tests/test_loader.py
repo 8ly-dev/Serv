@@ -7,9 +7,12 @@ import sys
 import pytest
 from pathlib import Path
 from unittest import mock
+import importlib # Added for test_cross_plugin_import
+import logging # Added for logger.debug in test_cross_plugin_import
 
 from serv.loader import ServLoader
 
+logger = logging.getLogger(__name__) # For test debugging
 
 class TestServLoader:
     """Tests for the ServLoader class."""
@@ -17,228 +20,237 @@ class TestServLoader:
     @pytest.fixture
     def setup_test_dirs(self, tmp_path):
         """Set up test fixtures with temporary directories."""
-        # Create a test plugins directory
-        plugins_dir = tmp_path / "test_plugins"
-        plugins_dir.mkdir()
+        plugins_dir_path = tmp_path / "test_plugins"
+        plugins_dir_path.mkdir()
         
-        # Create a test middleware directory
-        middleware_dir = tmp_path / "test_middleware"
-        middleware_dir.mkdir()
+        middleware_dir_path = tmp_path / "test_middleware"
+        middleware_dir_path.mkdir()
         
-        # Create plugin package
-        plugin_dir = plugins_dir / "test_plugin"
-        plugin_dir.mkdir()
-        (plugin_dir / "__init__.py").write_text("# Test plugin package")
-        
-        # Create middleware package
-        middleware_pkg_dir = middleware_dir / "test_middleware"
-        middleware_pkg_dir.mkdir()
-        (middleware_pkg_dir / "__init__.py").write_text("# Test middleware package")
-        
-        # Create the loader
-        loader = ServLoader(
-            plugin_dirs=[str(plugins_dir)],
-            middleware_dirs=[str(middleware_dir)]
-        )
-        
-        # Return a dictionary with all the test objects
+        plugin_pkg_dir_path = plugins_dir_path / "test_plugin"
+        plugin_pkg_dir_path.mkdir()
+        (plugin_pkg_dir_path / "__init__.py").write_text("# Test plugin package")
+        (plugin_pkg_dir_path / "module1.py").write_text("VALUE = 'plugin_module1_val'")
+
+        another_plugin_pkg_dir_path = plugins_dir_path / "another_plugin"
+        another_plugin_pkg_dir_path.mkdir()
+        (another_plugin_pkg_dir_path / "__init__.py").write_text("# Another test plugin package")
+    
+        middleware_pkg_dir_inner_path = middleware_dir_path / "test_mw_package"
+        middleware_pkg_dir_inner_path.mkdir()
+        (middleware_pkg_dir_inner_path / "__init__.py").write_text("# Test middleware package")
+        (middleware_pkg_dir_inner_path / "module1.py").write_text("VALUE = 'mw_module1_val'")
+
+        loader_instance = ServLoader(directory=str(plugins_dir_path))
+    
         return {
-            "plugins_dir": plugins_dir,
-            "middleware_dir": middleware_dir,
-            "plugin_dir": plugin_dir,
-            "middleware_pkg_dir": middleware_pkg_dir,
-            "loader": loader
+            "plugins_dir": plugins_dir_path,
+            "middleware_dir": middleware_dir_path,
+            "plugin_pkg_dir": plugin_pkg_dir_path, # Actual package dir for "test_plugin"
+            "another_plugin_pkg_dir": another_plugin_pkg_dir_path,
+            "middleware_pkg_dir_inner": middleware_pkg_dir_inner_path,
+            "loader": loader_instance
         }
     
     def test_initialization(self, setup_test_dirs):
         """Test that the loader initializes correctly."""
         loader = setup_test_dirs["loader"]
         plugins_dir = setup_test_dirs["plugins_dir"]
-        middleware_dir = setup_test_dirs["middleware_dir"]
-        
-        assert loader.plugin_dirs == [str(plugins_dir)]
-        assert loader.middleware_dirs == [str(middleware_dir)]
-        assert loader._module_cache == {}
+        assert loader.get_search_path() == plugins_dir.resolve()
     
-    def test_get_search_paths(self, setup_test_dirs):
+    def test_get_search_path(self, setup_test_dirs):
         """Test that search paths are resolved correctly."""
         loader = setup_test_dirs["loader"]
-        
-        plugin_paths = loader.get_search_paths("plugin")
-        middleware_paths = loader.get_search_paths("middleware")
-        
-        assert len(plugin_paths) == 1
-        assert len(middleware_paths) == 1
-        assert plugin_paths[0].name == "test_plugins"
-        assert middleware_paths[0].name == "test_middleware"
+        plugins_dir = setup_test_dirs["plugins_dir"]
+        assert loader.get_search_path().exists()
+        assert loader.get_search_path() == plugins_dir.resolve()
     
     def test_list_available(self, setup_test_dirs):
         """Test listing available packages."""
         loader = setup_test_dirs["loader"]
-        
-        packages = loader.list_available("plugin")
-        assert packages == {"test_plugins": ["test_plugin"]}
-        
-        packages = loader.list_available("middleware")
-        assert packages == {"test_middleware": ["test_middleware"]}
+        plugins_dir = setup_test_dirs["plugins_dir"]
+        available = loader.list_available()
+        expected_namespace = plugins_dir.name
+        assert expected_namespace in available
+        assert sorted(available[expected_namespace]) == sorted(["another_plugin", "test_plugin"])
     
-    @mock.patch('importlib.util.spec_from_file_location')
     @mock.patch('importlib.util.module_from_spec')
-    def test_load_package(self, mock_module_from_spec, mock_spec_from_file_location, setup_test_dirs):
+    @mock.patch('importlib.util.spec_from_file_location')
+    def test_load_package(self, mock_spec_from_file_location, mock_module_from_spec, setup_test_dirs):
         """Test loading a package."""
-        # Set up mocks for importlib
-        mock_spec = mock.MagicMock()
-        mock_spec.loader = mock.MagicMock()
-        mock_spec_from_file_location.return_value = mock_spec
-        
-        mock_module = mock.MagicMock()
-        mock_module_from_spec.return_value = mock_module
-        
-        # Get test objects
-        loader = setup_test_dirs["loader"]
-        plugin_dir = setup_test_dirs["plugin_dir"]
-        
-        # Create a simple plugin module
-        plugin_module_path = plugin_dir / "main.py"
-        plugin_module_path.write_text("""
-class TestPlugin:
-    def __init__(self):
-        self.name = 'Test Plugin'
-""")
-        
-        # Load the package
-        loader.load_package("plugin", "test_plugin", "test_plugins")
-        
-        # Check that the module was loaded and cached
-        assert mock_spec_from_file_location.call_count == 1
-        assert mock_module_from_spec.call_count == 1
-        
-        # Check that the module was cached
-        mock_spec.loader.exec_module.assert_called_once_with(mock_module)
-    
-    def test_import_path(self, setup_test_dirs):
-        """Test importing a module by path."""
-        # Get test objects
         loader = setup_test_dirs["loader"]
         plugins_dir = setup_test_dirs["plugins_dir"]
+        plugin_pkg_dir = setup_test_dirs["plugin_pkg_dir"]
+        namespace = plugins_dir.name
+
+        mock_spec_test_plugin = mock.MagicMock(name=f"spec_for_{namespace}.test_plugin")
+        mock_spec_test_plugin.loader = mock.MagicMock()
+        mock_spec_test_plugin.name = f"{namespace}.test_plugin"
+        mock_spec_test_plugin.submodule_search_locations = [str(plugin_pkg_dir)]
+
+        mock_test_plugin_module = mock.MagicMock(name=f"module_{namespace}.test_plugin")
+        mock_test_plugin_module.__name__ = f"{namespace}.test_plugin"
+        mock_test_plugin_module.__path__ = [str(plugin_pkg_dir)] 
+
+        def spec_side_effect(name, location, **kwargs):
+            if name == f"{namespace}.test_plugin" and Path(location).parent.name == "test_plugin":
+                return mock_spec_test_plugin
+            elif name == f"{namespace}.nonexistent_plugin":
+                return None 
+            return None 
+        mock_spec_from_file_location.side_effect = spec_side_effect
+
+        def module_side_effect(spec):
+            if spec and spec.name == f"{namespace}.test_plugin":
+                return mock_test_plugin_module
+            generic_mock = mock.MagicMock(name=f"module_for_spec_{getattr(spec, 'name', 'unknown')}")
+            generic_mock.__name__ = getattr(spec, 'name', 'unknown_spec_module')
+            return generic_mock
+        mock_module_from_spec.side_effect = module_side_effect
+
+        # Clean up sys.modules and loader cache for this specific test package to ensure a fresh load attempt
+        # This is important if other tests using mocks might have populated these for the same name.
+        module_full_name = f"{namespace}.test_plugin"
+        if module_full_name in sys.modules: del sys.modules[module_full_name]
+        if module_full_name in loader._module_cache: del loader._module_cache[module_full_name]
+        # Clean up parent namespace too if it was created by loader and might hold outdated sub-pkg refs
+        if namespace in sys.modules and hasattr(sys.modules[namespace], "test_plugin"):
+            delattr(sys.modules[namespace], "test_plugin")
+
+        loaded_module = loader.load_package(package_name="test_plugin", namespace=namespace)
+        assert loaded_module is not None, "load_package should return the module for 'test_plugin'"
+        assert loaded_module.__name__ == f"{namespace}.test_plugin"
         
-        # Create a module with a test class
-        module_dir = plugins_dir / "my_plugin"
-        module_dir.mkdir()
-        
-        init_file = module_dir / "__init__.py"
-        init_file.write_text("# My plugin package")
-        
-        main_file = module_dir / "main.py"
-        main_file.write_text("""
-class MyPlugin:
-    def hello(self):
-        return "Hello from MyPlugin"
-""")
-        
-        # Create a mock for the module with our test class
-        mock_module = mock.MagicMock()
-        mock_class = mock.MagicMock()
-        mock_class.hello = lambda: "Hello from MyPlugin"
-        mock_module.MyPlugin = mock_class
-        
-        # Patch the import_module function
-        with mock.patch("serv.loader.import_module") as mock_import:
-            # Set up the mock to return our mock module
-            mock_import.return_value = mock_module
-            
-            # Call the function being tested
-            result = loader.import_path("test_plugins.my_plugin.main:MyPlugin")
-            
-            # Verify the import was called with the correct module path
-            mock_import.assert_called_once_with("test_plugins.my_plugin.main")
-            
-            # Verify we got the right class back
-            assert result == mock_class
-            
+        expected_init_path = plugin_pkg_dir / "__init__.py"
+        mock_spec_from_file_location.assert_called_with(
+            f"{namespace}.test_plugin", 
+            expected_init_path, 
+            submodule_search_locations=[str(plugin_pkg_dir)]
+        )
+        mock_module_from_spec.assert_called_with(mock_spec_test_plugin)
+        mock_spec_test_plugin.loader.exec_module.assert_called_with(mock_test_plugin_module)
+
+        mock_spec_from_file_location.reset_mock()
+        mock_module_from_spec.reset_mock()
+        # Clean sys.modules for non-existent as well, just in case though ServLoader should handle it
+        module_full_name_nonexistent = f"{namespace}.nonexistent_plugin"
+        if module_full_name_nonexistent in sys.modules: del sys.modules[module_full_name_nonexistent]
+        if module_full_name_nonexistent in loader._module_cache: del loader._module_cache[module_full_name_nonexistent]
+
+        assert loader.load_package(package_name="nonexistent_plugin", namespace=namespace) is None
+    
+    def test_import_path_object_load(self, setup_test_dirs):
+        """Test importing a module by path."""
+        loader = setup_test_dirs["loader"]
+        plugins_dir = setup_test_dirs["plugins_dir"]
+        namespace = plugins_dir.name
+
+        # Ensure a clean slate in sys.modules for the packages this test loads for real
+        # to avoid interference from mocks in other tests if loader shares sys.modules state.
+        module_name_to_clean = f"{namespace}.test_plugin"
+        submodule_name_to_clean = f"{module_name_to_clean}.module1"
+        if submodule_name_to_clean in sys.modules: del sys.modules[submodule_name_to_clean]
+        if module_name_to_clean in sys.modules: del sys.modules[module_name_to_clean]
+        if module_name_to_clean in loader._module_cache: del loader._module_cache[module_name_to_clean]
+        if submodule_name_to_clean in loader._module_cache: del loader._module_cache[submodule_name_to_clean]
+        # Also clean parent namespace module from this specific package attribute
+        if namespace in sys.modules and hasattr(sys.modules[namespace], "test_plugin"):
+             delattr(sys.modules[namespace], "test_plugin")
+
+        test_plugin_module = loader.load_package(package_name="test_plugin", namespace=namespace)
+        assert test_plugin_module is not None, f"ServLoader failed to load package '{namespace}.test_plugin'"
+        assert test_plugin_module.__name__ == f"{namespace}.test_plugin"
+        assert hasattr(test_plugin_module, '__spec__'), "Loaded module should have __spec__ attribute"
+        assert test_plugin_module.__spec__ is not None, "Module __spec__ should not be None"
+        assert test_plugin_module.__spec__.name == f"{namespace}.test_plugin"
+
+        # Verify submodule access and content after REAL load by ServLoader
+        try:
+            # Standard import should now work if ServLoader has set up paths correctly
+            imported_submodule = importlib.import_module(f"{namespace}.test_plugin.module1")
+            assert hasattr(imported_submodule, 'VALUE'), "Submodule 'module1' does not have VALUE attribute"
+            assert imported_submodule.VALUE == 'plugin_module1_val', "Submodule 'module1' VALUE mismatch"
+        except ImportError as e:
+            pytest.fail(f"Could not import submodule '{namespace}.test_plugin.module1': {e}. sys.modules keys like: {{k for k in sys.modules if namespace in k}}")
+
+        value = loader.import_path(f"{namespace}.test_plugin.module1:VALUE")
+        assert value == 'plugin_module1_val'
+
+        submodule_via_import_path = loader.import_path(f"{namespace}.test_plugin.module1")
+        assert submodule_via_import_path is not None
+        assert submodule_via_import_path.VALUE == 'plugin_module1_val'
+
+        pkg_module_via_import_path = loader.import_path(f"{namespace}.test_plugin")
+        assert pkg_module_via_import_path is not None
+        assert hasattr(pkg_module_via_import_path, "module1"), "Package module should have submodule as attribute"
+        assert pkg_module_via_import_path.module1.VALUE == 'plugin_module1_val'
+
+        assert loader.import_path(f"{namespace}.test_plugin.nonexistent:FOO") is None
+        assert loader.import_path(f"{namespace}.nonexistent_pkg:FOO") is None
+    
     def test_cross_plugin_import(self, setup_test_dirs):
         """Test that one plugin can import another using the fully qualified import path."""
-        # Get test objects
         loader = setup_test_dirs["loader"]
         plugins_dir = setup_test_dirs["plugins_dir"]
-        
-        # Create two plugin packages: base_plugin and dependent_plugin
-        base_dir = plugins_dir / "base_plugin"
-        base_dir.mkdir()
-        (base_dir / "__init__.py").write_text("# Base plugin package")
-        
-        dependent_dir = plugins_dir / "dependent_plugin"
-        dependent_dir.mkdir()
-        (dependent_dir / "__init__.py").write_text("# Dependent plugin package")
-        
-        # Create implementation files
-        base_main_file = base_dir / "main.py"
-        base_main_file.write_text("""
-class BasePlugin:
-    def get_version(self):
-        return "1.0.0"
-""")
-        
-        dependent_main_file = dependent_dir / "main.py"
-        dependent_main_file.write_text("""
-import sys
-from test_plugins.base_plugin.main import BasePlugin
+        namespace = plugins_dir.name
 
-class DependentPlugin:
-    def __init__(self):
-        self.base = BasePlugin()
-        
-    def get_base_version(self):
-        return self.base.get_version()
+        base_pkg_name = "base_plugin_for_cross"
+        dependent_pkg_name = "dependent_plugin_for_cross"
+
+        # Clean sys.modules for these specific test packages
+        for pkg_name in [base_pkg_name, dependent_pkg_name]:
+            full_pkg_name = f"{namespace}.{pkg_name}"
+            sub_main_name = f"{full_pkg_name}.main" # if main is a submodule
+            sub_util_name = f"{full_pkg_name}.util" # if util is a submodule
+            if sub_main_name in sys.modules: del sys.modules[sub_main_name]
+            if sub_util_name in sys.modules: del sys.modules[sub_util_name]
+            if full_pkg_name in sys.modules: del sys.modules[full_pkg_name]
+            if full_pkg_name in loader._module_cache: del loader._module_cache[full_pkg_name]
+            if sub_main_name in loader._module_cache: del loader._module_cache[sub_main_name]
+            if sub_util_name in loader._module_cache: del loader._module_cache[sub_util_name]
+            if namespace in sys.modules and hasattr(sys.modules[namespace], pkg_name):
+                delattr(sys.modules[namespace], pkg_name)
+
+        base_dir = plugins_dir / base_pkg_name
+        base_dir.mkdir(exist_ok=True)
+        (base_dir / "__init__.py").write_text(f"# {base_pkg_name} init")
+        (base_dir / "util.py").write_text("""
+class BaseUtility:
+    def get_info(self):
+        return \"Info from BaseUtility\"
 """)
+
+        dependent_dir = plugins_dir / dependent_pkg_name
+        dependent_dir.mkdir(exist_ok=True)
+        (dependent_dir / "__init__.py").write_text(f"# {dependent_pkg_name} init")
+        dependent_main_content = f"""
+from {namespace}.{base_pkg_name}.util import BaseUtility
+
+class DependentService:
+    def __init__(self):
+        self.util = BaseUtility()
+    def process(self):
+        return f\"Processed: {{self.util.get_info()}}\"
+"""
+        (dependent_dir / "main.py").write_text(dependent_main_content)
+
+        base_pkg_module = loader.load_package(package_name=base_pkg_name, namespace=namespace)
+        assert base_pkg_module is not None, f"Failed to load {base_pkg_name}"
+        assert base_pkg_module.__name__ == f"{namespace}.{base_pkg_name}"
+        assert hasattr(base_pkg_module, '__spec__')
+
+        dependent_pkg_module = loader.load_package(package_name=dependent_pkg_name, namespace=namespace)
+        assert dependent_pkg_module is not None, f"Failed to load {dependent_pkg_name}"
+        assert dependent_pkg_module.__name__ == f"{namespace}.{dependent_pkg_name}"
+        assert hasattr(dependent_pkg_module, '__spec__')
         
-        # Set up mocks for the modules
-        base_module = mock.MagicMock()
-        base_class = mock.MagicMock()
-        base_class.get_version = lambda: "1.0.0"
-        base_module.BasePlugin = base_class
-        
-        dependent_module = mock.MagicMock()
-        dependent_class = mock.MagicMock()
-        dependent_class.get_base_version = lambda: "1.0.0"
-        dependent_module.DependentPlugin = dependent_class
-        dependent_module.BasePlugin = base_class  # Simulate the import
-        
-        # Use a side effect function to handle different import paths
-        def side_effect(module_path):
-            if module_path == "test_plugins.base_plugin.main":
-                return base_module
-            elif module_path == "test_plugins.dependent_plugin.main":
-                return dependent_module
-            else:
-                raise ImportError(f"No module named '{module_path}'")
-        
-        # Test loading packages and cross-plugin importing
-        with mock.patch("serv.loader.import_module", side_effect=side_effect), \
-             mock.patch("importlib.util.spec_from_file_location") as mock_spec_location, \
-             mock.patch("importlib.util.module_from_spec") as mock_module_from_spec:
-            
-            # Mock spec and module for base plugin
-            base_spec = mock.MagicMock()
-            base_spec.loader = mock.MagicMock()
-            mock_spec_location.return_value = base_spec
-            mock_module_from_spec.return_value = base_module
-            
-            # Load the base plugin first
-            base_result = loader.load_package("plugin", "base_plugin", "test_plugins")
-            assert base_result is not None
-            
-            # Now mock for dependent plugin
-            dependent_spec = mock.MagicMock()
-            dependent_spec.loader = mock.MagicMock()
-            mock_spec_location.return_value = dependent_spec
-            mock_module_from_spec.return_value = dependent_module
-            
-            # Load the dependent plugin
-            dependent_result = loader.load_package("plugin", "dependent_plugin", "test_plugins")
-            assert dependent_result is not None
-            
-            # Verify the dependent plugin can use the base plugin
-            result_class = loader.import_path("test_plugins.dependent_plugin.main:DependentPlugin")
-            assert result_class is dependent_class
-            assert result_class.get_base_version() == "1.0.0" 
+        try:
+            final_dependent_main_module = importlib.import_module(f"{namespace}.{dependent_pkg_name}.main")
+            ServiceClass = final_dependent_main_module.DependentService
+            instance = ServiceClass()
+            result = instance.process()
+            assert result == f"Processed: Info from BaseUtility"
+        except ImportError as e:
+            loaded_modules_in_namespace = {k:v for k,v in sys.modules.items() if k.startswith(namespace)}
+            pytest.fail(f"ImportError during cross-import test: {e}. Namespace: {namespace}. sys.modules for namespace: {loaded_modules_in_namespace}. sys.path: {sys.path}")
+        except Exception as e:
+            pytest.fail(f"Unexpected exception: {e}") 

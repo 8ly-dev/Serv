@@ -20,6 +20,7 @@ from asgiref.typing import (
     LifespanStartupCompleteEvent,
 )
 
+from serv.config import load_raw_config
 from serv.plugins import Plugin
 from serv.loader import ServLoader
 from serv.requests import Request
@@ -49,38 +50,44 @@ class App:
     It is responsible for handling the incoming requests and delegating them to the appropriate routes.
     """
 
-    def __init__(self, plugin_dirs: list[str] = None, middleware_dirs: list[str] = None, dev_mode: bool = False):
+    def __init__(
+        self,
+        *,
+        config: str = "./serv.config.yaml",
+        plugin_dir: str = "./plugins",
+        dev_mode: bool = False,
+    ):
         """Initialize a new Serv application.
-        
+
         Args:
-            plugin_dirs: list of directories to search for plugins (default: ['./plugins'])
-            middleware_dirs: list of directories to search for middleware (default: ['./middleware'])
+            config: configuration dictionary (usually from serv.config.yaml)
+            plugin_dir: directory to search for plugins (default: './plugins')
+            dev_mode: whether to run in development mode (default: False)
         """
+        self._config = self._load_config(config)
         self._dev_mode = dev_mode
         self._registry = get_registry()
         self._container = self._registry.create_container()
-        self._plugins = defaultdict(list)
         self._async_exit_stack = contextlib.AsyncExitStack()
-        self._middleware = []
         self._error_handlers: dict[type[Exception], Callable[[Exception], Awaitable[None]]] = {}
-        
-        # Initialize the loader
-        self._loader = ServLoader(
-            plugin_dirs=plugin_dirs or ['./plugins'],
-            middleware_dirs=middleware_dirs or ['./middleware']
-        )
+        self._middleware = []
 
+        self._plugin_loader = ServLoader(plugin_dir)
+        self._plugins: dict[Path, list[Plugin]] = defaultdict(list)
         self._emit = EventEmitter(self._plugins)
 
         self._init_container()
         self._register_default_error_handlers()
+        self._load_plugins(self._config.get("plugins", []))
+
+    def _load_config(self, config_path: str) -> dict[str, Any]:
+        return load_raw_config(config_path)
 
     def _init_container(self):
         inject_request_object.register_hook(self._registry)
         self._container.instances[App] = self
         self._container.instances[Container] = self._container
         self._container.instances[Registry] = self._registry
-        self._container.instances[ServLoader] = self._loader
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
@@ -101,6 +108,60 @@ class App:
 
     def get_plugin(self, path: Path) -> Plugin | None:
         return self._plugins.get(path)
+
+    def _load_plugins(self, plugins: list[dict[str, Any]]):
+        """Load plugins from a list of plugin configs and add them to the app.
+
+        Args:
+            plugins: List of plugin configs (usually from serv.config.yaml)
+        """
+        exceptions = []
+        loaded_plugins = list()
+        for plugin_config in plugins:
+            try:
+                plugin = self._load_plugin_from_config(plugin_config)
+            except Exception as e:
+                logger.warning(f"Failed to load plugin {plugin_config['entry']}")
+                e.add_note(f" - Plugin entrypoint {plugin_config['entry']}")
+                exceptions.append(e)
+                continue
+            else:
+                self.add_plugin(plugin)
+                loaded_plugins.append(plugin)
+                logger.info(f"Loaded plugin {plugin.plugin_dir}")
+
+        logger.info(f"Loaded {len(loaded_plugins)} plugins")
+        if exceptions:
+            logger.warning(f"Failed to load {len(exceptions)} plugins")
+            exception = ExceptionGroup("Exceptions raised while loading plugins", exceptions)
+            exception.add_note(f" - Successfully loaded {len(loaded_plugins)} plugins.")
+            exception.add_note(f" - Failed to load {len(exceptions)} plugins.")
+            raise exception
+
+    def _load_plugin_from_config(self, config: dict[str, Any]) -> Plugin:
+        if not isinstance(config, dict):
+            raise ValueError(f"Invalid plugin config: {config!r}")
+
+        entry = config.get("entry")
+        if not entry:
+            raise ValueError(f"Plugin config missing 'entry': {config!r}")
+
+        if ":" not in entry:
+            raise ValueError(f"Invalid plugin entry, must use format 'module.path:ClassName': {entry!r}")
+
+        module_path, class_name = entry.split(":", 1)
+        plugin_module = self._plugin_loader.load_package(module_path)
+        if not plugin_module:
+            raise ImportError(f"Failed to load plugin module: {module_path!r}")
+
+        plugin_class = getattr(plugin_module, class_name, None)
+        if not plugin_class:
+            raise ImportError(f"Failed to import plugin {class_name!r} from {module_path!r}")
+
+        if not issubclass(plugin_class, Plugin):
+            raise ValueError(f"Plugin class {class_name!r} does not inherit from {Plugin.__name__!r}")
+
+        return plugin_class()
         
     def load_plugin(self, package_name: str, namespace: str = None) -> bool:
         """Load a plugin from the plugin directories.
