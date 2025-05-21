@@ -45,7 +45,7 @@ cd demos/plugin_middleware_demo
 serv launch
 
 # Or, to validate without actually starting the server
-serv launch --validate-only
+serv launch --dry-run
 ```
 
 Then visit http://localhost:8000 in your browser.

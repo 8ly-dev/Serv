@@ -765,10 +765,10 @@ async def handle_launch_command(args_ns):
                 logger.warning(f"Could not pre-load/configure '{app_module_str}', passing string to Uvicorn: {e}")
                 app_target = app_module_str
 
-    # If validate-only flag is set, exit after loading the app
-    if args_ns.validate_only:
+    # If dry-run flag is set, exit after loading the app
+    if args_ns.dry_run:
         print("App, config, plugins, and middleware loaded successfully.")
-        print("Validation complete. Exiting without starting the server.")
+        print("\nDry run complete. Exiting without starting the server.")
         return
 
     uvicorn_log_level = "debug" if logger.level == logging.DEBUG else "info"
@@ -866,7 +866,7 @@ def main():
     launch_parser.add_argument('--factory', action='store_true',
                              help="Treat APP_MODULE as an application factory string (e.g., 'module:create_app')."
     )
-    launch_parser.add_argument('--validate-only', action='store_true',
+    launch_parser.add_argument('--dry-run', action='store_true',
                              help="Load and configure the app, plugins, and middleware but don't start the server."
     )
     # Important: Remove duplicate plugin/middleware args since they're inherited from app_parent_parser
