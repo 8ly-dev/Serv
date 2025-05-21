@@ -37,7 +37,7 @@ class Query(_Marker):
         return f"<Inject:Query({self.name!r}, default={self.default!r})>"
 
 
-@hooks.HANDLE_UNSUPPORTED_DEPENDENCY
+@hooks.CREATE_INSTANCE
 def inject_request_object(container: Container, annotation: Any) -> Optional[Any]:
     origin = get_origin(annotation)
     if origin is Annotated:
