@@ -82,7 +82,7 @@ class Router:
 
                 if isinstance(route, type):
                     with get_container(container).branch() as container:
-                        container.instances[RouteSettings] = RouteSettings(**settings)
+                        container.instances[RouteSettings] = RouteSettings(**settings or {})
                         route_instance = container.call(route)
 
                 methods = route.__method_handlers__.keys() | route.__form_handlers__.keys()

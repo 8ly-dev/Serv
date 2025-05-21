@@ -13,12 +13,18 @@ from serv import App
 from plugins import DemoRoutesPlugin 
 # HomeRoute and SubmitRoute are used by the plugin, not directly here
 
-app = App()
 
-# Instantiate and register the plugin
-# Assuming App has an `add_plugin` method or similar mechanism
-# for Bevy to pick up the plugin and its dependencies.
-app.add_plugin(DemoRoutesPlugin()) 
+def app():
+    _app = None
+    async def app_wrapper(scope, receive, send):
+        nonlocal _app
+        if _app is None:
+            _app = App()
+            _app.add_plugin(DemoRoutesPlugin(stand_alone=True))
+        await _app(scope, receive, send)
+
+    return app_wrapper
+
 
 if __name__ == "__main__":
     try:
@@ -32,5 +38,4 @@ if __name__ == "__main__":
         print("  http://127.0.0.1:8000/")
         print("  http://127.0.0.1:8000/about")
         print("Press Ctrl+C to stop.")
-        uvicorn.run(app, host="127.0.0.1", port=8000) 
-    
+        uvicorn.run(app, host="127.0.0.1", port=8000, factory=True)

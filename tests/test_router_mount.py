@@ -41,23 +41,27 @@ def test_mount_router_basic_functionality():
     main_router.mount("/admin", admin_router)
     
     # Test main router routes
-    handler, params = main_router.resolve_route("/", "GET")
+    handler, params, settings = main_router.resolve_route("/", "GET")
     assert handler == root_handler
     assert params == {}
+    assert settings == {}
     
     # Test mounted API router routes
-    handler, params = main_router.resolve_route("/api/users", "GET")
+    handler, params, settings = main_router.resolve_route("/api/users", "GET")
     assert handler == api_users_handler
     assert params == {}
+    assert settings == {}
     
-    handler, params = main_router.resolve_route("/api/posts/123", "GET")
+    handler, params, settings = main_router.resolve_route("/api/posts/123", "GET")
     assert handler == api_posts_handler
     assert params == {"id": "123"}
+    assert settings == {}
     
     # Test mounted admin router routes
-    handler, params = main_router.resolve_route("/admin", "GET")
+    handler, params, settings = main_router.resolve_route("/admin", "GET")
     assert handler == admin_handler
     assert params == {}
+    assert settings == {}
     
     # Test non-existent route
     assert main_router.resolve_route("/nonexistent", "GET") is None
@@ -89,9 +93,10 @@ def test_mount_router_nested():
     main_router.mount("/api", api_router)
     
     # Test deeply nested route
-    handler, params = main_router.resolve_route("/api/users/profile", "GET")
+    handler, params, settings = main_router.resolve_route("/api/users/profile", "GET")
     assert handler == api_users_handler
     assert params == {}
+    assert settings == {}
 
 
 def test_mount_router_path_normalization():
@@ -102,10 +107,10 @@ def test_mount_router_path_normalization():
     
     # Test with different path formats
     main_router.mount("api", api_router)  # Without leading slash
-    handler, params = main_router.resolve_route("/api/users", "GET")
+    handler, params, settings = main_router.resolve_route("/api/users", "GET")
     assert handler == api_users_handler
     
     main_router = Router()
     main_router.mount("/api/", api_router)  # With trailing slash
-    handler, params = main_router.resolve_route("/api/users", "GET")
+    handler, params, settings = main_router.resolve_route("/api/users", "GET")
     assert handler == api_users_handler 

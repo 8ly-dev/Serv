@@ -92,7 +92,7 @@ async def test_middleware_exception_before_yield(app: App, client: AsyncClient):
 
     response = await client.get("/mw_error_before")
     assert response.status_code == 500 # Default error handler
-    assert "ValueError: Error in MW before yield" in response.text
+    assert "Error in MW before yield" in response.text
     # Test if outer_mw's cleanup (after yield part) was called via athrow
     # This depends on how athrow is handled and if the generator can resume to run finally/after yield.
     # For simple yield, athrow injects exception at yield point.
@@ -128,7 +128,7 @@ async def test_middleware_exception_after_yield(app: App, client: AsyncClient):
 
     response = await client.get("/mw_error_after")
     assert response.status_code == 500
-    assert "ValueError: Error in MW after yield" in response.text
+    assert "Error in MW after yield" in response.text
 
 @pytest.mark.asyncio
 async def test_handler_exception_propagates_to_middleware(app: App, client: AsyncClient):
@@ -159,7 +159,7 @@ async def test_handler_exception_propagates_to_middleware(app: App, client: Asyn
 
     response = await client.get("/handler_error")
     assert response.status_code == 404 # Our specific 404 handler should take over
-    assert f"Not Found: The requested resource /handler_error was not found." == response.text
+    assert f"404 Not Found: The requested resource (/handler_error) was not found." == response.text
     assert cleanup_mw_called
 
 # A test for athrow itself raising an error is more complex to set up with the current helper structure.

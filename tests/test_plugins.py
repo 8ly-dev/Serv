@@ -23,7 +23,7 @@ async def test_plugins():
 
     container = get_container().branch()
     container.instances[_TestUser] = _TestUser(1, "John Doe")
-    await TestPlugin().on("user_create", container)
+    await TestPlugin(stand_alone=True).on("user_create", container)
 
 
 @pytest.mark.asyncio
@@ -38,7 +38,7 @@ async def test_plugins_with_args():
 
     container = get_container().branch()
     container.instances[_TestUser] = _TestUser(1, "John Doe")
-    await TestPlugin().on("user_create", container, user=_TestUser(2, "Jane Doe"))
+    await TestPlugin(stand_alone=True).on("user_create", container, user=_TestUser(2, "Jane Doe"))
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_plugins_with_args_and_dependency():
 
     container = get_container().branch()
     container.instances[_TestUser] = _TestUser(1, "John Doe")
-    await TestPlugin().on("user_create", container, user_name="John Doe")
+    await TestPlugin(stand_alone=True).on("user_create", container, user_name="John Doe")
 
 
 @pytest.mark.asyncio
@@ -63,7 +63,7 @@ async def test_plugins_without_handler():
     class TestPlugin(Plugin):
         ...
 
-    await TestPlugin().on("user_create")
+    await TestPlugin(stand_alone=True).on("user_create")
 
 
 @pytest.mark.asyncio
@@ -78,7 +78,7 @@ async def test_plugins_with_multiple_handlers():
             reached_handlers.add("b_on_user_create")
 
     
-    await TestPlugin().on("user_create")
+    await TestPlugin(stand_alone=True).on("user_create")
     assert reached_handlers == {"a_on_user_create", "b_on_user_create"}
 
 
@@ -92,4 +92,4 @@ async def test_plugins_with_unfilled_dependency():
             ...
         
     with pytest.raises(TypeError):
-        await TestPlugin().on("user_create")  
+        await TestPlugin(stand_alone=True).on("user_create")

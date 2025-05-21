@@ -56,12 +56,9 @@ class MultipartTestRoutePlugin(Plugin):
     def __init__(self, path: str, route_class: Type[Route]):
         self.path = path
         self.route_class = route_class
-        self.plugin_registered_route = False
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
-        if not self.plugin_registered_route:
-            router.add_route(self.path, self.route_class)
-            self.plugin_registered_route = True
+        router.add_route(self.path, self.route_class)
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_single_file(app: App, client: AsyncClient):
@@ -72,7 +69,7 @@ async def test_multipart_form_submission_single_file(app: App, client: AsyncClie
     data = {"text_field": "Some text", "num_field": "123"}
 
     response = await client.post("/upload", files=files, data=data)
-    
+
     assert response.status_code == 200
     expected_text = """Text: Some text
 Num: 123

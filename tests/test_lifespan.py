@@ -64,6 +64,7 @@ async def test_lifespan_protocol_flow(app: App):
         if name == "app.lifespan.shutdown":
             shutdown_event_kwargs = kwargs
             break
+
     assert shutdown_event_kwargs is not None
     assert shutdown_event_kwargs.get("scope") == lifespan_scope
 
@@ -78,7 +79,7 @@ async def test_lifespan_startup_failure_simulation(app: App):
             # Call the base class's (EventWatcherPlugin's) on method to record the event
             await super().on(event_name, **kwargs)
             
-            if event_name == "app.lifespan.startup":
+            if event_name == "app.startup":
                 raise RuntimeError("Simulated startup failure")
 
     startup_fail_plugin = StartupErrorPlugin()

@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from logging import exception
+
 import pytest
 from httpx import AsyncClient
 from typing import Any, Type, Annotated

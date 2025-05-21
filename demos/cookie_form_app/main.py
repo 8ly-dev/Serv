@@ -10,7 +10,18 @@ from bevy.containers import Container
 from typing import Annotated, AsyncIterator # For middleware
 
 # --- Application Setup ---
-app = App()
+def app():
+    _app = None
+    async def app_wrapper(scope, receive, send):
+        nonlocal _app
+        if _app is None:
+            _app = App()
+            _app.add_middleware(cookie_based_router_middleware)
+
+        await _app(scope, receive, send)
+
+    return app_wrapper
+
 
 # --- Routers Instances (these will be selected by middleware) ---
 form_router = Router()
@@ -106,10 +117,6 @@ async def cookie_based_router_middleware(router: Router = dependency(), username
 
     # No cleanup needed after yield for this middleware
 
-# --- Add Middleware to App ---
-app.add_middleware(cookie_based_router_middleware)
-
-
 # --- Run the application ---
 if __name__ == "__main__":
     try:
@@ -136,6 +143,7 @@ if __name__ == "__main__":
             host="127.0.0.1",
             port=8001,
             loop="asyncio",
+            factory=True,
         )
         server = uvicorn.Server(config)
         loop.run_until_complete(server.serve())

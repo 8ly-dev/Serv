@@ -391,7 +391,7 @@ class App:
         else:
             # Use plaintext response
             response.content_type("text/plain")
-            response.body(f"500 Error {status_code}: {error}")
+            response.body(f"{status_code} Error: {error}")
 
     @inject
     async def _default_404_handler(self, error: HTTPNotFoundException, response: ResponseBuilder = dependency(), request: Request = dependency()):

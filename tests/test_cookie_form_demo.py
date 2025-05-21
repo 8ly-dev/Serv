@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from serv.app import App
@@ -14,8 +15,8 @@ from serv.routing import Router
 from serv.responses import ResponseBuilder # For type hinting if needed
 
 
-@pytest.fixture
-def demo_app():
+@pytest_asyncio.fixture
+async def demo_app():
     app = App()
     # Add routes to the routers directly as they are in the demo
     # form_router and welcome_router are already configured in their import
