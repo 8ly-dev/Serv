@@ -71,10 +71,6 @@ def prompt_user(text: str, default: str | None = None) -> str:
             return response
         if default is not None:
             return default
-        # Do not print error for empty if default is None, let it loop
-        # Or, if input is truly required:
-        # print("Input cannot be empty.")
-
 
 # --- Helper: Plugin Identifier Resolution ---
 
