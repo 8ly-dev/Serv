@@ -680,7 +680,7 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
             app_obj = None
             raw_config = {}
             config_path = Path(config_path_str) if config_path_str else None
-            
+
             if config_path and config_path.exists():
                 raw_config = load_raw_config(config_path)
                 if not raw_config or not isinstance(raw_config, dict):
@@ -688,7 +688,7 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
                     raw_config = {}
             elif config_path_str:
                 print(f"Warning: Config file '{config_path_str}' not found.")
-            
+
             # Next, try to import the app module
             if app_module_str:
                 print(f"Loading app from '{app_module_str}'...")
@@ -728,12 +728,12 @@ def _get_configured_app_factory(app_module_str: str, config_path_str: str | None
                     setup_app_from_config(app_obj, raw_config)
             else:
                 print(f"Imported app '{app_module_str}' is not a Serv App instance. Skipping Serv config application.")
-            
+
             return app_obj
         except Exception as e:
             print(f"Error configuring app: {e}")
             return None
-    
+
     # Return the factory function
     return factory
 
@@ -840,11 +840,11 @@ def main():
     app_parent_parser.add_argument('--middleware-dirs', '-m',
                             help='Comma-separated list of middleware directories to search',
                             default='./middleware')
-    
+
     # Subparsers for subcommands
     subparsers = parser.add_subparsers(title="commands", dest="command", required=False,
                                        help="Command to execute")
-    
+
     # Launch parser
     launch_parser = subparsers.add_parser('launch', parents=[app_parent_parser], 
                                         help='Launch the Serv application.')
@@ -867,26 +867,26 @@ def main():
     )
     # Important: Remove duplicate plugin/middleware args since they're inherited from app_parent_parser
     launch_parser.set_defaults(func=handle_launch_command)
-    
+
     # ... existing subparsers ...
-    
+
     # Process args
     args_ns = parser.parse_args()
-    
+
     # Process comma-separated directory lists into actual lists
     if hasattr(args_ns, 'plugin_dirs') and isinstance(args_ns.plugin_dirs, str):
         args_ns.plugin_dirs = [d.strip() for d in args_ns.plugin_dirs.split(',') if d.strip()]
-    
+
     if hasattr(args_ns, 'middleware_dirs') and isinstance(args_ns.middleware_dirs, str):
         args_ns.middleware_dirs = [d.strip() for d in args_ns.middleware_dirs.split(',') if d.strip()]
-    
+
     if args_ns.debug or os.getenv("SERV_DEBUG"):
         os.environ["SERV_DEBUG"] = "1"
         logger.setLevel(logging.DEBUG)
         logger.debug("Debug logging enabled.")
-    
+
     current_args_to_use = args_ns
-    
+
     if not hasattr(args_ns, 'command') or args_ns.command is None:
         # No command specified, default to 'launch'
         non_command_cli_args = sys.argv[1:]
@@ -902,7 +902,7 @@ def main():
             # If there's a parsing error, let's use the original args to show help
             parser.print_help()
             sys.exit(1)
-    
+
     if hasattr(current_args_to_use, 'func'):
         # Use async if the handler is async
         handler = current_args_to_use.func

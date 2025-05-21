@@ -33,8 +33,6 @@ async def create_request_with_form_data(
     else: # string, assumed to be already urlencoded
         body_bytes = form_data.encode("utf-8")
 
-    print(f"\n\n\n\n{body_bytes}\n\n\n\n")
-
     scope = {
         'type': 'http',
         'method': method,

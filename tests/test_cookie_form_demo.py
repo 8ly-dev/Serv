@@ -38,7 +38,6 @@ async def test_form_submission_no_cookie(demo_app: App):
 
         # Make the POST request to submit the form
         response = await client.post("/", data=form_data)
-
         # 1. Check for redirect
         assert response.status_code == 303  # As per handle_name_submission_handler
         assert response.headers["location"] == "/"

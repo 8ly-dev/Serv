@@ -74,11 +74,9 @@ async def test_middleware_exception_before_yield(app: App, client: AsyncClient):
 
     async def outer_mw() -> AsyncIterator[None]:
         nonlocal cleanup_called
-        # print("Outer MW: Before")
         try:
             yield
         finally:
-            # print("Outer MW: After")
             cleanup_called = True # This should be called if error_mw_before.athrow works
     
     app.add_middleware(outer_mw)

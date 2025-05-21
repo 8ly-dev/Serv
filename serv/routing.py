@@ -388,7 +388,6 @@ class Router:
              # To be safe, we will treat it as a 404 if no specific methods were collected.
              pass
 
-
         # No route matched the path at all, or a path was matched but it didn't lead to a 405 (e.g. ill-defined route).
         return None
 
