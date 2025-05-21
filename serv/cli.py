@@ -737,7 +737,6 @@ def _get_configured_app(app_module_str: str | None, args_ns) -> App:
                 app_class = import_from_string(app_module_str)
                 if not isclass(app_class) or not issubclass(app_class, App):
                     logger.error(f"'{app_module_str}' did not resolve to a subclass of serv.app.App. Using default App.")
-                    app_class = App # Fallback to default
             except ServConfigError as e:
                 logger.error(f"Error importing custom App class from '{app_module_str}': {e}. Using default App.")
                 app_class = App # Fallback to default
