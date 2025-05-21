@@ -53,13 +53,13 @@ class Plugin:
             event_name = event.group(1)
             cls.__plugins__[event_name].append(name)
     
-    def __init__(self):
+    def __init__(self, *, stand_alone: bool = False):
         """Initialize the plugin.
         
         Loads plugin configuration and sets up any defined routers and routes
         if they are configured in the plugin.yaml file.
         """
-        self._config = self.config()
+        self._config = {} if stand_alone else self.config()
         self._router_configs = self._config.get("routers", [])
 
     def config(self) -> dict[str, Any]:
