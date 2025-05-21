@@ -218,6 +218,38 @@ class PluginLoader:
         Returns:
             Tuple of (success_bool, plugin_instance or None)
         """
+        # Handle namespaces with dots - to support bundled.plugins.welcome format
+        if namespace and '.' in namespace:
+            namespace_parts = namespace.split('.')
+            # Build the full module path
+            module_path = f"{namespace}.{package_name}" if namespace else package_name
+            # Try to import the module directly
+            try:
+                import importlib
+                plugin_module = importlib.import_module(module_path)
+                # Try to find a Plugin subclass in the module
+                for name in dir(plugin_module):
+                    obj = getattr(plugin_module, name)
+                    if isinstance(obj, type) and issubclass(obj, Plugin) and obj != Plugin:
+                        plugin_instance = obj()
+                        logger.info(f"Loaded plugin {package_name} ({name}) from {module_path}")
+                        return True, plugin_instance
+                
+                # Also check __init__.py for imports
+                if hasattr(plugin_module, "WelcomePlugin"):
+                    plugin_class = plugin_module.WelcomePlugin
+                    if issubclass(plugin_class, Plugin):
+                        plugin_instance = plugin_class()
+                        logger.info(f"Loaded plugin {package_name} (WelcomePlugin) from {module_path}")
+                        return True, plugin_instance
+                
+                logger.warning(f"No Plugin subclass found in {module_path}")
+                return False, None
+            except ImportError as e:
+                logger.warning(f"Failed to import {module_path}: {e}")
+                return False, None
+        
+        # Legacy path for non-dot namespaces
         plugin_module = self._plugin_loader.load_package("plugin", package_name, namespace)
         if not plugin_module:
             logger.warning(f"Failed to load plugin {package_name}")

@@ -146,12 +146,41 @@ class App:
                     logger.info(f"Plugin {plugin_name} has empty 'middleware' list")
                 if "entry points" not in plugin_spec and "middleware" not in plugin_spec:
                     logger.info(f"Plugin {plugin_name} has no 'entry points' or 'middleware' sections")
+            
+            # Auto-enable the welcome plugin if no plugins or middleware are registered
+            if not self._plugins and not self._middleware:
+                self._enable_welcome_plugin()
                     
         except ExceptionGroup as eg:
             # Propagate any exceptions from plugin loading
             raise eg
             
         return loaded_plugins, middleware_list
+        
+    def _enable_welcome_plugin(self):
+        """Enable the bundled welcome plugin if no other plugins are registered."""
+        try:
+            from importlib.resources import files
+            welcome_plugin_path = files('serv.bundled.plugins.welcome')
+            
+            if welcome_plugin_path.exists():
+                logger.info("No plugins or middleware registered. Enabling welcome plugin.")
+                # Use the plugin loader to load the welcome plugin
+                success, plugin = self._plugin_loader_instance.load_plugin("welcome", "bundled.plugins")
+                if success and plugin:
+                    self.add_plugin(plugin)
+                    logger.info("Welcome plugin enabled.")
+                    return True
+                else:
+                    logger.warning("Failed to load welcome plugin.")
+            else:
+                logger.warning("Welcome plugin not found in bundled plugins.")
+        except ImportError as e:
+            logger.warning(f"Failed to import welcome plugin: {e}")
+        except Exception as e:
+            logger.warning(f"Error enabling welcome plugin: {e}")
+        
+        return False
 
     # Backward compatibility methods
     def _load_plugin_entry_point(self, entry_point_config: dict[str, Any]) -> Plugin:
