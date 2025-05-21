@@ -1,3 +1,4 @@
+import sys
 from collections import defaultdict
 from datetime import datetime, date
 from inspect import get_annotations, signature
@@ -6,11 +7,12 @@ from pathlib import Path
 from types import NoneType, UnionType
 from typing import Any, AsyncGenerator, Type, Union, get_args, get_origin, Annotated, get_type_hints
 
-from bevy import dependency
+from bevy import dependency, inject
 from bevy.containers import Container
 
+import serv
 from serv.exceptions import HTTPMethodNotAllowedException
-from serv.plugins import search_for_plugin_directory
+from serv.plugins import Plugin, search_for_plugin_directory
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
@@ -230,7 +232,7 @@ class Form:
 
 class Route:
     __method_handlers__: dict[str, str]
-    __error_handlers__: dict[Type[Exception], str]
+    __error_handlers__: dict[Type[Exception], list[str]]
     __form_handlers__: dict[str, dict[Type[Form], list[str]]]
     __annotated_response_wrappers__: dict[str, Type[Response]]
 
@@ -304,7 +306,6 @@ class Route:
                 f"{type(handler_result).__name__!r} but was expected to return a Response instance or use an "
                 f"Annotated response type."
             )
-        
 
     @property
     @inject
@@ -325,7 +326,6 @@ class Route:
         method = request.method
         handler = None
         handler_name = None
-        is_form_handler = False
         args_to_pass = []
 
         if self.__form_handlers__.get(method):
