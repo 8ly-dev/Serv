@@ -125,31 +125,63 @@ class App:
             plugin_name = plugin_spec.get("name", "Unknown Plugin")
             # Load plugin entry points
             if "entry points" in plugin_spec:
-                for entry_point_config in plugin_spec["entry points"]:
-                    try:
-                        plugin_instance = self._load_plugin_entry_point(entry_point_config)
-                        self.add_plugin(plugin_instance)
-                        loaded_plugins_count += 1
-                        logger.info(f"Loaded plugin entry point for {plugin_name} from {entry_point_config.get('entry')}")
-                    except Exception as e:
-                        logger.warning(f"Failed to load plugin entry point for {plugin_name} from {entry_point_config.get('entry')}")
-                        e.add_note(f" - Plugin: {plugin_name}")
-                        e.add_note(f" - Entry point config: {entry_point_config}")
-                        exceptions.append(e)
+                try:
+                    if not isinstance(plugin_spec["entry points"], list):
+                        raise TypeError(f"'entry points' must be a list for plugin '{plugin_name}', got {type(plugin_spec['entry points']).__name__}")
+                    
+                    for entry_point_config in plugin_spec["entry points"]:
+                        try:
+                            plugin_instance = self._load_plugin_entry_point(entry_point_config)
+                            self.add_plugin(plugin_instance)
+                            loaded_plugins_count += 1
+                            # Safely get entry string for logging
+                            entry_str = entry_point_config.get('entry') if isinstance(entry_point_config, dict) else str(entry_point_config)
+                            logger.info(f"Loaded plugin entry point for {plugin_name} from {entry_str}")
+                        except Exception as e:
+                            # Safely get entry string for error logging
+                            entry_str = entry_point_config.get('entry') if isinstance(entry_point_config, dict) else str(entry_point_config)
+                            logger.warning(f"Failed to load plugin entry point for {plugin_name} from {entry_str}")
+                            e.add_note(f" - Plugin: {plugin_name}")
+                            e.add_note(f" - Entry point config: {entry_point_config}")
+                            exceptions.append(e)
+                except TypeError as e:
+                    logger.warning(f"Invalid entry points configuration for plugin {plugin_name}: {e}")
+                    exceptions.append(e)
 
             # Load middleware from plugin
             if "middleware" in plugin_spec:
-                for middleware_config_entry in plugin_spec["middleware"]:
-                    try:
-                        middleware_factory = self._load_middleware_entry_point(middleware_config_entry)
-                        self.add_middleware(middleware_factory)
-                        loaded_middleware_count += 1
-                        logger.info(f"Loaded middleware for {plugin_name} from {middleware_config_entry.get('entry')}")
-                    except Exception as e:
-                        logger.warning(f"Failed to load middleware for {plugin_name} from {middleware_config_entry.get('entry')}")
-                        e.add_note(f" - Plugin: {plugin_name}")
-                        e.add_note(f" - Middleware config: {middleware_config_entry}")
-                        exceptions.append(e)
+                try:
+                    if not isinstance(plugin_spec["middleware"], list):
+                        raise TypeError(f"'middleware' must be a list for plugin '{plugin_name}', got {type(plugin_spec['middleware']).__name__}")
+                    
+                    for middleware_config_entry in plugin_spec["middleware"]:
+                        try:
+                            middleware_factory = self._load_middleware_entry_point(middleware_config_entry)
+                            self.add_middleware(middleware_factory)
+                            loaded_middleware_count += 1
+                            # Safely get entry string for logging
+                            entry_str = middleware_config_entry.get('entry') if isinstance(middleware_config_entry, dict) else str(middleware_config_entry)
+                            logger.info(f"Loaded middleware for {plugin_name} from {entry_str}")
+                        except Exception as e:
+                            # Safely get entry string for error logging
+                            entry_str = middleware_config_entry.get('entry') if isinstance(middleware_config_entry, dict) else str(middleware_config_entry)
+                            logger.warning(f"Failed to load middleware for {plugin_name} from {entry_str}")
+                            e.add_note(f" - Plugin: {plugin_name}")
+                            e.add_note(f" - Middleware config: {middleware_config_entry}")
+                            exceptions.append(e)
+                except TypeError as e:
+                    logger.warning(f"Invalid middleware configuration for plugin {plugin_name}: {e}")
+                    exceptions.append(e)
+
+        # Log empty entry points and middleware cases
+        for plugin_spec in plugins_config:
+            plugin_name = plugin_spec.get("name", "Unknown Plugin")
+            if "entry points" in plugin_spec and not plugin_spec["entry points"]:
+                logger.info(f"Plugin {plugin_name} has empty 'entry points' list")
+            if "middleware" in plugin_spec and not plugin_spec["middleware"]:
+                logger.info(f"Plugin {plugin_name} has empty 'middleware' list")
+            if "entry points" not in plugin_spec and "middleware" not in plugin_spec:
+                logger.info(f"Plugin {plugin_name} has no 'entry points' or 'middleware' sections")
 
         logger.info(f"Loaded {loaded_plugins_count} plugin entry points and {loaded_middleware_count} middleware entries.")
         if exceptions:
