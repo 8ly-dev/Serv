@@ -4,6 +4,8 @@ import json
 import logging
 import traceback
 from asyncio import get_running_loop, Task
+from collections import defaultdict
+from itertools import chain
 from typing import AsyncIterator, Awaitable, Callable, Any
 from pathlib import Path
 from bevy import dependency, get_registry, inject
@@ -29,7 +31,7 @@ from serv.exceptions import HTTPMethodNotAllowedException
 logger = logging.getLogger(__name__)
 
 class EventEmitter:
-    def __init__(self, plugins: list[Plugin]):
+    def __init__(self, plugins: dict[Path, list[Plugin]]):
         self.plugins = plugins
 
     def emit_sync(self, event: str, *, container: Container = dependency(), **kwargs) -> Task:
@@ -37,7 +39,7 @@ class EventEmitter:
 
     async def emit(self, event: str, *, container: Container = dependency(), **kwargs):
         async with asyncio.TaskGroup() as tg:
-            for plugin in self.plugins:
+            for plugin in chain(*self.plugins.values()):
                 tg.create_task(container.call(plugin.on, event, **kwargs))
 
 
@@ -56,7 +58,7 @@ class App:
         """
         self._registry = get_registry()
         self._container = self._registry.create_container()
-        self._plugins = []
+        self._plugins = defaultdict(list)
         self._async_exit_stack = contextlib.AsyncExitStack()
         self._middleware = []
         self._error_handlers: dict[type[Exception], Callable[[Exception], Awaitable[None]]] = {}
@@ -93,8 +95,11 @@ class App:
         self.emit("middleware.loaded", middleware=middleware, container=self._container)
 
     def add_plugin(self, plugin: Plugin):
-        self._plugins.append(plugin)
+        self._plugins[plugin.plugin_dir].append(plugin)
         self.emit("plugin.loaded", plugin=plugin, container=self._container)
+
+    def get_plugin(self, path: Path) -> Plugin | None:
+        return self._plugins.get(path)
         
     def load_plugin(self, package_name: str, namespace: str = None) -> bool:
         """Load a plugin from the plugin directories.
