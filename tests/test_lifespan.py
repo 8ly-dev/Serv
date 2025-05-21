@@ -46,13 +46,13 @@ async def test_lifespan_protocol_flow(app: App):
 
     # Assertions for events emitted by the app
     app_events_seen = [name for name, _ in event_watcher.events_seen]
-    assert "app.lifespan.startup" in app_events_seen
-    assert "app.lifespan.shutdown" in app_events_seen
+    assert "app.startup" in app_events_seen
+    assert "app.shutdown" in app_events_seen
 
     # Verify arguments for app.lifespan.startup event
     startup_event_kwargs = None
     for name, kwargs in event_watcher.events_seen:
-        if name == "app.lifespan.startup":
+        if name == "app.startup":
             startup_event_kwargs = kwargs
             break
     assert startup_event_kwargs is not None
@@ -61,7 +61,7 @@ async def test_lifespan_protocol_flow(app: App):
     # Verify arguments for app.lifespan.shutdown event
     shutdown_event_kwargs = None
     for name, kwargs in event_watcher.events_seen:
-        if name == "app.lifespan.shutdown":
+        if name == "app.shutdown":
             shutdown_event_kwargs = kwargs
             break
 
@@ -128,7 +128,7 @@ async def test_lifespan_startup_failure_simulation(app: App):
     # For now, let's assert what we expect based on the current app.py: error propagates, nothing specific sent by App.
     
     # Check that app.lifespan.startup was attempted
-    startup_event_seen = any(name == "app.lifespan.startup" for name, _ in startup_fail_plugin.events_seen)
+    startup_event_seen = any(name == "app.startup" for name, _ in startup_fail_plugin.events_seen)
     assert startup_event_seen, "app.lifespan.startup event was not even attempted by the faulty plugin"
     
     # If the app were to send `lifespan.startup.failed`:
