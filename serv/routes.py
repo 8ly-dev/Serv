@@ -74,22 +74,24 @@ class Jinja2Response(Response):
         self.context = context
         self.headers["Content-Type"] = "text/html"
 
-    def render(self) -> AsyncGenerator[bytes, None]:
+    def render(self) -> AsyncGenerator[str, object]:
         from jinja2 import Environment, FileSystemLoader
 
-        template_locations = []
-        try:
-            plugin_dir = search_for_plugin_directory(Path(self.created_by.__func__.__globals__["__file__"]).parent)
-        except Exception:
-            pass
-        else:
-            template_locations.append(Path.cwd() / "templates" / plugin_dir.name)
-            template_locations.append(plugin_dir / "templates")
+        template_locations = self._get_template_locations(self.created_by)
 
-        template_locations.append(Path.cwd() / "templates")
         env = Environment(loader=FileSystemLoader(template_locations), enable_async=True)
         template = env.get_template(self.template)
         return template.generate_async(**self.context)
+
+    @staticmethod
+    def _get_template_locations(plugin: Plugin):
+        if not plugin:
+            raise RuntimeError("Jinja2Response cannot be used outside of a plugin.")
+
+        return [
+            Path.cwd() / "templates" / plugin.config()["name"],
+            plugin.plugin_dir / "templates",
+        ]
 
 
 
@@ -232,6 +234,8 @@ class Route:
     __form_handlers__: dict[str, dict[Type[Form], list[str]]]
     __annotated_response_wrappers__: dict[str, Type[Response]]
 
+    _plugin: "Plugin | None"
+
     def __init_subclass__(cls) -> None:
         cls.__method_handlers__ = {}
         cls.__error_handlers__ = defaultdict(list)
@@ -302,6 +306,21 @@ class Route:
             )
         
 
+    @property
+    @inject
+    def plugin(self, app: "serv.App" = dependency()) -> Plugin | None:
+        if hasattr(self, "_plugin"):
+            return self._plugin
+
+        try:
+            plugin_path = search_for_plugin_directory(Path(sys.modules[self.__module__].__file__).parent)
+        except Exception:
+            type(self)._plugin = None
+        else:
+            self._plugin = app.get_plugin(plugin_path)
+
+        return self._plugin
+
     async def _handle_request(self, request: Request, container: Container) -> Any:
         method = request.method
         handler = None
@@ -348,10 +367,16 @@ class Route:
                     response = wrapper_class(*handler_output_data)
                 else:
                     response = wrapper_class(handler_output_data)
-            else:
+            elif isinstance(handler_output_data, Response):
                 response = handler_output_data
+            else:
+                raise TypeError(
+                    f"Route handler for {request.method} '{request.path}' returned a "
+                    f"{type(handler_output_data).__name__!r} but was expected to return a Response instance or use an "
+                    f"Annotated response type."
+                )
             
-            response.set_created_by(handler)
+            response.set_created_by(self.plugin)
             return response
         
         except Exception as e:

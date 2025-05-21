@@ -74,9 +74,15 @@ class JsonAnnotatedCustomStatusRoute(Route):
     async def handle_get(self, _: GetRequest) -> Annotated[dict[str, str], JsonResponse]:
         return {"custom_status_test": "data"}
 
+
+class Jinja2TestResponse(Jinja2Response):
+    @staticmethod
+    def _get_template_locations(_):
+        return Path(__file__).parent / "templates"
+
 # New route for Jinja2 tuple return test
 class JinjaTupleReturnRoute(Route):
-    async def handle_get(self, _: GetRequest) -> Annotated[tuple[str, dict[str, str]], Jinja2Response]:
+    async def handle_get(self, _: GetRequest) -> Annotated[tuple[str, dict[str, str]], Jinja2TestResponse]:
         return ("jinja_tuple_test.html", {"greeting": "Hello from Jinja via tuple"})
 
 # --- Test Plugin for adding Route classes ---

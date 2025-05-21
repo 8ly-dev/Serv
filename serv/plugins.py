@@ -62,13 +62,19 @@ class Plugin:
         self._config = {} if stand_alone else self.config()
         self._router_configs = self._config.get("routers", [])
 
+    @property
+    def plugin_dir(self) -> Path:
+        module_path = sys.modules[self.__module__].__file__
+        if self._stand_alone:
+            return Path(module_path).parent
+
+        return search_for_plugin_directory(Path(module_path).parent)
+
     def config(self) -> dict[str, Any]:
         """
         Returns a dictionary of configuration options for the plugin.
         """
-        module_path = sys.modules[self.__module__].__file__
-        plugin_path = search_for_plugin_directory(Path(module_path).parent)
-        config_file_path = plugin_path / "plugin.yaml"
+        config_file_path = self.plugin_dir / "plugin.yaml"
         if not config_file_path.exists():
             return {}
 
