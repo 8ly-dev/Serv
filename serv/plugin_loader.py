@@ -77,7 +77,12 @@ class PluginSpec:
     path: Path
     entry_points: list[str] = field(default_factory=list, kw_only=True)
     middleware: list[str] = field(default_factory=list, kw_only=True)
-    settings: dict[str, Any] = field(default_factory=dict, kw_only=True)
+    plugin_settings: dict[str, Any] = field(default_factory=dict, kw_only=True)
+    override_settings: dict[str, Any] = field(default_factory=dict, kw_only=True)
+
+    @property
+    def settings(self) -> dict[str, Any]:
+        return {**self.plugin_settings, **self.override_settings}
 
     @classmethod
     def from_path(cls, path: Path) -> 'PluginSpec':
@@ -88,6 +93,7 @@ class PluginSpec:
         with open(plugin_config, "r") as f:
             raw_config_data = yaml.safe_load(f)
 
+        raw_config_data["plugin_settings"] = raw_config_data.pop("settings", {})
         return cls(**raw_config_data, path=path)
 
 
@@ -121,7 +127,7 @@ class PluginLoader:
         for plugin_settings in plugins_config:
             try:
                 plugin_import, settings = self._process_app_plugin_settings(plugin_settings)
-                plugin_spec, plugin_exceptions = self.load_plugin(plugin_import)
+                plugin_spec, plugin_exceptions = self.load_plugin(plugin_import, settings)
 
             except Exception as e:
                 e.add_note(f" - Failed to load plugin {plugin_settings}")
@@ -137,7 +143,7 @@ class PluginLoader:
             
         return loaded_plugins, middleware_list
 
-    def load_plugin(self, plugin_import: str) -> tuple[PluginSpec | None, list[Exception]]:
+    def load_plugin(self, plugin_import: str, app_plugin_settings: dict[str, Any] | None = None) -> tuple[PluginSpec | None, list[Exception]]:
         """Load a single plugin.
 
         Args:
@@ -148,7 +154,7 @@ class PluginLoader:
         """
         exceptions = []
         try:
-            plugin_spec = self._load_plugin_spec(plugin_import)
+            plugin_spec = self._load_plugin_spec(plugin_import, app_plugin_settings or {})
         except Exception as e:
             e.add_note(f" - Failed to load plugin spec for {plugin_import}")
             exceptions.append(e)
@@ -213,7 +219,7 @@ class PluginLoader:
 
         return succeeded, failed
 
-    def _load_plugin_spec(self, plugin_import: str) -> PluginSpec:
+    def _load_plugin_spec(self, plugin_import: str, app_plugin_settings: dict[str, Any]) -> PluginSpec:
         if (self._plugin_loader.directory / plugin_import).exists():
             plugin_path = self._plugin_loader.directory / plugin_import
 
@@ -229,6 +235,7 @@ class PluginLoader:
             e.add_note(f" - Failed while attempting to load plugin spec from {plugin_path}")
             raise
         else:
+            plugin_spec.override_settings = app_plugin_settings
             known_plugins[plugin_path] = plugin_spec
             return plugin_spec
 
