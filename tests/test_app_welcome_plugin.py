@@ -1,12 +1,15 @@
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+import yaml
 
 import pytest_asyncio
 from bevy import get_registry
 from bevy.registries import Registry
 
 from serv.app import App
+from serv.plugin_loader import PluginSpec
+from serv.plugins import Plugin
 
 
 @pytest.fixture
@@ -14,8 +17,7 @@ def app_with_empty_config(tmp_path):
     """Create an App instance with an empty config file."""
     config_file = tmp_path / "empty_config.yaml"
     with open(config_file, "w") as f:
-        import yaml
-        yaml.dump({}, f)  # Empty config
+        yaml.dump({"plugins": []}, f)
     
     return str(config_file)
 
@@ -36,30 +38,30 @@ def test_welcome_plugin_auto_enabled(app_with_empty_config):
     (False, True, False),  # Has middleware but no plugins
     (False, False, True),  # Has neither plugins nor middleware
 ])
-def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should_enable, app_with_empty_config):
+def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should_enable, tmp_path):
     """Test that the welcome plugin is only enabled when no plugins and no middleware are registered."""
-    
+    # Create an empty config file
+    config_file = tmp_path / "empty_config.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump({"plugins": []}, f)
+
     # Create mocks for plugins and middleware
-    mock_plugin = MagicMock()
-    mock_middleware = MagicMock()
-    
-    with patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome:
+    mock_plugin_spec = PluginSpec(
+        name="Mock Plugin",
+        description="A mock plugin",
+        version="0.1.0",
+        path=Path("."),
+        author="Test Author"
+    )
+
+    with patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome, \
+         patch('serv.plugin_loader.PluginLoader.load_plugins') as mock_load_plugins:
+        # Set up mock behavior for plugin loading
+        mock_load_plugins.return_value = ({Path("."): [MagicMock(spec=Plugin)]} if has_plugins else {}, [MagicMock()] if has_middleware else [])
+
         with Registry():  # Bevy registry
-            app = App(config=app_with_empty_config)
-            
-            # Manually set plugins and middleware based on test parameters
-            if has_plugins:
-                app._plugins[Path(".")] = [mock_plugin]
-            
-            if has_middleware:
-                app._middleware = [mock_middleware]
-            
-            # Reset the mock to clear the initial call during construction
-            mock_enable_welcome.reset_mock()
-            
-            # Manually call _load_plugins_from_config to test the condition
-            app._load_plugins_from_config([])
-            
+            app = App(config=str(config_file))
+
             # Check if _enable_welcome_plugin was called as expected
             if should_enable:
                 mock_enable_welcome.assert_called_once()

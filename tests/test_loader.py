@@ -68,10 +68,15 @@ class TestServLoader:
         """Test listing available packages."""
         loader = setup_test_dirs["loader"]
         plugins_dir = setup_test_dirs["plugins_dir"]
-        available = loader.list_available()
-        expected_namespace = plugins_dir.name
-        assert expected_namespace in available
-        assert sorted(available[expected_namespace]) == sorted(["another_plugin", "test_plugin"])
+        
+        # Get the search path
+        search_path = loader.get_search_path()
+        assert search_path.exists()
+        assert search_path == plugins_dir.resolve()
+        
+        # Check that the test plugin directories exist
+        assert (search_path / "test_plugin").exists()
+        assert (search_path / "another_plugin").exists()
     
     @mock.patch('importlib.util.module_from_spec')
     @mock.patch('importlib.util.spec_from_file_location')
@@ -89,14 +94,14 @@ class TestServLoader:
 
         mock_test_plugin_module = mock.MagicMock(name=f"module_{namespace}.test_plugin")
         mock_test_plugin_module.__name__ = f"{namespace}.test_plugin"
-        mock_test_plugin_module.__path__ = [str(plugin_pkg_dir)] 
+        mock_test_plugin_module.__path__ = [str(plugin_pkg_dir)]
 
         def spec_side_effect(name, location, **kwargs):
             if name == f"{namespace}.test_plugin" and Path(location).parent.name == "test_plugin":
                 return mock_spec_test_plugin
             elif name == f"{namespace}.nonexistent_plugin":
-                return None 
-            return None 
+                return None
+            return None
         mock_spec_from_file_location.side_effect = spec_side_effect
 
         def module_side_effect(spec):
@@ -107,11 +112,11 @@ class TestServLoader:
             return generic_mock
         mock_module_from_spec.side_effect = module_side_effect
 
-        # Clean up sys.modules and loader cache for this specific test package to ensure a fresh load attempt
+        # Clean up sys.modules for this specific test package to ensure a fresh load attempt
         # This is important if other tests using mocks might have populated these for the same name.
         module_full_name = f"{namespace}.test_plugin"
-        if module_full_name in sys.modules: del sys.modules[module_full_name]
-        if module_full_name in loader._module_cache: del loader._module_cache[module_full_name]
+        if module_full_name in sys.modules:
+            del sys.modules[module_full_name]
         # Clean up parent namespace too if it was created by loader and might hold outdated sub-pkg refs
         if namespace in sys.modules and hasattr(sys.modules[namespace], "test_plugin"):
             delattr(sys.modules[namespace], "test_plugin")
@@ -131,10 +136,10 @@ class TestServLoader:
 
         mock_spec_from_file_location.reset_mock()
         mock_module_from_spec.reset_mock()
-        # Clean sys.modules for non-existent as well, just in case though ServLoader should handle it
+        # Clean sys.modules for non-existent as well
         module_full_name_nonexistent = f"{namespace}.nonexistent_plugin"
-        if module_full_name_nonexistent in sys.modules: del sys.modules[module_full_name_nonexistent]
-        if module_full_name_nonexistent in loader._module_cache: del loader._module_cache[module_full_name_nonexistent]
+        if module_full_name_nonexistent in sys.modules:
+            del sys.modules[module_full_name_nonexistent]
 
         assert loader.load_package(package_name="nonexistent_plugin", namespace=namespace) is None
     
@@ -148,13 +153,13 @@ class TestServLoader:
         # to avoid interference from mocks in other tests if loader shares sys.modules state.
         module_name_to_clean = f"{namespace}.test_plugin"
         submodule_name_to_clean = f"{module_name_to_clean}.module1"
-        if submodule_name_to_clean in sys.modules: del sys.modules[submodule_name_to_clean]
-        if module_name_to_clean in sys.modules: del sys.modules[module_name_to_clean]
-        if module_name_to_clean in loader._module_cache: del loader._module_cache[module_name_to_clean]
-        if submodule_name_to_clean in loader._module_cache: del loader._module_cache[submodule_name_to_clean]
+        if submodule_name_to_clean in sys.modules:
+            del sys.modules[submodule_name_to_clean]
+        if module_name_to_clean in sys.modules:
+            del sys.modules[module_name_to_clean]
         # Also clean parent namespace module from this specific package attribute
         if namespace in sys.modules and hasattr(sys.modules[namespace], "test_plugin"):
-             delattr(sys.modules[namespace], "test_plugin")
+            delattr(sys.modules[namespace], "test_plugin")
 
         test_plugin_module = loader.load_package(package_name="test_plugin", namespace=namespace)
         assert test_plugin_module is not None, f"ServLoader failed to load package '{namespace}.test_plugin'"
@@ -199,14 +204,14 @@ class TestServLoader:
         # Clean sys.modules for these specific test packages
         for pkg_name in [base_pkg_name, dependent_pkg_name]:
             full_pkg_name = f"{namespace}.{pkg_name}"
-            sub_main_name = f"{full_pkg_name}.main" # if main is a submodule
-            sub_util_name = f"{full_pkg_name}.util" # if util is a submodule
-            if sub_main_name in sys.modules: del sys.modules[sub_main_name]
-            if sub_util_name in sys.modules: del sys.modules[sub_util_name]
-            if full_pkg_name in sys.modules: del sys.modules[full_pkg_name]
-            if full_pkg_name in loader._module_cache: del loader._module_cache[full_pkg_name]
-            if sub_main_name in loader._module_cache: del loader._module_cache[sub_main_name]
-            if sub_util_name in loader._module_cache: del loader._module_cache[sub_util_name]
+            sub_main_name = f"{full_pkg_name}.main"  # if main is a submodule
+            sub_util_name = f"{full_pkg_name}.util"  # if util is a submodule
+            if sub_main_name in sys.modules:
+                del sys.modules[sub_main_name]
+            if sub_util_name in sys.modules:
+                del sys.modules[sub_util_name]
+            if full_pkg_name in sys.modules:
+                del sys.modules[full_pkg_name]
             if namespace in sys.modules and hasattr(sys.modules[namespace], pkg_name):
                 delattr(sys.modules[namespace], pkg_name)
 

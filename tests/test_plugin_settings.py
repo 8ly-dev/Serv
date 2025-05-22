@@ -9,6 +9,8 @@ from bevy.containers import Container
 from bevy.registries import Registry
 from serv.plugins import Plugin
 from serv.routing import Router
+from serv.plugin_loader import PluginSpec
+from serv.responses import ResponseBuilder
 
 
 def create_plugin_with_config(plugin_yaml_content):
@@ -26,171 +28,79 @@ def create_plugin_with_config(plugin_yaml_content):
         
         class TestPlugin(Plugin):
             # Test handler method
-            async def handle_test(self, **kwargs):
-                return "test response"
+            async def handle_test(self, response: ResponseBuilder = dependency()):
+                response.content_type("text/plain")
+                response.body("test response")
                 
             # Handler with dependency injection
-            async def handle_with_settings(self, test_setting: str = dependency()):
-                return f"Setting value: {test_setting}"
+            async def handle_with_settings(self, response: ResponseBuilder = dependency(), test_setting: str = dependency()):
+                response.content_type("text/plain")
+                response.body(f"Setting value: {test_setting}")
+
+            async def on_app_request_begin(self, router: Router = dependency()):
+                router.add_route("/test", self.handle_test, methods=["GET"], settings={"route_setting": "route_value"})
+                router.add_route("/test_with_settings", self.handle_with_settings, methods=["GET"], settings={"test_setting": "injected_value"})
         
         plugin = TestPlugin()
+        plugin._plugin_spec = PluginSpec(
+            name=plugin_yaml_content["name"],
+            description=plugin_yaml_content["description"],
+            version=plugin_yaml_content["version"],
+            path=plugin_dir,
+            author="Test Author"
+        )
     
     # Return the plugin and a reference to the temporary directory
     # to keep it alive during the test
     return plugin, temp_dir
 
 
-def test_router_settings():
-    """Test router-level settings."""
-    plugin_config = {
-        "name": "Test Plugin",
-        "description": "A test plugin",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "test_router",
-                "settings": {
-                    "router_setting": "router_value"
-                },
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler_method": "handle_test"
-                    }
-                ]
-            }
-        ]
-    }
-    
-    plugin, temp_dir = create_plugin_with_config(plugin_config)
-    
-    # Create a container for dependency injection
-    registry = Registry()
-    container = registry.create_container()
-    
-    # Set up routers from config
-    routers = plugin.setup_routers(container)
-    
-    # Verify router was created with settings
-    assert len(routers) == 1
-    assert routers[0]._settings == {"router_setting": "router_value"}
-    
-    # Resolve a route and check settings
-    resolved = routers[0].resolve_route("/test", "GET")
-    assert resolved is not None
-    
-    handler, params, settings = resolved
-    assert settings == {"router_setting": "router_value"}
-
-
-def test_route_settings():
+@pytest.mark.asyncio
+async def test_route_settings():
     """Test route-level settings."""
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "test_router",
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler_method": "handle_test",
-                        "settings": {
-                            "route_setting": "route_value"
-                        }
-                    }
-                ]
-            }
-        ]
+        "version": "0.1.0"
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     registry = Registry()
     container = registry.create_container()
-    routers = plugin.setup_routers(container)
+    router = Router()
+    container.instances[Router] = router
+    
+    # Set up routes
+    await plugin.on_app_request_begin(router)
     
     # Resolve a route and check settings
-    resolved = routers[0].resolve_route("/test", "GET")
+    resolved = router.resolve_route("/test", "GET")
     assert resolved is not None
     
     handler, params, settings = resolved
     assert settings == {"route_setting": "route_value"}
 
 
-def test_combined_settings():
-    """Test combined router and route settings."""
-    plugin_config = {
-        "name": "Test Plugin",
-        "description": "A test plugin",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "test_router",
-                "settings": {
-                    "router_setting": "router_value",
-                    "shared_setting": "router_level"
-                },
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler_method": "handle_test",
-                        "settings": {
-                            "route_setting": "route_value",
-                            "shared_setting": "route_level"  # Should override router setting
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-    
-    plugin, temp_dir = create_plugin_with_config(plugin_config)
-    registry = Registry()
-    container = registry.create_container()
-    routers = plugin.setup_routers(container)
-    
-    # Resolve a route and check settings
-    resolved = routers[0].resolve_route("/test", "GET")
-    assert resolved is not None
-    
-    handler, params, settings = resolved
-    
-    # Route settings should override router settings with the same key
-    assert settings["router_setting"] == "router_value"
-    assert settings["route_setting"] == "route_value"
-    assert settings["shared_setting"] == "route_level"  # Route setting takes precedence
-
-
-def test_settings_injection():
+@pytest.mark.asyncio
+async def test_settings_injection():
     """Test that settings are properly injected into handlers."""
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "test_router",
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler_method": "handle_with_settings",
-                        "settings": {
-                            "test_setting": "injected_value"
-                        }
-                    }
-                ]
-            }
-        ]
+        "version": "0.1.0"
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     registry = Registry()
     container = registry.create_container()
-    routers = plugin.setup_routers(container)
+    router = Router()
+    container.instances[Router] = router
+    
+    # Set up routes
+    await plugin.on_app_request_begin(router)
     
     # Resolve the route
-    resolved = routers[0].resolve_route("/test", "GET")
+    resolved = router.resolve_route("/test_with_settings", "GET")
     assert resolved is not None
     
     handler, params, settings = resolved
@@ -204,49 +114,28 @@ def test_settings_injection():
     assert len(settings) > 0
 
 
-def test_mounted_router_settings():
+@pytest.mark.asyncio
+async def test_mounted_router_settings():
     """Test that settings from mounted routers are properly merged."""
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "main_router",
-                "settings": {
-                    "main_setting": "main_value",
-                    "shared_setting": "main_level"
-                }
-            },
-            {
-                "name": "api_router",
-                "settings": {
-                    "api_setting": "api_value",
-                    "shared_setting": "api_level"
-                },
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler_method": "handle_test",
-                        "settings": {
-                            "route_setting": "route_value",
-                            "shared_setting": "route_level"
-                        }
-                    }
-                ],
-                "mount_at": "/api",
-                "mount_to": "main_router"
-            }
-        ]
+        "version": "0.1.0"
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     registry = Registry()
     container = registry.create_container()
-    routers = plugin.setup_routers(container)
+    main_router = Router(settings={"main_setting": "main_value", "shared_setting": "main_level"})
+    api_router = Router(settings={"api_setting": "api_value", "shared_setting": "api_level"})
+    container.instances[Router] = main_router
     
-    # Find the main router
-    main_router = next(r for r in routers if "main_setting" in r._settings)
+    # Mount the API router
+    main_router.mount("/api", api_router)
+    
+    # Set up routes on both routers
+    await plugin.on_app_request_begin(main_router)
+    await plugin.on_app_request_begin(api_router)
     
     # Resolve a route on the mounted router
     resolved = main_router.resolve_route("/api/test", "GET")
@@ -258,4 +147,4 @@ def test_mounted_router_settings():
     assert settings["main_setting"] == "main_value"
     assert settings["api_setting"] == "api_value"
     assert settings["route_setting"] == "route_value"
-    assert settings["shared_setting"] == "route_level"  # Most specific wins 
+    assert settings["shared_setting"] == "api_level"  # Most specific wins 

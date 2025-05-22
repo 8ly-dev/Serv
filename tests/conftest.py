@@ -3,11 +3,13 @@ import pytest_asyncio
 import asyncio # Import asyncio
 from httpx import AsyncClient, ASGITransport # Import ASGITransport
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional, Callable, Any, Dict
+from typing import AsyncGenerator, Optional, Callable, Any, Dict, List
+from pathlib import Path
 
 from serv.app import App
 from serv.responses import ResponseBuilder # For ResponseBuilder.clear() check
 from serv.plugins import Plugin
+from serv.config import load_raw_config
 
 from tests.e2e_test_helpers import create_test_client, TestAppBuilder
 
@@ -32,35 +34,65 @@ from tests.e2e_test_helpers import create_test_client, TestAppBuilder
 
 @pytest_asyncio.fixture
 async def app() -> App:
-    """App fixture, ensuring ResponseBuilder has a clear method for error handling tests."""
-    # Ensure ResponseBuilder has a clear method, as app.py error handling relies on it.
-    if not hasattr(ResponseBuilder, 'clear'):
-        def clear_stub(self_rb):
-            self_rb._status = 200
-            self_rb._headers = []
-            self_rb._body_components = []
-            # self_rb._headers_sent = False # send_response should ideally reset this or handle it
-            self_rb._has_content_type = False
-        ResponseBuilder.clear = clear_stub
+    """Create a test app instance."""
+    return App(dev_mode=True)
 
-    _app = App(dev_mode=True)
-    return _app
+class LifespanManager:
+    def __init__(self, app: App):
+        self.app = app
+        self.receive_queue = asyncio.Queue()
+        self.send_queue = asyncio.Queue()
+        self.lifespan_task = None
+        
+    async def receive(self):
+        return await self.receive_queue.get()
+        
+    async def send(self, message):
+        await self.send_queue.put(message)
+        
+    async def startup(self):
+        self.lifespan_task = asyncio.create_task(
+            self.app.handle_lifespan({"type": "lifespan"}, self.receive, self.send)
+        )
+        await self.receive_queue.put({"type": "lifespan.startup"})
+        startup_complete = await self.send_queue.get()
+        if startup_complete["type"] != "lifespan.startup.complete":
+            raise RuntimeError(f"Unexpected response to lifespan.startup: {startup_complete}")
+            
+    async def shutdown(self):
+        if not self.lifespan_task:
+            raise RuntimeError("Cannot shutdown: lifespan task not started.")
+        await self.receive_queue.put({"type": "lifespan.shutdown"})
+        shutdown_complete = await self.send_queue.get()
+        if shutdown_complete["type"] != "lifespan.shutdown.complete":
+            raise RuntimeError(f"Unexpected response to lifespan.shutdown: {shutdown_complete}")
+        self.lifespan_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await self.lifespan_task
+            
+    @asynccontextmanager
+    async def lifespan(self):
+        await self.startup()
+        try:
+            yield
+        finally:
+            await self.shutdown()
 
 @pytest_asyncio.fixture
 async def client(app: App) -> AsyncClient:
     """Legacy client fixture using the basic app instance."""
-    # Use ASGITransport for the app
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as c:
+    async with AsyncClient(transport=transport, base_url="http://testserver", timeout=5.0) as c:
         yield c
 
 @asynccontextmanager
 async def create_test_client(
     app_factory: Callable[[], App] = None,
-    plugins: list[Plugin] = None,
+    plugins: List[Plugin] = None,
     config: Dict[str, Any] = None,
     base_url: str = "http://testserver",
-    use_lifespan: bool = True
+    use_lifespan: bool = True,
+    timeout: float = 5.0
 ) -> AsyncGenerator[AsyncClient, None]:
     """
     Create a test client for end-to-end testing with a fully configured App.
@@ -71,6 +103,7 @@ async def create_test_client(
         config: Optional configuration to use when creating the app (if app_factory not provided)
         base_url: Base URL to use for requests (default: "http://testserver")
         use_lifespan: Whether to use the app's lifespan context for startup/shutdown (default: True)
+        timeout: Request timeout in seconds (default: 5.0)
         
     Returns:
         An AsyncClient configured to communicate with the app
@@ -94,11 +127,12 @@ async def create_test_client(
     
     # Use the app's lifespan if requested
     if use_lifespan:
-        async with app.lifespan_context():
-            async with AsyncClient(transport=transport, base_url=base_url) as client:
+        lifespan_mgr = LifespanManager(app)
+        async with lifespan_mgr.lifespan():
+            async with AsyncClient(transport=transport, base_url=base_url, timeout=timeout) as client:
                 yield client
     else:
-        async with AsyncClient(transport=transport, base_url=base_url) as client:
+        async with AsyncClient(transport=transport, base_url=base_url, timeout=timeout) as client:
             yield client
 
 @pytest_asyncio.fixture

@@ -7,6 +7,7 @@ This file contains examples of how to use the end-to-end testing tools:
 3. Creating custom app configurations for specific test cases
 """
 import pytest
+from pathlib import Path
 from bevy import dependency
 from httpx import AsyncClient
 
@@ -14,6 +15,7 @@ from serv.app import App
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
 from serv.routing import Router
+from serv.plugin_loader import PluginSpec
 
 from tests.e2e.helpers import create_test_client, TestAppBuilder
 
@@ -22,9 +24,17 @@ class SimpleTextPlugin(Plugin):
     """Simple plugin that adds a route returning plain text."""
     
     def __init__(self, path: str, text: str):
+        super().__init__()
         self.path = path
         self.text = text
         self._stand_alone = True
+        self._plugin_spec = PluginSpec(
+            name="SimpleTextPlugin",
+            description="A simple plugin that returns plain text",
+            version="0.1.0",
+            path=Path(__file__).parent,
+            author="Test Author"
+        )
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
@@ -38,9 +48,17 @@ class JsonPlugin(Plugin):
     """Simple plugin that adds a route returning JSON data."""
     
     def __init__(self, path: str, data: dict):
+        super().__init__()
         self.path = path
         self.data = data
         self._stand_alone = True
+        self._plugin_spec = PluginSpec(
+            name="JsonPlugin",
+            description="A simple plugin that returns JSON data",
+            version="0.1.0",
+            path=Path(__file__).parent,
+            author="Test Author"
+        )
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])

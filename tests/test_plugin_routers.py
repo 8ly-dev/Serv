@@ -10,6 +10,8 @@ from bevy.containers import Container
 from bevy.registries import Registry
 from serv.plugins import Plugin
 from serv.routing import Router
+from serv.responses import ResponseBuilder
+from serv.plugin_loader import PluginSpec
 
 
 def create_plugin_with_config(plugin_yaml_content):
@@ -27,33 +29,34 @@ def create_plugin_with_config(plugin_yaml_content):
         
         class TestPlugin(Plugin):
             # Test handler method
-            async def handle_test(self, **kwargs):
-                return "test response"
+            async def handle_test(self, response: ResponseBuilder = dependency()):
+                response.content_type("text/plain")
+                response.body("test response")
+
+            async def on_app_request_begin(self, router: Router = dependency()):
+                router.add_route("/test", self.handle_test, methods=["GET"])
         
         plugin = TestPlugin()
+        plugin._plugin_spec = PluginSpec(
+            name=plugin_yaml_content["name"],
+            description=plugin_yaml_content["description"],
+            version=plugin_yaml_content["version"],
+            path=plugin_dir,
+            author="Test Author"
+        )
     
     # Return the plugin and a reference to the temporary directory
     # to keep it alive during the test
     return plugin, temp_dir
 
 
-def test_plugin_router_config_basic():
+@pytest.mark.asyncio
+async def test_plugin_router_config_basic():
     """Test basic router configuration."""
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "test_router",
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler_method": "handle_test"
-                    }
-                ]
-            }
-        ]
+        "version": "0.1.0"
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
@@ -61,48 +64,29 @@ def test_plugin_router_config_basic():
     # Create a container for dependency injection
     registry = Registry()
     container = registry.create_container()
+    router = Router()
+    container.instances[Router] = router
     
-    # Set up routers from config
-    routers = plugin.setup_routers(container)
+    # Call the event handler to set up routes
+    await plugin.on_app_request_begin(router)
     
     # Verify router was created and set up correctly
-    assert len(routers) == 1
-    assert len(routers[0]._routes) == 1
+    assert len(router._routes) == 1
     
     # Check that the route was added correctly
-    path, methods, handler, _ = routers[0]._routes[0]
+    path, methods, handler, _ = router._routes[0]
     assert path == "/test"
+    assert "GET" in methods
     assert handler is not None
 
 
-def test_plugin_router_mounting():
+@pytest.mark.asyncio
+async def test_plugin_router_mounting():
     """Test router mounting configuration."""
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "main_router",
-                "routes": [
-                    {
-                        "path": "/",
-                        "handler_method": "handle_test"
-                    }
-                ]
-            },
-            {
-                "name": "api_router",
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler_method": "handle_test"
-                    }
-                ],
-                "mount_at": "/api",
-                "mount_to": "main_router"
-            }
-        ]
+        "version": "0.1.0"
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
@@ -110,15 +94,22 @@ def test_plugin_router_mounting():
     # Create a container for dependency injection
     registry = Registry()
     container = registry.create_container()
+    main_router = Router()
+    api_router = Router()
+    container.instances[Router] = main_router
     
-    # Set up routers from config
-    routers = plugin.setup_routers(container)
+    # Mount the API router
+    main_router.mount("/api", api_router)
+    
+    # Add routes to both routers
+    await plugin.on_app_request_begin(main_router)
+    await plugin.on_app_request_begin(api_router)
     
     # Verify routers were created
-    assert len(routers) == 2
+    assert len(main_router._routes) == 1
+    assert len(api_router._routes) == 1
     
     # Check that the main router has the api router mounted
-    main_router = next(r for i, r in enumerate(routers) if i == 0)
     assert len(main_router._mounted_routers) == 1
     
     # Verify the mount path
@@ -126,43 +117,34 @@ def test_plugin_router_mounting():
     assert mount_path == "/api"
 
 
-def test_plugin_on_app_startup():
+@pytest.mark.asyncio
+async def test_plugin_on_app_startup():
     """Test that routers are set up during app startup."""
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "test_router",
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler_method": "handle_test"
-                    }
-                ]
-            }
-        ]
+        "version": "0.1.0"
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     
-    # Create a mocked container for the test
-    mock_container = MagicMock()
-    mock_container.instances = {}
+    # Create a container for dependency injection
+    registry = Registry()
+    container = registry.create_container()
+    router = Router()
+    container.instances[Router] = router
     
-    # Mock Router for the test
-    mock_router = Router()
+    # Call the event handler to set up routes
+    await plugin.on_app_request_begin(router)
     
-    # Call the on_app_startup method with our mocked objects
-    with patch.object(plugin, 'setup_routers', return_value=[mock_router]):
-        # We need to inject the real Router class
-        from serv.routing import Router as RealRouter
-        plugin.on_app_startup(MagicMock(), mock_container)
-        
-        # After the method executes, the Router should be in the container instances
-        assert RealRouter in mock_container.instances
-        assert mock_container.instances[RealRouter] == mock_router
+    # Verify router was created and set up correctly
+    assert len(router._routes) == 1
+    
+    # Check that the route was added correctly
+    path, methods, handler, _ = router._routes[0]
+    assert path == "/test"
+    assert "GET" in methods
+    assert handler is not None
 
 
 def test_plugin_import_handler():
@@ -176,23 +158,24 @@ def test_plugin_import_handler():
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     
     # Test simple colon-separated import (module.path:ClassName)
-    with patch('builtins.__import__') as mock_import:
+    with patch('importlib.import_module') as mock_import:
         mock_module = MagicMock()
         mock_handler_class = MagicMock()
         mock_module.TestHandler = mock_handler_class
         mock_import.return_value = mock_module
         
         # Test importing a handler
-        handler = plugin._import_handler("some.module:TestHandler")
+        from serv.config import import_from_string
+        handler = import_from_string("some.module:TestHandler")
         
         # Verify the import was called correctly
-        mock_import.assert_called_with("some.module", fromlist=["__name__"])
+        mock_import.assert_called_with("some.module")
         
         # Verify the handler was returned
         assert handler == mock_handler_class
     
     # Test nested colon-separated import (module.path:object.attribute.ClassName)
-    with patch('builtins.__import__') as mock_import:
+    with patch('importlib.import_module') as mock_import:
         # Setup nested structure
         nested_attr = MagicMock()
         nested_class = MagicMock()
@@ -205,10 +188,10 @@ def test_plugin_import_handler():
         mock_import.return_value = mock_module
         
         # Test importing a handler with nested path
-        handler = plugin._import_handler("some.module:object.attribute.NestedClass")
+        handler = import_from_string("some.module:object.attribute.NestedClass")
         
         # Verify the import was called correctly
-        mock_import.assert_called_with("some.module", fromlist=["__name__"])
+        mock_import.assert_called_with("some.module")
         
         # Verify we got the nested object
         assert handler == nested_class
@@ -223,8 +206,8 @@ def test_plugin_import_handler_rejects_dot_notation():
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
     
-    # Attempt to use dot notation should return None after logging error
-    with patch('logging.Logger.error') as mock_error:
-        handler = plugin._import_handler("some.module.TestHandler")
-        assert handler is None
-        mock_error.assert_called_once() 
+    # Attempt to use dot notation should raise ServConfigError
+    from serv.config import import_from_string, ServConfigError
+    with pytest.raises(ServConfigError) as excinfo:
+        import_from_string("some.module.TestHandler")
+    assert "Invalid import string format" in str(excinfo.value) 

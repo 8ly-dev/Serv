@@ -2,11 +2,13 @@
 Simplified end-to-end tests demonstrating the most basic usage pattern.
 """
 import pytest
+from pathlib import Path
 from bevy import dependency
 
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
 from serv.routing import Router
+from serv.plugin_loader import PluginSpec
 
 from tests.e2e.helpers import create_test_client
 
@@ -15,7 +17,15 @@ class SimplePlugin(Plugin):
     """Super simple plugin that adds a /hello route."""
     
     def __init__(self):
+        super().__init__()
         self._stand_alone = True
+        self._plugin_spec = PluginSpec(
+            name="SimplePlugin",
+            description="A super simple plugin that adds a /hello route",
+            version="0.1.0",
+            path=Path(__file__).parent,
+            author="Test Author"
+        )
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route("/hello", self._hello_handler, methods=["GET"])

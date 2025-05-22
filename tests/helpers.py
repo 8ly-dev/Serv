@@ -1,4 +1,5 @@
 from typing import Any, Awaitable, Callable
+from pathlib import Path
 from bevy import dependency
 from bevy.containers import Container
 
@@ -6,16 +7,25 @@ from serv.plugins import Plugin
 from serv.routing import Router, get_current_router
 from serv.requests import Request
 from serv.responses import ResponseBuilder
+from serv.plugin_loader import PluginSpec
 
 
 class RouteAddingPlugin(Plugin):
     def __init__(self, path: str, handler: Callable[..., Awaitable[None]], methods: list[str] | None = None):
+        super().__init__()
         self.path = path
         self.handler = handler
         self.methods = methods
         self.was_called = False
         self.received_kwargs = None
         self._stand_alone = True
+        self._plugin_spec = PluginSpec(
+            name="RouteAddingPlugin",
+            description="A test plugin that adds routes",
+            version="0.1.0",
+            path=Path(__file__).parent,
+            author="Test Author"
+        )
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler_wrapper, methods=self.methods)
@@ -30,13 +40,23 @@ class RouteAddingPlugin(Plugin):
         # in self.handler's signature with ` = dependency()` if needed.
         await container.call(self.handler, **path_params)
 
+
 class EventWatcherPlugin(Plugin):
     def __init__(self):
+        super().__init__()
         self.events_seen = []
         self._stand_alone = True
+        self._plugin_spec = PluginSpec(
+            name="EventWatcherPlugin",
+            description="A test plugin that watches events",
+            version="0.1.0",
+            path=Path(__file__).parent,
+            author="Test Author"
+        )
 
     async def on(self, event_name: str, **kwargs: Any) -> None:
         self.events_seen.append((event_name, kwargs))
+
 
 # Example of a simple middleware for testing
 # Middleware are defined as async generator factories

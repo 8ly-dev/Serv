@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 from httpx import AsyncClient
 import io
 
@@ -8,15 +9,24 @@ from serv.responses import ResponseBuilder
 from serv.routes import JsonResponse
 from serv.routing import Router
 from serv.plugins import Plugin
+from serv.plugin_loader import PluginSpec
 from bevy import dependency
 
 # Plugin to add simple handlers
 class DirectHandlerPlugin(Plugin):
     def __init__(self, path: str, handler, methods: list[str]):
+        super().__init__()
         self.path = path
         self.handler = handler
         self.methods = methods
         self._stand_alone = True
+        self._plugin_spec = PluginSpec(
+            name="DirectHandlerPlugin",
+            description="A plugin that adds direct handlers for multipart form data",
+            version="0.1.0",
+            path=Path(__file__).parent,
+            author="Test Author"
+        )
 
     async def on_app_request_before_router(self, router_instance: Router = dependency(), **kwargs):
         router_instance.add_route(self.path, self.handler, methods=self.methods)
