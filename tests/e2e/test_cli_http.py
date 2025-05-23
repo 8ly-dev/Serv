@@ -93,13 +93,13 @@ class TestCliHttpBehavior:
         plugin_dir = plugins_dir / f"{plugin_name}"
         plugin_dir.mkdir(exist_ok=True)
         
-        # Create plugin.yaml
+        # Create plugin.yaml with correct PluginSpec format
         plugin_yaml = {
-            "name": plugin_name,
-            "display_name": plugin_name.replace("_", " ").title(),
+            "name": plugin_name.replace("_", " ").title(),
             "description": f"Test plugin that adds a {route_path} route",
             "version": "1.0.0",
-            "author": "Test Author"
+            "author": "Test Author",
+            "entry_points": [f"main:{plugin_name.replace('_', ' ').title().replace(' ', '')}Plugin"]
         }
         with open(plugin_dir / "plugin.yaml", 'w') as f:
             yaml.dump(plugin_yaml, f)
@@ -151,7 +151,6 @@ async def {middleware_name}_middleware(handler):
         
         return middleware_file
     
-    @pytest.mark.xfail(reason="Plugin creation/loading needs to be updated to match new CLI patterns")
     @pytest.mark.asyncio
     async def test_plugin_enable_disable(self, test_project_dir):
         """Test enabling and disabling a plugin via CLI and verify HTTP behavior."""
@@ -198,19 +197,4 @@ async def {middleware_name}_middleware(handler):
         # Test with the plugin disabled
         async with create_test_client(app_factory=lambda: app) as client:
             response = await client.get("/test-route")
-            assert response.status_code == 404  # Route should no longer exist
-    
-    @pytest.mark.xfail(reason="Plugin creation/loading needs to be updated to match new CLI patterns")
-    @pytest.mark.asyncio
-    async def test_multiple_plugins(self, test_project_dir):
-        """Test that multiple plugins can be loaded and interact correctly."""
-        
-    @pytest.mark.xfail(reason="Plugin creation/loading needs to be updated to match new CLI patterns")
-    @pytest.mark.asyncio
-    async def test_middleware_enable_disable(self, test_project_dir):
-        """Test enabling and disabling middleware via CLI and verify HTTP behavior."""
-        
-    @pytest.mark.xfail(reason="Plugin creation/loading needs to be updated to match new CLI patterns")
-    @pytest.mark.asyncio
-    async def test_api_endpoint_with_json(self, test_project_dir):
-        """Test creating a JSON API endpoint with plugin and verifying response.""" 
+            assert response.status_code == 404  # Route should no longer exist 
