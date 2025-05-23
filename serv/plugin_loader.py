@@ -12,9 +12,7 @@ import serv.plugins as p
 if TYPE_CHECKING:
     from serv import App
 
-
 logger = logging.getLogger(__name__)
-
 
 known_plugins: "dict[Path, PluginSpec]" = {}
 
@@ -99,30 +97,32 @@ class PluginSpec:
 
 class PluginLoader:
     """Handles loading and management of plugins and middleware."""
-    
+
     def __init__(self, app: "App", plugin_loader: ServLoader):
         """Initialize the PluginLoader.
-        
+
         Args:
             plugin_loader: ServLoader instance for loading plugin packages
         """
         self._app = app
         self._plugin_loader = plugin_loader
-        
-    def load_plugins(self, plugins_config: list[dict[str, Any]]) -> "tuple[dict[Path, list[p.Plugin]], list[Callable[[], AsyncIterator[None]]]]":
+
+    def load_plugins(
+        self, plugins_config: list[dict[str, Any]]
+    ) -> "tuple[list[p.Plugin], list[Callable[[], AsyncIterator[None]]]]":
         """Load plugins from a list of plugin configs.
 
         Args:
             plugins_config: List of plugin configs (usually from serv.config.yaml)
-            
+
         Returns:
-            Tuple of (loaded_plugins dict, middleware_list)
-            
+            Tuple of (Plugin specs, Middleware iterators)
+
         Raises:
             ExceptionGroup: If any errors occurred during loading
         """
         exceptions = []
-        loaded_plugins = {}
+        loaded_plugins = []
         middleware_list = []
         for plugin_settings in plugins_config:
             try:
@@ -134,16 +134,22 @@ class PluginLoader:
                 exceptions.append(e)
                 continue
             else:
-                known_plugins[plugin_spec.path] = plugin_spec
-                exceptions.extend(plugin_exceptions)
+                if plugin_spec:
+                    known_plugins[plugin_spec.path] = plugin_spec
+                    loaded_plugins.append(plugin_spec)
+                    middleware_list.extend(plugin_spec.middleware)
+
+                if plugin_exceptions:
+                    exceptions.extend(plugin_exceptions)
 
         if exceptions:
             logger.warning(f"Encountered {len(exceptions)} errors during plugin and middleware loading.")
             raise ExceptionGroup("Exceptions raised while loading plugins and middleware", exceptions)
-            
+
         return loaded_plugins, middleware_list
 
-    def load_plugin(self, plugin_import: str, app_plugin_settings: dict[str, Any] | None = None) -> tuple[PluginSpec | None, list[Exception]]:
+    def load_plugin(self, plugin_import: str, app_plugin_settings: dict[str, Any] | None = None) -> tuple[
+        PluginSpec | None, list[Exception]]:
         """Load a single plugin.
 
         Args:
@@ -185,13 +191,24 @@ class PluginLoader:
         for entry_point in entry_points:
             module_path, class_name = entry_point.split(":")
             try:
-                module = self._plugin_loader.import_path(f"{plugin_import}.{module_path}")
+                try:
+                    try:
+                        module = self._plugin_loader.load_module(f"{plugin_import}.{module_path}")
+                    except ModuleNotFoundError as e:
+                        e.add_note(f" - Attempted to import relative to plugins directory")
+                        module = importlib.import_module(f"{plugin_import}.{module_path}")
+                except Exception as e:
+                    e.add_note(f" - Attempting to import module {plugin_import}.{module_path}")
+                    raise
+
                 entry_point_class = getattr(module, class_name)
 
                 if not issubclass(entry_point_class, p.Plugin):
-                    raise ValueError(f"Entry point {entry_point} is not a subclass of Plugin")
+                    raise ValueError(
+                        f"Entry point {entry_point} from {plugin_import}.{module_path} is not a subclass of Plugin"
+                    )
             except Exception as e:
-                e.add_note(f" - Failed to load entry point {entry_point}")
+                e.add_note(f" - Attempting to load entry point {entry_point}")
                 failed.append(e)
             else:
                 self._app.add_plugin(get_container().call(entry_point_class))
@@ -209,7 +226,9 @@ class PluginLoader:
                 entry_point_class = getattr(module, class_name)
 
                 if not hasattr(entry_point_class, "__aiter__"):
-                    raise ValueError(f"Middleware object {entry_point} is does not implement the async iterator protocol")
+                    raise ValueError(
+                        f"Middleware object {entry_point} is does not implement the async iterator protocol"
+                    )
             except Exception as e:
                 e.add_note(f" - Failed to load middleware {entry_point}")
                 failed.append(e)

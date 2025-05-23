@@ -6,140 +6,103 @@ without modifying sys.path. Packages are loaded and namespaced with
 their respective folder names.
 """
 
+import importlib.abc
+import importlib.machinery
 import importlib.util
 import logging
 import sys
-from importlib import import_module
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, List, Optional, TypeVar, Union, cast
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+type DottedPath = str
+
+
+class LoaderMetaPathFinder(importlib.abc.MetaPathFinder):
+    def __init__(self, directory):
+        self.directory = directory
+
+    def find_spec(self, fullname, path, target=None):
+        # Only inject for modules in your target package
+        parts = fullname.split(".")
+        if parts[0] != self.directory.name:
+            return
+
+        path = self.directory
+        if len(parts) > 1:
+            path = Path(path, *parts[1:])
+
+        if path.is_dir():
+            if not (path / "__init__.py").exists():
+                return importlib.util.spec_from_loader(
+                    fullname,
+                    LoaderPackageInjector(self.directory)
+                )
+
+            path /= "__init__.py"
+
+        else:
+            path = path.with_suffix(".py")
+
+        if path.exists():
+            return importlib.util.spec_from_loader(
+                fullname,
+                importlib.machinery.SourceFileLoader(fullname, str(path))
+            )
+
+    @classmethod
+    def inject(cls, directory: Path):
+        sys.meta_path.insert(0, LoaderMetaPathFinder(directory))
+
+
+class LoaderPackageInjector(importlib.abc.Loader):
+    def __init__(self, path):
+        self.path = path
+
+    def create_module(self, spec):
+        class Module(ModuleType):
+            __package__ = spec.name
+            __loader__ = self
+            __spec__ = spec
+            __file__ = str(Path(self.path) / "__init__.py")
+            __path__ = str(self.path)
+            __name__ = spec.name
+            __package_injector__ = True
+
+        return Module(spec.name)
+
+    def exec_module(self, module):
+        return
 
 class ServLoader:
     """
     Loader for Serv packages.
-    
-    This class provides functionality to search for and load packages
-    from a specified directory without modifying sys.path.
+
+    This class provides functionality to load packages/modules from a
+    given package directory without modifying sys.path.
     """
-    
-    def __init__(self, directory: str = './packages'):
-        """
-        Initialize the loader with a directory.
-        
-        Args:
-            directory: Directory to search for packages (default: './packages')
-        """
-        self.directory = Path(directory)
 
-    def get_search_path(self) -> Path:
+    def __init__(self, directory: Path | str):
         """
-        Get the search path.
-        
-        Returns:
-            Path object representing search directory
-        """
-        path = Path(self.directory).resolve()
-        return path if path.exists() and path.is_dir() else Path()
-
-    def load_package(self, 
-                     package_name: str,
-                     namespace: Optional[str] = None) -> Optional[ModuleType]:
-        """
-        Load a specific package from the search path.
-        
         Args:
-            package_name: Name of the package to load
-            namespace: Optional namespace to look in (if None, use directory name)
-            
-        Returns:
-            The loaded module or None if not found
+            directory: Directory to search for packages
         """
-        search_path = self.get_search_path()
-        if not search_path.exists():
-            logger.warning(f"Search path {self.directory} does not exist")
-            return None
-            
-        # If namespace is provided, verify it matches
-        if namespace and search_path.name != namespace:
-            logger.warning(f"Namespace {namespace} does not match directory name {search_path.name}")
-            return None
-            
-        package_path = search_path / package_name
-        init_path = package_path / "__init__.py"
-        
-        if not init_path.exists():
-            logger.warning(f"Package {package_name} not found in {search_path}")
-            return None
-            
-        # Create import name in the format 'namespace.package_name'
-        import_name = f"{search_path.name}.{package_name}"
-        
-        # If not in sys.modules, we need to add the directory
-        # to sys.modules with appropriate namespace
-        if import_name not in sys.modules:
-            # Create parent namespace module if it doesn't exist
-            parent_module_name = search_path.name
-            if parent_module_name not in sys.modules:
-                # Create a namespace module
-                parent_module = ModuleType(parent_module_name)
-                parent_module.__path__ = [str(search_path)]
-                sys.modules[parent_module_name] = parent_module
-            
-            # Now load the actual package - this will automatically be cached in sys.modules
-            try:
-                spec = importlib.util.spec_from_file_location(
-                    import_name, 
-                    init_path,
-                    submodule_search_locations=[str(package_path)]
-                )
-                if spec is None or spec.loader is None:
-                    logger.warning(f"Could not create spec for {import_name}")
-                    return None
-                    
-                module = importlib.util.module_from_spec(spec)
-                sys.modules[import_name] = module
-                spec.loader.exec_module(module)
-                
-                # Update our local cache
-                return module
-            except Exception as e:
-                logger.error(f"Error loading {import_name}: {e}")
-                # Remove from sys.modules if loading failed
-                if import_name in sys.modules:
-                    del sys.modules[import_name]
-                return None
-        else:
-            # Already in sys.modules, just return it
-            module = sys.modules[import_name]
-            return module
+        directory = Path(directory).resolve()
 
-    def import_path(self, import_path: str) -> Optional[Union[ModuleType, object]]:
-        """
-        Import a module or object using a dotted path.
-        
-        Args:
-            import_path: Path to import, can contain attribute access (e.g., 'packages.auth.main:AuthPlugin')
-            
-        Returns:
-            The imported module or object, or None if import fails
-        """
-        if ":" in import_path:
-            module_path, obj_path = import_path.split(":", 1)
-        else:
-            module_path, obj_path = import_path, None
-        
-        try:
-            module = import_module(module_path)
-            if obj_path:
-                obj = module
-                for part in obj_path.split('.'):
-                    obj = getattr(obj, part)
-                return obj
-            return module
-        except (ImportError, AttributeError) as e:
-            logger.error(f"Error importing {import_path}: {e}")
-            return None 
+        if not directory.exists():
+            raise FileNotFoundError(f"{directory} does not exist")
+
+        if not directory.is_dir():
+            raise ValueError(f"{directory} must be a directory")
+
+        self.directory = directory
+        LoaderMetaPathFinder.inject(directory)
+
+    def load_module(self, module_path: DottedPath) -> ModuleType:
+        """Imports a module from inside of the search directory package. This assumes that
+        the dotted path directly correlates with the file structure and that the path is
+        for a python file."""
+        return importlib.import_module(f"{self.directory.name}.{module_path}")
