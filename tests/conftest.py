@@ -82,7 +82,7 @@ class LifespanManager:
 async def client(app: App) -> AsyncClient:
     """Legacy client fixture using the basic app instance."""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver", timeout=5.0) as c:
+    async with AsyncClient(transport=transport, base_url="http://testserver", timeout=1.0) as c:
         yield c
 
 @asynccontextmanager
