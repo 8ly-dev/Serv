@@ -90,16 +90,8 @@ class ServLoader:
         Args:
             directory: Directory to search for packages
         """
-        directory = Path(directory).resolve()
-
-        if not directory.exists():
-            raise FileNotFoundError(f"{directory} does not exist")
-
-        if not directory.is_dir():
-            raise ValueError(f"{directory} must be a directory")
-
-        self.directory = directory
-        LoaderMetaPathFinder.inject(directory)
+        self.directory = Path(directory).resolve()
+        LoaderMetaPathFinder.inject(self.directory)
 
     def load_module(self, module_path: DottedPath) -> ModuleType:
         """Imports a module from inside of the search directory package. This assumes that

@@ -37,7 +37,4 @@ class WelcomePlugin(Plugin):
                         break
         
         if not path_already_handled:
-            print("INFO: WelcomePlugin registering WelcomeRoute at '/'.")
             router.add_route("/", WelcomeRoute)
-        else:
-            print("INFO: WelcomePlugin found existing route for '/'; WelcomeRoute not registered.") 

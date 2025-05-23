@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 
 from serv.app import App
+from serv.requests import Request
 from serv.responses import ResponseBuilder
 from tests.helpers import RouteAddingPlugin, EventWatcherPlugin
 from bevy import dependency # Added
@@ -16,10 +17,10 @@ async def test_hello_world(app: App, client: AsyncClient):
     app.add_plugin(plugin)
 
     response = await client.get("/hello")
+    assert plugin.was_called == 1
     assert response.status_code == 200
     assert response.text == "Hello, World!"
     assert response.headers["content-type"] == "text/plain; charset=utf-8"
-    assert plugin.was_called
 
 @pytest.mark.asyncio
 async def test_not_found(client: AsyncClient):

@@ -16,7 +16,7 @@ class RouteAddingPlugin(Plugin):
         self.path = path
         self.handler = handler
         self.methods = methods
-        self.was_called = False
+        self.was_called = 0
         self.received_kwargs = None
         self._stand_alone = True
         self._plugin_spec = PluginSpec(
@@ -31,7 +31,7 @@ class RouteAddingPlugin(Plugin):
         router.add_route(self.path, self._handler_wrapper, methods=self.methods)
 
     async def _handler_wrapper(self, request: Request = dependency(), container: Container = dependency(), **path_params):
-        self.was_called = True
+        self.was_called += 1
         self.received_kwargs = {**path_params, "request": request, "container": container} # For inspection
 
         # Call the original handler (e.g., hello_handler from the test)

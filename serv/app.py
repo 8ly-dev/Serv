@@ -492,32 +492,6 @@ class App:
                 except Exception as e:
                     error_to_propagate = e
 
-                # Handle routing if no middleware error
-                if not error_to_propagate:
-                    await self.emit("app.request.before_router", container=container, request=request, router_instance=router_instance_for_request)
-                    try:
-                        resolved_route_info = router_instance_for_request.resolve_route(request.path, request.method)
-                        if not resolved_route_info:
-                            raise HTTPNotFoundException(f"No route found for {request.method} {request.path}")
-
-                        handler_callable, path_params, route_settings = resolved_route_info
-                        
-                        # Create a branch of the container with route settings
-                        with container.branch() as route_container:
-                            # Add route settings to the container
-                            for setting_name, setting_value in route_settings.items():
-                                route_container.instances[setting_name] = setting_value
-                            
-                            try:
-                                await route_container.call(handler_callable, **path_params)
-                            except Exception as e:
-                                error_to_propagate = e
-
-                    except Exception as e:
-                        error_to_propagate = e
-
-                    await self.emit("app.request.after_router", container=container, request=request, error=error_to_propagate, router_instance=router_instance_for_request)
-
                 # Handle any errors that occurred
                 if error_to_propagate:
                     await container.call(self._run_error_handler, error_to_propagate)
@@ -538,6 +512,7 @@ class App:
                     await response_builder.send_response()
                 except Exception as final_send_exc:
                     logger.error("Exception during final send_response", exc_info=final_send_exc)
+
 
     async def _run_middleware_stack(self, container: Container, request_instance: Request):
         stack = []
