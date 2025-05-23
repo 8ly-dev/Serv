@@ -91,7 +91,16 @@ class PluginSpec:
         with open(plugin_config, "r") as f:
             raw_config_data = yaml.safe_load(f)
 
+        # Convert settings to plugin_settings
         raw_config_data["plugin_settings"] = raw_config_data.pop("settings", {})
+        
+        # Handle single 'entry' field by converting it to 'entry_points' list
+        if "entry" in raw_config_data:
+            entry = raw_config_data.pop("entry")
+            if "entry_points" not in raw_config_data:
+                raw_config_data["entry_points"] = []
+            raw_config_data["entry_points"].append(entry)
+            
         return cls(**raw_config_data, path=path)
 
 
