@@ -76,7 +76,6 @@ class MultipartTestRoutePlugin(Plugin):
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_single_file(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = MultipartTestRoutePlugin("/upload", MultipartRoute)
     app.add_plugin(plugin)
 
@@ -96,7 +95,6 @@ File Content Length: 13"""
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_with_optional_file(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = MultipartTestRoutePlugin("/upload_opt", MultipartRoute)
     app.add_plugin(plugin)
 
@@ -123,7 +121,6 @@ async def test_multipart_form_submission_with_optional_file(app: App, client: As
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_optional_file_not_provided(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = MultipartTestRoutePlugin("/upload_no_opt", MultipartRoute)
     app.add_plugin(plugin)
 

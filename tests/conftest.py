@@ -5,6 +5,7 @@ from httpx import AsyncClient, ASGITransport # Import ASGITransport
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional, Callable, Any, Dict, List
 from pathlib import Path
+from unittest.mock import patch
 
 from serv.app import App
 from serv.responses import ResponseBuilder # For ResponseBuilder.clear() check
@@ -13,24 +14,12 @@ from serv.config import load_raw_config
 
 from tests.e2e_test_helpers import create_test_client, TestAppBuilder
 
-# @pytest.fixture(scope="session")
-# def event_loop():
-#     """Force pytest-asyncio to use the same event loop for all tests."""
-#     # policy = asyncio.get_event_loop_policy()
-#     # loop = policy.new_event_loop()
-#     # yield loop
-#     # loop.close()
-#     # The above is one way, but pytest-asyncio might prefer a different setup.
-#     # Let's try to use the recommended way for newer pytest-asyncio versions:
-#     # By default, pytest-asyncio provides an event_loop fixture. 
-#     # If we redefine it, we must ensure it actually yields a running loop.
-#     # The issue is that other fixtures might be trying to get the loop before this one runs or in a different way.
-#
-#     # Let's try yielding a new loop and setting it as the current loop.
-#     loop = asyncio.new_event_loop()
-#     asyncio.set_event_loop(loop)
-#     yield loop
-#     loop.close()
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create an instance of the default event loop for the test session."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
 @pytest_asyncio.fixture
 async def app() -> App:
@@ -175,4 +164,10 @@ def app_builder():
                 assert response.status_code == 200
         ```
     """
-    return TestAppBuilder() 
+    return TestAppBuilder()
+
+@pytest.fixture(autouse=True)
+def mock_find_plugin_spec():
+    """Mock find_plugin_spec to prevent hanging during Route tests."""
+    with patch('serv.routes.find_plugin_spec', return_value=None):
+        yield 

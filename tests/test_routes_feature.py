@@ -115,7 +115,6 @@ class RouteTestPlugin(Plugin):
 
 @pytest.mark.asyncio
 async def test_route_get_method(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
     app.add_plugin(plugin)
 
@@ -126,7 +125,6 @@ async def test_route_get_method(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_post_form_success(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
     app.add_plugin(plugin)
 
@@ -162,7 +160,6 @@ async def test_route_post_form_wrong_type(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_another_form_get_method(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     # This test needs a specific path for the GET that triggers the 'AnotherForm'
     # The current ComplexTestRoute.__init_subclass__ will map 'handle_another_form'
     # to the method 'GET' (from AnotherForm.__form_method__).
@@ -254,7 +251,6 @@ async def test_route_method_not_allowed_no_override(app: App, client: AsyncClien
 
 @pytest.mark.asyncio
 async def test_annotated_json_response(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = RouteTestPlugin("/test_json_annotated", JsonAnnotatedRoute)
     app.add_plugin(plugin)
 
@@ -266,7 +262,6 @@ async def test_annotated_json_response(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_annotated_text_response(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = RouteTestPlugin("/test_text_annotated", TextAnnotatedRoute)
     app.add_plugin(plugin)
 
@@ -313,7 +308,6 @@ async def test_raw_string_handler_without_response_type_errors(app: App, client:
 
 @pytest.mark.asyncio
 async def test_direct_response_instance_response(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = RouteTestPlugin("/test_direct_response", DirectResponseInstanceRoute)
     app.add_plugin(plugin)
 
@@ -325,7 +319,6 @@ async def test_direct_response_instance_response(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_annotated_json_response_custom_status_check(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = RouteTestPlugin("/test_json_annotated_custom_status", JsonAnnotatedCustomStatusRoute)
     app.add_plugin(plugin)
 
@@ -337,7 +330,6 @@ async def test_annotated_json_response_custom_status_check(app: App, client: Asy
 
 @pytest.mark.asyncio
 async def test_annotated_jinja_tuple_return(app: App, client: AsyncClient):
-    pytest.skip("Hangs on client request")
     plugin = RouteTestPlugin("/test_jinja_tuple", JinjaTupleReturnRoute)
     app.add_plugin(plugin)
 
@@ -346,6 +338,4 @@ async def test_annotated_jinja_tuple_return(app: App, client: AsyncClient):
     assert "text/html" in response.headers["content-type"]
     assert "<h1>Hello from Jinja via tuple</h1>" in response.text
     assert "<p>This tests tuple expansion for Jinja2Response.</p>" in response.text
-    assert plugin.plugin_registered_route
-
-# Removed </rewritten_file> tag that was causing a syntax error 
+    assert plugin.plugin_registered_route 
