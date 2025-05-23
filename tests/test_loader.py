@@ -10,9 +10,54 @@ from unittest import mock
 import importlib # Added for test_cross_plugin_import
 import logging # Added for logger.debug in test_cross_plugin_import
 
-from serv.loader import ServLoader
+from serv.loader import ServLoader, LoaderMetaPathFinder
 
 logger = logging.getLogger(__name__) # For test debugging
+
+@pytest.fixture(scope="function", autouse=True)
+def isolate_loader_tests():
+    """Isolate loader tests from other tests by managing sys.meta_path properly."""
+    # Store the original meta_path state
+    original_meta_path = sys.meta_path.copy()
+    
+    # Remove any existing LoaderMetaPathFinder instances that might have been
+    # left by other tests before we start
+    sys.meta_path[:] = [finder for finder in sys.meta_path 
+                       if not isinstance(finder, LoaderMetaPathFinder)]
+    
+    # Store original modules to restore later (only for our test modules)
+    test_module_prefixes = ['test_plugins', 'test_middleware']
+    original_modules = {}
+    modules_to_remove = []
+    
+    for module_name in list(sys.modules.keys()):
+        if any(module_name.startswith(prefix) for prefix in test_module_prefixes):
+            original_modules[module_name] = sys.modules[module_name]
+            modules_to_remove.append(module_name)
+    
+    # Remove our test modules from sys.modules
+    for module_name in modules_to_remove:
+        del sys.modules[module_name]
+    
+    yield
+    
+    # Clean up: restore the original meta_path and remove any LoaderMetaPathFinder
+    # instances that were added during this test
+    sys.meta_path[:] = [finder for finder in original_meta_path 
+                       if not isinstance(finder, LoaderMetaPathFinder)]
+    
+    # Remove any test modules that were loaded during this test
+    modules_to_clean = []
+    for module_name in list(sys.modules.keys()):
+        if any(module_name.startswith(prefix) for prefix in test_module_prefixes):
+            modules_to_clean.append(module_name)
+    
+    for module_name in modules_to_clean:
+        del sys.modules[module_name]
+    
+    # Restore original modules if they existed
+    for module_name, module in original_modules.items():
+        sys.modules[module_name] = module
 
 class TestServLoader:
     """Tests for the ServLoader class."""
