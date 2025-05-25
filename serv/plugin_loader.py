@@ -106,6 +106,7 @@ class PluginSpec:
         self._middleware = config.get("middleware", [])
         self._override_settings = override_settings
         self._path = path
+        self._routers = config.get("routers", [])
 
     @property
     def entry_points(self):
@@ -122,6 +123,10 @@ class PluginSpec:
     @property
     def middleware(self) -> list[str]:
         return self._middleware
+
+    @property
+    def routers(self) -> list[RouterConfig]:
+        return self._routers
 
     @property
     def settings(self) -> dict[str, Any]:
@@ -239,14 +244,6 @@ class PluginLoader:
             exceptions.append(e)
         else:
             exceptions.extend(failed_middleware)
-
-        # try:
-        #     _, router_exceptions = self._load_plugin_routers(plugin_spec.routers, plugin_import)
-        # except Exception as e:
-        #     e.add_note(f" - Failed while loading routers for {plugin_import}")
-        #     exceptions.append(e)
-        # else:
-        #     exceptions.extend(router_exceptions)
 
         logger.info(f"Loaded plugin {plugin_spec.name!r}")
         return plugin_spec, exceptions
