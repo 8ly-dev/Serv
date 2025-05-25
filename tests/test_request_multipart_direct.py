@@ -21,11 +21,14 @@ class DirectHandlerPlugin(Plugin):
         self.methods = methods
         self._stand_alone = True
         self._plugin_spec = PluginSpec(
-            name="DirectHandlerPlugin",
-            description="A plugin that adds direct handlers for multipart form data",
-            version="0.1.0",
+            config={
+                "name": "DirectHandlerPlugin",
+                "description": "A plugin that adds direct handlers for multipart form data",
+                "version": "0.1.0",
+                "author": "Test Author"
+            },
             path=Path(__file__).parent,
-            author="Test Author"
+            override_settings={}
         )
 
     async def on_app_request_before_router(self, router_instance: Router = dependency(), **kwargs):

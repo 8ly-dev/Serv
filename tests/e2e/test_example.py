@@ -29,11 +29,14 @@ class SimpleTextPlugin(Plugin):
         self.text = text
         self._stand_alone = True
         self._plugin_spec = PluginSpec(
-            name="SimpleTextPlugin",
-            description="A simple plugin that returns plain text",
-            version="0.1.0",
+            config={
+                "name": "SimpleTextPlugin",
+                "description": "A simple plugin that returns plain text",
+                "version": "0.1.0",
+                "author": "Test Author"
+            },
             path=Path(__file__).parent,
-            author="Test Author"
+            override_settings={}
         )
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
@@ -53,11 +56,14 @@ class JsonPlugin(Plugin):
         self.data = data
         self._stand_alone = True
         self._plugin_spec = PluginSpec(
-            name="JsonPlugin",
-            description="A simple plugin that returns JSON data",
-            version="0.1.0",
+            config={
+                "name": "JsonPlugin",
+                "description": "A simple plugin that returns JSON data",
+                "version": "0.1.0",
+                "author": "Test Author"
+            },
             path=Path(__file__).parent,
-            author="Test Author"
+            override_settings={}
         )
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:

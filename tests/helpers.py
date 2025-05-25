@@ -20,11 +20,14 @@ class RouteAddingPlugin(Plugin):
         self.received_kwargs = None
         self._stand_alone = True
         self._plugin_spec = PluginSpec(
-            name="RouteAddingPlugin",
-            description="A test plugin that adds routes",
-            version="0.1.0",
+            config={
+                "name": "RouteAddingPlugin",
+                "description": "A test plugin that adds routes",
+                "version": "0.1.0",
+                "author": "Test Author"
+            },
             path=Path(__file__).parent,
-            author="Test Author"
+            override_settings={}
         )
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
@@ -47,11 +50,14 @@ class EventWatcherPlugin(Plugin):
         self.events_seen = []
         self._stand_alone = True
         self._plugin_spec = PluginSpec(
-            name="EventWatcherPlugin",
-            description="A test plugin that watches events",
-            version="0.1.0",
+            config={
+                "name": "EventWatcherPlugin",
+                "description": "A test plugin that watches events",
+                "version": "0.1.0",
+                "author": "Test Author"
+            },
             path=Path(__file__).parent,
-            author="Test Author"
+            override_settings={}
         )
 
     async def on(self, event_name: str, **kwargs: Any) -> None:

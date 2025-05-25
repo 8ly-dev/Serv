@@ -47,11 +47,14 @@ def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should
 
     # Create mocks for plugins and middleware
     mock_plugin_spec = PluginSpec(
-        name="Mock Plugin",
-        description="A mock plugin",
-        version="0.1.0",
+        config={
+            "name": "Mock Plugin",
+            "description": "A mock plugin",
+            "version": "0.1.0",
+            "author": "Test Author"
+        },
         path=Path("."),
-        author="Test Author"
+        override_settings={}
     )
 
     with patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome, \

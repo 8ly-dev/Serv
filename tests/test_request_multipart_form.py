@@ -63,11 +63,14 @@ class MultipartTestRoutePlugin(Plugin):
         self.plugin_registered_route = False
         self._stand_alone = True
         self._plugin_spec = PluginSpec(
-            name="MultipartTestRoutePlugin",
-            description="A test plugin for multipart form handling",
-            version="0.1.0",
+            config={
+                "name": "MultipartTestRoutePlugin",
+                "description": "A test plugin for multipart form handling",
+                "version": "0.1.0",
+                "author": "Test Author"
+            },
             path=Path(__file__).parent,
-            author="Test Author"
+            override_settings={}
         )
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:

@@ -1,11 +1,13 @@
 import importlib.util
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, AsyncIterator, TYPE_CHECKING
+from importlib.metadata import entry_points
+from typing import Any, Callable, AsyncIterator, NotRequired, TYPE_CHECKING, TypedDict
 from pathlib import Path
 import yaml
 from bevy import get_container
 
+from serv.additional_context import AdditionalExceptionContext
 from serv.loader import ServLoader
 import serv.plugins as p
 
@@ -66,24 +68,71 @@ def get_package_location(package_name: str) -> Path:
     return Path(spec.origin).parent
 
 
-@dataclass
-class PluginSpec:
+class RouteConfig(TypedDict):
+    path: str
+    handler: str
+    config: dict[str, Any]
+
+
+class EntryPointConfig(TypedDict):
+    entry: str
+    config: dict[str, Any]
+
+
+class RouterConfig(TypedDict):
     name: str
-    description: str
-    author: str
+    config: dict[str, Any]
+    routes: list[RouteConfig]
+
+
+class PluginConfig(TypedDict):
+    name: str
     version: str
-    path: Path
-    entry_points: list[str] = field(default_factory=list, kw_only=True)
-    middleware: list[str] = field(default_factory=list, kw_only=True)
-    plugin_settings: dict[str, Any] = field(default_factory=dict, kw_only=True)
-    override_settings: dict[str, Any] = field(default_factory=dict, kw_only=True)
+    entry: NotRequired[str]
+    entry_points: NotRequired[list[str | EntryPointConfig]]
+    description: NotRequired[str]
+    author: NotRequired[str]
+    settings: NotRequired[dict[str, Any]]
+    middleware: NotRequired[list[str]]
+    routers: NotRequired[list[RouterConfig]]
+
+
+class PluginSpec:
+    def __init__(self, config: PluginConfig, path: Path, override_settings: dict[str, Any]):
+        self.name = config["name"]
+        self.version = config["version"]
+        self._config = config
+        self._entry_points = config.get("entry_points", [])
+        self._middleware = config.get("middleware", [])
+        self._override_settings = override_settings
+        self._path = path
+
+    @property
+    def entry_points(self):
+        return self._entry_points
+
+    @property
+    def description(self) -> str | None:
+        return self._config.get("description")
+
+    @property
+    def author(self) -> str | None:
+        return self._config.get("author")
+
+    @property
+    def middleware(self) -> list[str]:
+        return self._middleware
 
     @property
     def settings(self) -> dict[str, Any]:
-        return {**self.plugin_settings, **self.override_settings}
+        return self._config.get("settings", {}) | self._override_settings
+
+    @property
+    def path(self) -> Path:
+        return self._path
 
     @classmethod
-    def from_path(cls, path: Path) -> 'PluginSpec':
+    def from_path(cls, path: Path, override_settings: dict[str, Any]) -> 'PluginSpec':
         plugin_config = path / "plugin.yaml"
         if not plugin_config.exists():
             raise FileNotFoundError(f"plugin.yaml not found in {path}")
@@ -93,15 +142,15 @@ class PluginSpec:
 
         # Convert settings to plugin_settings
         raw_config_data["plugin_settings"] = raw_config_data.pop("settings", {})
-        
+
         # Handle single 'entry' field by converting it to 'entry_points' list
         if "entry" in raw_config_data:
             entry = raw_config_data.pop("entry")
             if "entry_points" not in raw_config_data:
                 raw_config_data["entry_points"] = []
             raw_config_data["entry_points"].append(entry)
-            
-        return cls(**raw_config_data, path=path)
+
+        return cls(raw_config_data, path, override_settings)
 
 
 class PluginLoader:
@@ -191,8 +240,28 @@ class PluginLoader:
         else:
             exceptions.extend(failed_middleware)
 
+        # try:
+        #     _, router_exceptions = self._load_plugin_routers(plugin_spec.routers, plugin_import)
+        # except Exception as e:
+        #     e.add_note(f" - Failed while loading routers for {plugin_import}")
+        #     exceptions.append(e)
+        # else:
+        #     exceptions.extend(router_exceptions)
+
         logger.info(f"Loaded plugin {plugin_spec.name!r}")
         return plugin_spec, exceptions
+
+    def _load_plugin_routers(self, router_settings: list[RouterConfig], plugin_import: str) -> tuple[int, list[Exception]]:
+        succeeded = 0
+        failed = []
+        for router in router_settings:
+            with AdditionalExceptionContext(f" - Failed to load router {router['name']}"):
+                try:
+                    self._app.add_router(router["name"], router["settings"])
+                    succeeded += 1
+                except Exception as e:
+                    failed.append(e)
+        return succeeded, failed
 
     def _load_plugin_entry_points(self, entry_points: list[str], plugin_import: str) -> tuple[int, list[Exception]]:
         succeeded = 0
@@ -258,12 +327,11 @@ class PluginLoader:
             return known_plugins[plugin_path]
 
         try:
-            plugin_spec = PluginSpec.from_path(plugin_path)
+            plugin_spec = PluginSpec.from_path(plugin_path, app_plugin_settings)
         except Exception as e:
             e.add_note(f" - Failed while attempting to load plugin spec from {plugin_path}")
             raise
         else:
-            plugin_spec.override_settings = app_plugin_settings
             known_plugins[plugin_path] = plugin_spec
             return plugin_spec
 

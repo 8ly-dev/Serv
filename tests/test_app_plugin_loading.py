@@ -93,11 +93,14 @@ async def app_instance(monkeypatch, tmp_path, mock_real_plugin_instance, mock_as
 
     # Create a dummy plugin spec for the dummy plugin
     dummy_plugin_spec = PluginSpec(
-        name="Dummy Plugin",
-        description="A dummy plugin",
-        version="0.1.0",
+        config={
+            "name": "Dummy Plugin",
+            "description": "A dummy plugin",
+            "version": "0.1.0",
+            "author": "Test Author"
+        },
         path=Path("."),
-        author="Test Author"
+        override_settings={}
     )
 
     # Default return for plugin loader
@@ -145,11 +148,14 @@ async def app_instance(monkeypatch, tmp_path, mock_real_plugin_instance, mock_as
 def test_load_single_plugin(app_instance, caplog, mock_real_plugin_instance):
     """Test loading a single plugin from app config."""
     plugin_spec = PluginSpec(
-        name="Test Plugin",
-        description="A test plugin",
-        version="0.1.0",
+        config={
+            "name": "Test Plugin",
+            "description": "A test plugin",
+            "version": "0.1.0",
+            "author": "Test Author"
+        },
         path=Path("."),
-        author="Test Author"
+        override_settings={}
     )
     app_instance.set_mock_plugin_return((plugin_spec, []))
     
@@ -171,13 +177,16 @@ def test_load_plugin_entry_points(app_instance, caplog, mock_real_plugin_instanc
     """Test loading a plugin with entry points from plugin.yaml."""
     # Create plugin spec with entry points
     plugin_spec = PluginSpec(
-        name="Plugin With Entry Points",
-        description="A test plugin with entry points",
-        version="0.1.0",
+        config={
+            "name": "Plugin With Entry Points",
+            "description": "A test plugin with entry points",
+            "version": "0.1.0",
+            "author": "Test Author",
+            "entry_points": ["module.path:EntryPoint", "module.path:AnotherEntryPoint"],
+            "settings": {"base_setting": "base_value"}
+        },
         path=Path("."),
-        author="Test Author",
-        entry_points=["module.path:EntryPoint", "module.path:AnotherEntryPoint"],
-        plugin_settings={"base_setting": "base_value"}
+        override_settings={"override_setting": "override_value"}
     )
 
     # Mock the plugin loading
@@ -203,13 +212,16 @@ def test_load_plugin_middleware(app_instance, caplog, mock_real_plugin_instance,
     """Test loading a plugin with middleware from plugin.yaml."""
     # Create plugin spec with middleware
     plugin_spec = PluginSpec(
-        name="Plugin With Middleware",
-        description="A test plugin with middleware",
-        version="0.1.0",
+        config={
+            "name": "Plugin With Middleware",
+            "description": "A test plugin with middleware",
+            "version": "0.1.0",
+            "author": "Test Author",
+            "middleware": ["module.path:TestMiddleware", "module.path:AnotherMiddleware"],
+            "settings": {"base_setting": "base_value"}
+        },
         path=Path("."),
-        author="Test Author",
-        middleware=["module.path:TestMiddleware", "module.path:AnotherMiddleware"],
-        plugin_settings={"base_setting": "base_value"}
+        override_settings={"override_setting": "override_value"}
     )
 
     # Mock the plugin loading
@@ -234,11 +246,14 @@ def test_load_plugin_middleware(app_instance, caplog, mock_real_plugin_instance,
 def test_load_plugin_by_dot_notation(app_instance, caplog, mock_real_plugin_instance):
     """Test loading a plugin by dot notation."""
     plugin_spec = PluginSpec(
-        name="Welcome Plugin",
-        description="A welcome plugin",
-        version="0.1.0",
+        config={
+            "name": "Welcome Plugin",
+            "description": "A welcome plugin",
+            "version": "0.1.0",
+            "author": "Test Author"
+        },
         path=Path("."),
-        author="Test Author"
+        override_settings={}
     )
     app_instance.set_mock_plugin_return((plugin_spec, []))
     
@@ -258,18 +273,24 @@ def test_load_plugin_by_dot_notation(app_instance, caplog, mock_real_plugin_inst
 def test_load_multiple_plugins(app_instance, caplog, mock_real_plugin_instance):
     """Test loading multiple plugins."""
     plugin1_spec = PluginSpec(
-        name="Plugin 1",
-        description="First test plugin",
-        version="0.1.0",
+        config={
+            "name": "Plugin 1",
+            "description": "First test plugin",
+            "version": "0.1.0",
+            "author": "Test Author"
+        },
         path=Path("."),
-        author="Test Author"
+        override_settings={}
     )
     plugin2_spec = PluginSpec(
-        name="Plugin 2",
-        description="Second test plugin",
-        version="0.1.0",
+        config={
+            "name": "Plugin 2",
+            "description": "Second test plugin",
+            "version": "0.1.0",
+            "author": "Test Author"
+        },
         path=Path("."),
-        author="Test Author"
+        override_settings={}
     )
     
     # Configure load_plugin to return different specs for different calls
@@ -293,12 +314,15 @@ def test_load_multiple_plugins(app_instance, caplog, mock_real_plugin_instance):
 def test_plugin_settings_override(app_instance, caplog, mock_real_plugin_instance):
     """Test that plugin settings are correctly overridden by app config."""
     plugin_spec = PluginSpec(
-        name="Test Plugin",
-        description="A test plugin",
-        version="0.1.0",
+        config={
+            "name": "Test Plugin",
+            "description": "A test plugin",
+            "version": "0.1.0",
+            "author": "Test Author",
+            "settings": {"default_key": "default_value", "override_key": "original_value"}
+        },
         path=Path("."),
-        author="Test Author",
-        plugin_settings={"default_key": "default_value", "override_key": "original_value"}
+        override_settings={"override_key": "new_value", "new_key": "added_value"}
     )
     app_instance.set_mock_plugin_return((plugin_spec, []))
     
@@ -316,7 +340,6 @@ def test_plugin_settings_override(app_instance, caplog, mock_real_plugin_instanc
     )
     
     # Verify the final settings in the plugin spec
-    plugin_spec.override_settings = {"override_key": "new_value", "new_key": "added_value"}
     assert plugin_spec.settings == {
         "default_key": "default_value",
         "override_key": "new_value",
@@ -347,12 +370,15 @@ def test_plugin_load_error_handling(app_instance, caplog):
 def test_entry_point_load_error_handling(app_instance, caplog, mock_real_plugin_instance):
     """Test error handling when loading an entry point fails."""
     plugin_spec = PluginSpec(
-        name="Plugin With Bad Entry Point",
-        description="A test plugin with a bad entry point",
-        version="0.1.0",
+        config={
+            "name": "Plugin With Bad Entry Point",
+            "description": "A test plugin with a bad entry point",
+            "version": "0.1.0",
+            "author": "Test Author",
+            "entry_points": ["module.path:BadEntryPoint"]
+        },
         path=Path("."),
-        author="Test Author",
-        entry_points=["module.path:BadEntryPoint"]
+        override_settings={}
     )
 
     # Mock the plugin loading
@@ -374,12 +400,15 @@ def test_entry_point_load_error_handling(app_instance, caplog, mock_real_plugin_
 def test_middleware_load_error_handling(app_instance, caplog, mock_real_plugin_instance):
     """Test error handling when loading middleware fails."""
     plugin_spec = PluginSpec(
-        name="Plugin With Bad Middleware",
-        description="A test plugin with bad middleware",
-        version="0.1.0",
+        config={
+            "name": "Plugin With Bad Middleware",
+            "description": "A test plugin with bad middleware",
+            "version": "0.1.0",
+            "author": "Test Author",
+            "middleware": ["module.path:BadMiddleware"]
+        },
         path=Path("."),
-        author="Test Author",
-        middleware=["module.path:BadMiddleware"]
+        override_settings={}
     )
     app_instance.set_mock_plugin_return((plugin_spec, []))
     
@@ -410,13 +439,16 @@ async def test_middleware_execution_from_plugin(app_instance, caplog, mock_real_
     """Test that middleware from a plugin is executed correctly."""
     # Create plugin spec with middleware
     plugin_spec = PluginSpec(
-        name="Plugin With Middleware",
-        description="A test plugin with middleware",
-        version="0.1.0",
+        config={
+            "name": "Plugin With Middleware",
+            "description": "A test plugin with middleware",
+            "version": "0.1.0",
+            "author": "Test Author",
+            "middleware": ["module.path:TestMiddleware"],
+            "settings": {"base_setting": "base_value"}
+        },
         path=Path("."),
-        author="Test Author",
-        middleware=["module.path:TestMiddleware"],
-        plugin_settings={"base_setting": "base_value"}
+        override_settings={"override_setting": "override_value"}
     )
 
     # Mock the plugin loading
@@ -528,12 +560,14 @@ def test_real_plugin_loading_with_directory(monkeypatch, tmp_path, create_plugin
     with patch('serv.plugin_loader.PluginLoader.load_plugin') as mock_load_plugin:
         # Set up mock behavior for plugin loading
         plugin_spec = PluginSpec(
-            name="Test Plugin",
-            description="A test plugin",
-            version="1.0.0",
+            config={
+                "name": "Test Plugin",
+                "description": "A test plugin",
+                "version": "1.0.0",
+                "author": "Test Author",
+                "settings": {"test_key": "default_value"}
+            },
             path=plugin_dir,
-            author="Test Author",
-            plugin_settings={"test_key": "default_value"},
             override_settings={"test_key": "override_value"}
         )
         mock_load_plugin.return_value = (plugin_spec, [])
@@ -607,12 +641,15 @@ def test_real_plugin_loading_with_entry_points(monkeypatch, tmp_path, create_plu
         
         # Set up mock behavior for plugin loading
         plugin_spec = PluginSpec(
-            name="Plugin With Entry Points",
-            description="A test plugin with entry points",
-            version="1.0.0",
+            config={
+                "name": "Plugin With Entry Points",
+                "description": "A test plugin with entry points",
+                "version": "1.0.0",
+                "author": "Test Author",
+                "entry_points": ["plugin:EntryPoint"]
+            },
             path=plugin_dir,
-            author="Test Author",
-            entry_points=["plugin:EntryPoint"]
+            override_settings={}
         )
         mock_load_plugin.return_value = (plugin_spec, [])
         
@@ -699,12 +736,15 @@ def test_real_plugin_loading_with_middleware(monkeypatch, tmp_path, create_plugi
          patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome:
         # Set up mock behavior for plugin loading
         plugin_spec = PluginSpec(
-            name="Plugin With Middleware",
-            description="A test plugin with middleware",
-            version="1.0.0",
+            config={
+                "name": "Plugin With Middleware",
+                "description": "A test plugin with middleware",
+                "version": "1.0.0",
+                "author": "Test Author",
+                "middleware": ["plugin:TestMiddleware", "plugin:test_middleware_factory"]
+            },
             path=plugin_dir,
-            author="Test Author",
-            middleware=["plugin:TestMiddleware", "plugin:test_middleware_factory"]
+            override_settings={}
         )
         mock_load_plugin.return_value = (plugin_spec, [])
 
@@ -774,11 +814,14 @@ def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should
 
     # Create mocks for plugins and middleware
     mock_plugin_spec = PluginSpec(
-        name="Mock Plugin",
-        description="A mock plugin",
-        version="0.1.0",
+        config={
+            "name": "Mock Plugin",
+            "description": "A mock plugin",
+            "version": "0.1.0",
+            "author": "Test Author"
+        },
         path=Path("."),
-        author="Test Author"
+        override_settings={}
     )
 
     with patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome, \

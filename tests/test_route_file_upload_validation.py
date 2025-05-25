@@ -16,11 +16,14 @@ class FileUploadTestPlugin(Plugin):
         super().__init__()
         self._stand_alone = True
         self._plugin_spec = PluginSpec(
-            name="FileUploadTestPlugin",
-            description="A test plugin for file uploads",
-            version="0.1.0",
+            config={
+                "name": "FileUploadTestPlugin",
+                "description": "A test plugin for file uploads",
+                "version": "0.1.0",
+                "author": "Test Author"
+            },
             path=Path(__file__).parent,
-            author="Test Author"
+            override_settings={}
         )
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:

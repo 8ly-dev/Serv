@@ -73,7 +73,7 @@ class Plugin:
             return self._plugin_spec
 
         path = search_for_plugin_directory(Path(sys.modules[self.__module__].__file__))
-        self._plugin_spec = pl.PluginSpec.from_path(path)
+        self._plugin_spec = pl.PluginSpec.from_path(path, {})
         return self._plugin_spec
 
     async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:

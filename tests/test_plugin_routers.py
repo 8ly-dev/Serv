@@ -38,11 +38,14 @@ def create_plugin_with_config(plugin_yaml_content):
         
         plugin = TestPlugin()
         plugin._plugin_spec = PluginSpec(
-            name=plugin_yaml_content["name"],
-            description=plugin_yaml_content["description"],
-            version=plugin_yaml_content["version"],
+            config={
+                "name": plugin_yaml_content["name"],
+                "description": plugin_yaml_content["description"],
+                "version": plugin_yaml_content["version"],
+                "author": "Test Author"
+            },
             path=plugin_dir,
-            author="Test Author"
+            override_settings={}
         )
     
     # Return the plugin and a reference to the temporary directory

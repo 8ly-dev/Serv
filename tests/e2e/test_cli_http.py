@@ -93,13 +93,13 @@ class TestCliHttpBehavior:
         plugin_dir = plugins_dir / f"{plugin_name}"
         plugin_dir.mkdir(exist_ok=True)
         
-        # Create plugin.yaml with correct PluginSpec format
+        # Create plugin.yaml with the correct format expected by CLI
         plugin_yaml = {
             "name": plugin_name.replace("_", " ").title(),
             "description": f"Test plugin that adds a {route_path} route",
             "version": "1.0.0",
             "author": "Test Author",
-            "entry_points": [f"main:{plugin_name.replace('_', ' ').title().replace(' ', '')}Plugin"]
+            "entry": f"main:{plugin_name.replace('_', ' ').title().replace(' ', '')}Plugin"
         }
         with open(plugin_dir / "plugin.yaml", 'w') as f:
             yaml.dump(plugin_yaml, f)
