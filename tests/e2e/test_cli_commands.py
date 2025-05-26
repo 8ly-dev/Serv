@@ -254,6 +254,53 @@ class TestPlugin(Plugin):
             # We don't care about the status code as long as the request completes
             assert response.status_code is not None
 
+    def test_create_plugin_command_new_syntax(self, clean_test_dir):
+        """Test the new 'serv create plugin' command."""
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a plugin using the new syntax
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "plugin",
+                "--name",
+                "My Awesome Plugin",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Check that the plugin directory was created
+        plugin_dir = Path(clean_test_dir) / "plugins" / "my_awesome_plugin"
+        assert plugin_dir.exists(), "Plugin directory should have been created"
+
+        # Check for plugin.yaml
+        plugin_yaml_path = plugin_dir / "plugin.yaml"
+        assert plugin_yaml_path.exists(), "plugin.yaml should exist"
+
+        # Check for main plugin file
+        plugin_main = plugin_dir / "my_awesome_plugin.py"
+        assert plugin_main.exists(), "Plugin Python file should exist"
+
+        # Verify plugin.yaml content
+        with open(plugin_yaml_path) as f:
+            loaded_plugin_config = yaml.safe_load(f)
+
+        assert loaded_plugin_config["name"] == "My Awesome Plugin", (
+            "Plugin name should match expected value"
+        )
+        assert loaded_plugin_config["version"] == "1.0.0", (
+            "Version should match expected value"
+        )
+
     def test_create_entrypoint_command(self, clean_test_dir):
         """Test the 'serv create entrypoint' command."""
         # Set up a clean directory with config and a plugin
@@ -268,8 +315,10 @@ class TestPlugin(Plugin):
                 "python",
                 "-m",
                 "serv",
-                "plugin",
                 "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
                 "--force",
                 "--non-interactive",
             ],
@@ -337,8 +386,10 @@ class TestPlugin(Plugin):
                 "python",
                 "-m",
                 "serv",
-                "plugin",
                 "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
                 "--force",
                 "--non-interactive",
             ],
@@ -403,8 +454,10 @@ class TestPlugin(Plugin):
                 "python",
                 "-m",
                 "serv",
-                "plugin",
                 "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
                 "--force",
                 "--non-interactive",
             ],
@@ -474,8 +527,10 @@ class TestPlugin(Plugin):
                 "python",
                 "-m",
                 "serv",
-                "plugin",
                 "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
                 "--force",
                 "--non-interactive",
             ],
@@ -513,8 +568,10 @@ class TestPlugin(Plugin):
                 "python",
                 "-m",
                 "serv",
-                "plugin",
                 "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
                 "--force",
                 "--non-interactive",
             ],
@@ -542,3 +599,82 @@ class TestPlugin(Plugin):
         assert entrypoint_path.exists(), (
             "Entrypoint file should have been created when run from plugin directory"
         )
+
+    def test_plugin_list_command(self, clean_test_dir):
+        """Test the 'serv plugin list' command."""
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Test list with no plugins enabled
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "plugin", "list"],
+            cwd=clean_test_dir,
+        )
+        assert "No plugins are currently enabled" in stdout
+
+        # Test list available with no plugins directory
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "plugin", "list", "--available"],
+            cwd=clean_test_dir,
+        )
+        assert "No plugins directory found" in stdout
+
+        # Create some plugins
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "plugin",
+                "--name",
+                "Test Plugin One",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "plugin",
+                "--name",
+                "Test Plugin Two",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Test list available with plugins
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "plugin", "list", "--available"],
+            cwd=clean_test_dir,
+        )
+        assert "Available plugins (2)" in stdout
+        assert "Test Plugin One" in stdout
+        assert "Test Plugin Two" in stdout
+        assert "test_plugin_one" in stdout
+        assert "test_plugin_two" in stdout
+
+        # Enable one plugin
+        run_cli_command(
+            ["python", "-m", "serv", "plugin", "enable", "test_plugin_one"],
+            cwd=clean_test_dir,
+        )
+
+        # Test list enabled plugins
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "plugin", "list"],
+            cwd=clean_test_dir,
+        )
+        assert "Enabled plugins (1)" in stdout
+        assert "Test Plugin One" in stdout
+        assert "test_plugin_one" in stdout

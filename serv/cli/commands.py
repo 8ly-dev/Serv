@@ -170,21 +170,18 @@ def handle_init_command(args_ns):
 
 
 def handle_create_plugin_command(args_ns):
-    """Handles the 'create-plugin' command."""
+    """Handles the 'create plugin' command."""
     logger.debug("Create plugin command started.")
 
-    # For non-interactive mode (--force), use default values
-    if getattr(args_ns, "force", False) and getattr(args_ns, "non_interactive", False):
-        plugin_name_human = "Test Plugin"
+    # Get plugin name from args
+    plugin_name_human = args_ns.name
+
+    # For non-interactive mode, use default values
+    if getattr(args_ns, "non_interactive", False):
         plugin_author = "Test Author"
         plugin_description = "A test plugin for Serv"
         plugin_version = "1.0.0"
     else:
-        plugin_name_human = prompt_user("Plugin Name (e.g., 'My Awesome Plugin')")
-        if not plugin_name_human:
-            logger.error("Plugin name cannot be empty. Aborting.")
-            return
-
         plugin_author = prompt_user("Author", "Your Name") or "Your Name"
         plugin_description = (
             prompt_user("Description", "A cool Serv plugin.") or "A cool Serv plugin."
@@ -453,6 +450,122 @@ def handle_disable_plugin_command(args_ns):
             print(f"Human name: {plugin_name_human}")
     except Exception as e:
         logger.error(f"Error writing config file '{config_path}': {e}")
+
+
+def handle_list_plugin_command(args_ns):
+    """Handles the 'list plugin' command."""
+    logger.debug("List plugin command started.")
+
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
+
+    if args_ns.available:
+        # Show all available plugins in the plugins directory
+        plugins_dir = Path.cwd() / "plugins"
+        if not plugins_dir.exists():
+            print("No plugins directory found.")
+            return
+
+        available_plugins = []
+        for plugin_dir in plugins_dir.iterdir():
+            if (
+                plugin_dir.is_dir()
+                and not plugin_dir.name.startswith("_")
+                and (plugin_dir / "plugin.yaml").exists()
+            ):
+                try:
+                    with open(plugin_dir / "plugin.yaml") as f:
+                        plugin_meta = yaml.safe_load(f) or {}
+
+                    plugin_name = plugin_meta.get("name", plugin_dir.name)
+                    plugin_version = plugin_meta.get("version", "Unknown")
+                    plugin_description = plugin_meta.get(
+                        "description", "No description"
+                    )
+
+                    available_plugins.append(
+                        {
+                            "dir_name": plugin_dir.name,
+                            "name": plugin_name,
+                            "version": plugin_version,
+                            "description": plugin_description,
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Error reading plugin metadata for '{plugin_dir.name}': {e}"
+                    )
+                    available_plugins.append(
+                        {
+                            "dir_name": plugin_dir.name,
+                            "name": plugin_dir.name,
+                            "version": "Unknown",
+                            "description": "Error reading metadata",
+                        }
+                    )
+
+        if not available_plugins:
+            print("No plugins found in the plugins directory.")
+            return
+
+        print(f"Available plugins ({len(available_plugins)}):")
+        for plugin in available_plugins:
+            print(f"  • {plugin['name']} (v{plugin['version']}) [{plugin['dir_name']}]")
+            print(f"    {plugin['description']}")
+    else:
+        # Show enabled plugins from config
+        if not config_path.exists():
+            print(f"Configuration file '{config_path}' not found.")
+            print("Run 'serv app init' to create a configuration file.")
+            return
+
+        try:
+            with open(config_path) as f:
+                config = yaml.safe_load(f) or {}
+        except Exception as e:
+            logger.error(f"Error reading config file '{config_path}': {e}")
+            return
+
+        plugins = config.get("plugins", [])
+
+        if not plugins:
+            print("No plugins are currently enabled.")
+            print("Use 'serv plugin enable <plugin>' to enable a plugin.")
+            return
+
+        print(f"Enabled plugins ({len(plugins)}):")
+        for plugin_entry in plugins:
+            if isinstance(plugin_entry, dict):
+                plugin_id = plugin_entry.get("plugin", "Unknown")
+                plugin_config = plugin_entry.get("config", {})
+                config_info = " (with config)" if plugin_config else ""
+            else:
+                plugin_id = plugin_entry
+                config_info = ""
+
+            # Try to get human-readable name from plugin metadata
+            plugin_name = plugin_id
+            plugin_version = "Unknown"
+
+            # Check if this is a directory-based plugin
+            plugins_dir = Path.cwd() / "plugins"
+            if plugins_dir.exists():
+                # Try to find the plugin directory
+                for plugin_dir in plugins_dir.iterdir():
+                    if (
+                        plugin_dir.is_dir()
+                        and plugin_dir.name == plugin_id
+                        and (plugin_dir / "plugin.yaml").exists()
+                    ):
+                        try:
+                            with open(plugin_dir / "plugin.yaml") as f:
+                                plugin_meta = yaml.safe_load(f) or {}
+                            plugin_name = plugin_meta.get("name", plugin_id)
+                            plugin_version = plugin_meta.get("version", "Unknown")
+                            break
+                        except Exception:
+                            pass
+
+            print(f"  • {plugin_name} (v{plugin_version}) [{plugin_id}]{config_info}")
 
 
 def handle_app_details_command(args_ns):

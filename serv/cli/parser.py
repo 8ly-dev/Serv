@@ -18,6 +18,7 @@ from .commands import (
     handle_enable_plugin_command,
     handle_init_command,
     handle_launch_command,
+    handle_list_plugin_command,
 )
 
 
@@ -140,21 +141,6 @@ def create_parser():
         help="Plugin command to execute",
     )
 
-    # Plugin create command
-    plugin_create_parser = plugin_subparsers.add_parser(
-        "create", help="Create a new plugin"
-    )
-    plugin_create_parser.add_argument(
-        "--force", action="store_true", help="Force overwrite of existing plugin"
-    )
-    plugin_create_parser.add_argument(
-        "--non-interactive",
-        action="store_true",
-        dest="non_interactive",
-        help="Non-interactive mode with default values (for testing)",
-    )
-    plugin_create_parser.set_defaults(func=handle_create_plugin_command)
-
     # Plugin enable command
     plugin_enable_parser = plugin_subparsers.add_parser(
         "enable", help="Enable a plugin"
@@ -173,14 +159,45 @@ def create_parser():
     )
     plugin_disable_parser.set_defaults(func=handle_disable_plugin_command)
 
+    # Plugin list command
+    plugin_list_parser = plugin_subparsers.add_parser(
+        "list", help="List available and enabled plugins"
+    )
+    plugin_list_parser.add_argument(
+        "--available",
+        action="store_true",
+        help="Show all available plugins (default shows enabled plugins)",
+    )
+    plugin_list_parser.set_defaults(func=handle_list_plugin_command)
+
     # Create commands
-    create_parser = subparsers.add_parser("create", help="Create plugin components")
+    create_parser = subparsers.add_parser(
+        "create", help="Create plugins and components"
+    )
     create_subparsers = create_parser.add_subparsers(
         title="create commands",
         dest="create_command",
         required=True,
-        help="Component to create",
+        help="Item to create",
     )
+
+    # Create plugin command
+    create_plugin_parser = create_subparsers.add_parser(
+        "plugin", help="Create a new plugin"
+    )
+    create_plugin_parser.add_argument(
+        "--name", required=True, help="Name of the plugin"
+    )
+    create_plugin_parser.add_argument(
+        "--force", action="store_true", help="Force overwrite of existing plugin"
+    )
+    create_plugin_parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        dest="non_interactive",
+        help="Non-interactive mode with default values (for testing)",
+    )
+    create_plugin_parser.set_defaults(func=handle_create_plugin_command)
 
     # Create entrypoint command
     create_entrypoint_parser = create_subparsers.add_parser(
