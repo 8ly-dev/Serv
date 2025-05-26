@@ -9,8 +9,6 @@ import argparse
 from serv.config import DEFAULT_CONFIG_FILE
 
 from .commands import (
-    handle_app_check_command,
-    handle_app_details_command,
     handle_config_get_command,
     handle_config_set_command,
     handle_config_show_command,
@@ -225,51 +223,6 @@ def create_parser():
     )
     config_set_parser.set_defaults(func=handle_config_set_command)
 
-    # App commands
-    app_parser = subparsers.add_parser("app", help="App management commands")
-    app_subparsers = app_parser.add_subparsers(
-        title="app commands",
-        dest="app_command",
-        required=True,
-        help="App command to execute",
-    )
-
-    # App init command
-    app_init_parser = app_subparsers.add_parser(
-        "init", help="Initialize a new Serv project"
-    )
-    app_init_parser.add_argument(
-        "--force", action="store_true", help="Force overwrite of existing config file"
-    )
-    app_init_parser.add_argument(
-        "--non-interactive",
-        action="store_true",
-        dest="non_interactive",
-        help="Non-interactive mode with default values (for testing)",
-    )
-    app_init_parser.set_defaults(func=handle_init_command)
-
-    # App details command
-    app_details_parser = app_subparsers.add_parser(
-        "details", help="Display application configuration"
-    )
-    app_details_parser.set_defaults(func=handle_app_details_command)
-
-    # App check command
-    app_check_parser = app_subparsers.add_parser(
-        "check", help="Validate application configuration and health"
-    )
-    app_check_parser.add_argument(
-        "--config", action="store_true", help="Check configuration file only"
-    )
-    app_check_parser.add_argument(
-        "--plugins", action="store_true", help="Check plugins only"
-    )
-    app_check_parser.add_argument(
-        "--routes", action="store_true", help="Check routes only"
-    )
-    app_check_parser.set_defaults(func=handle_app_check_command)
-
     # Plugin commands
     plugin_parser = subparsers.add_parser("plugin", help="Plugin management commands")
     plugin_subparsers = plugin_parser.add_subparsers(
@@ -324,7 +277,7 @@ def create_parser():
 
     # Create commands
     create_parser = subparsers.add_parser(
-        "create", help="Create plugins and components"
+        "create", help="Create apps, plugins and components"
     )
     create_subparsers = create_parser.add_subparsers(
         title="create commands",
@@ -332,6 +285,21 @@ def create_parser():
         required=True,
         help="Item to create",
     )
+
+    # Create app command
+    create_app_parser = create_subparsers.add_parser(
+        "app", help="Initialize a new Serv project"
+    )
+    create_app_parser.add_argument(
+        "--force", action="store_true", help="Force overwrite of existing config file"
+    )
+    create_app_parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        dest="non_interactive",
+        help="Non-interactive mode with default values (for testing)",
+    )
+    create_app_parser.set_defaults(func=handle_init_command)
 
     # Create plugin command
     create_plugin_parser = create_subparsers.add_parser(

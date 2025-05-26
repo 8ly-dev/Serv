@@ -2,5 +2,4 @@ name: {{ plugin_name }}
 description: {{ plugin_description }}
 version: {{ plugin_version }}
 author: {{ plugin_author }}
-entry_points:
-  - {{ plugin_entry_path }} 
+entry: {{ plugin_entry_path }} 

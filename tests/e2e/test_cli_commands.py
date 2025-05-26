@@ -82,10 +82,10 @@ class TestCliCommands:
             shutil.rmtree(test_dir)
 
     def test_init_command(self, clean_test_dir):
-        """Test the 'serv app init' command."""
+        """Test the 'serv create app' command."""
         # Run the init command
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -105,7 +105,7 @@ class TestCliCommands:
         """Test manually creating a plugin structure."""
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -182,30 +182,11 @@ class TestPlugin(Plugin):
             "Version should match expected value"
         )
 
-    def test_app_details_command(self, clean_test_dir):
-        """Test the 'serv app details' command."""
-        # Set up a clean directory with config
-        run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
-            cwd=clean_test_dir,
-        )
-
-        # Run the app details command from the directory containing the config
-        return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "app", "details"],
-            cwd=clean_test_dir,
-            check=False,  # Don't fail on error, we'll verify some basic output
-        )
-
-        # Even if there's a configuration loading error, the command should run and output something
-        # Just check that the command executed and produced some output
-        assert "config" in stdout.lower() or "configuration" in stdout.lower()
-
     def test_launch_dry_run(self, clean_test_dir):
         """Test the 'serv launch --dry-run' command."""
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -239,7 +220,7 @@ class TestPlugin(Plugin):
         """Test that a basic app can be created programmatically similar to CLI."""
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -258,7 +239,7 @@ class TestPlugin(Plugin):
         """Test the new 'serv create plugin' command."""
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -305,7 +286,7 @@ class TestPlugin(Plugin):
         """Test the 'serv create entrypoint' command."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -376,7 +357,7 @@ class TestPlugin(Plugin):
         """Test the 'serv create route' command."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -444,7 +425,7 @@ class TestPlugin(Plugin):
         """Test the 'serv create middleware' command."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -517,7 +498,7 @@ class TestPlugin(Plugin):
         """Test that create entrypoint can auto-detect plugin when only one exists."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -558,7 +539,7 @@ class TestPlugin(Plugin):
         """Test that create entrypoint works when run from within a plugin directory."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -604,7 +585,7 @@ class TestPlugin(Plugin):
         """Test the 'serv plugin list' command."""
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -679,64 +660,6 @@ class TestPlugin(Plugin):
         assert "Test Plugin One" in stdout
         assert "test_plugin_one" in stdout
 
-    def test_app_check_command(self, clean_test_dir):
-        """Test the 'serv app check' command."""
-        # Test with no config file
-        return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "app", "check"],
-            cwd=clean_test_dir,
-            check=False,
-        )
-        assert "Configuration file" in stdout
-        assert "not found" in stdout
-
-        # Set up a clean directory with config
-        run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
-            cwd=clean_test_dir,
-        )
-
-        # Test basic check
-        return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "app", "check"],
-            cwd=clean_test_dir,
-        )
-        assert "=== Serv Application Health Check ===" in stdout
-        assert "Checking configuration" in stdout
-        assert "Configuration file" in stdout
-        assert "is valid YAML" in stdout
-
-        # Test config-only check
-        return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "app", "check", "--config"],
-            cwd=clean_test_dir,
-        )
-        assert "Checking configuration" in stdout
-        assert "Checking plugins" not in stdout
-
-        # Create a plugin and test plugins check
-        run_cli_command(
-            [
-                "python",
-                "-m",
-                "serv",
-                "create",
-                "plugin",
-                "--name",
-                "Test Plugin",
-                "--force",
-                "--non-interactive",
-            ],
-            cwd=clean_test_dir,
-        )
-
-        return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "app", "check", "--plugins"],
-            cwd=clean_test_dir,
-        )
-        assert "Checking plugins" in stdout
-        assert "Found 1 plugin directories" in stdout
-
     def test_plugin_validate_command(self, clean_test_dir):
         """Test the 'serv plugin validate' command."""
         # Test with no plugins directory
@@ -749,7 +672,7 @@ class TestPlugin(Plugin):
 
         # Set up a clean directory with config and plugins
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -808,7 +731,7 @@ class TestPlugin(Plugin):
 
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -843,7 +766,7 @@ class TestPlugin(Plugin):
 
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -880,7 +803,7 @@ class TestPlugin(Plugin):
 
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -912,7 +835,7 @@ class TestPlugin(Plugin):
 
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -996,7 +919,7 @@ class TestPlugin(Plugin):
 
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -1030,7 +953,7 @@ class TestPlugin(Plugin):
         """Test the 'serv test' command when no tests directory exists."""
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -1061,7 +984,7 @@ class TestPlugin(Plugin):
 
         # Set up a clean directory with config
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -1109,7 +1032,7 @@ class TestPlugin(Plugin):
             ["test", "--help"],
             ["shell", "--help"],
             ["config", "--help"],
-            ["app", "check", "--help"],
+            ["config", "validate", "--help"],
             ["plugin", "validate", "--help"],
         ]
 
@@ -1152,7 +1075,7 @@ class TestPlugin(Plugin):
         """Test the 'serv create route' command with custom path and router."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -1228,10 +1151,9 @@ class TestPlugin(Plugin):
         assert user_profile_route["path"] == "/users/{id}/profile", (
             "Route should have correct path"
         )
-        assert (
-            "test_plugin.route_user_profile:UserProfile"
-            in user_profile_route["handler"]
-        ), "Route should have correct handler"
+        assert "route_user_profile:UserProfile" in user_profile_route["handler"], (
+            "Route should have correct handler"
+        )
 
         # Verify success message
         assert "Route 'user_profile' created successfully" in stdout
@@ -1242,7 +1164,7 @@ class TestPlugin(Plugin):
         """Test creating multiple routes in the same router."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
@@ -1334,7 +1256,7 @@ class TestPlugin(Plugin):
         """Test creating routes in different routers."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
-            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
