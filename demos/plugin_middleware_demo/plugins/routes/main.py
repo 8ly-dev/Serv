@@ -2,12 +2,13 @@
 Routes plugin for Serv demo
 """
 
+from pathlib import Path
+from bevy import dependency
+
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
-from serv.requests import Request
 from serv.routing import Router
-from typing import Dict, Any
-from bevy import dependency
+from serv.plugins.loader import PluginSpec
 
 # Import from the main module of the utils plugin
 from plugins.utils.main import Utils

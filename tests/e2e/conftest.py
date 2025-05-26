@@ -8,7 +8,7 @@ import asyncio
 from serv.app import App
 from serv.responses import ResponseBuilder
 
-from tests.e2e.helpers import create_test_client, TestAppBuilder
+from tests.e2e.helpers import create_test_client, AppBuilder
 
 @pytest_asyncio.fixture
 async def app() -> App:
@@ -52,9 +52,9 @@ def app_factory() -> App:
     return _create_app
 
 @pytest.fixture
-def app_builder() -> TestAppBuilder:
+def app_builder() -> AppBuilder:
     """
-    Returns a TestAppBuilder instance.
+    Returns a AppBuilder instance.
     
     This allows tests to create customized app instances with a fluent interface.
     
@@ -73,4 +73,4 @@ def app_builder() -> TestAppBuilder:
                 assert response.status_code == 200
         ```
     """
-    return TestAppBuilder() 
+    return AppBuilder() 

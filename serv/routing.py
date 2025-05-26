@@ -1,6 +1,6 @@
 from typing import Callable, Awaitable, dataclass_transform, Any, Sequence, Type, overload
 from bevy import dependency, inject
-from bevy.containers import Container, get_container
+from bevy.containers import Container
 
 from serv.exceptions import HTTPNotFoundException, HTTPMethodNotAllowedException
 import serv.routes as routes

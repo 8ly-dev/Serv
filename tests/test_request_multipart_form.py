@@ -1,17 +1,21 @@
+"""
+Test multipart form parsing with file uploads
+"""
 import pytest
+import tempfile
+import asyncio
 from pathlib import Path
 from httpx import AsyncClient
 from typing import Type, List
-import io
 from dataclasses import dataclass
-
-from serv.app import App
-from serv.requests import FileUpload
+from bevy import dependency
 from serv.routes import Route, Form, Response, TextResponse
 from serv.plugins import Plugin
 from serv.routing import Router
-from serv.plugin_loader import PluginSpec
-from bevy import dependency
+from serv.plugins.loader import PluginSpec
+
+from serv.app import App
+from serv.requests import FileUpload
 
 # --- Helper types for tests ---
 

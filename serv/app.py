@@ -3,16 +3,15 @@ import contextlib
 import json
 import logging
 import traceback
-import inspect
 from asyncio import get_running_loop, Task
 from collections import defaultdict
 from itertools import chain
-from typing import AsyncIterator, Awaitable, Callable, Any, get_type_hints
+from typing import AsyncIterator, Awaitable, Callable, Any
 from pathlib import Path
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
 from bevy.registries import Registry
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 from asgiref.typing import (
     Scope,
     ASGIReceiveCallable as Receive,
@@ -23,14 +22,13 @@ from asgiref.typing import (
 
 from serv.config import load_raw_config
 from serv.plugins import Plugin
-from serv.loader import ServLoader
+from serv.plugins.importer import Importer
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.injectors import inject_request_object
 from serv.routing import Router, HTTPNotFoundException
 from serv.exceptions import HTTPMethodNotAllowedException, ServException
-from serv.middleware import ServMiddleware
-from serv.plugin_loader import PluginLoader
+from serv.plugins.loader import PluginLoader
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +73,7 @@ class App:
         self._error_handlers: dict[type[Exception], Callable[[Exception], Awaitable[None]]] = {}
         self._middleware = []
 
-        self._plugin_loader = ServLoader(plugin_dir)
+        self._plugin_loader = Importer(plugin_dir)
         self._plugins: dict[Path, list[Plugin]] = defaultdict(list)
         
         # Initialize the plugin loader

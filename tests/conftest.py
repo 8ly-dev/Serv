@@ -12,7 +12,7 @@ from serv.responses import ResponseBuilder # For ResponseBuilder.clear() check
 from serv.plugins import Plugin
 from serv.config import load_raw_config
 
-from tests.e2e_test_helpers import create_test_client, TestAppBuilder
+from tests.e2e_test_helpers import create_test_client, AppBuilder
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -145,7 +145,7 @@ async def app_test_client():
 @pytest.fixture
 def app_builder():
     """
-    Fixture that returns a TestAppBuilder instance.
+    Fixture that returns a AppBuilder instance.
     
     This allows tests to create customized app instances with a fluent interface.
     
@@ -164,7 +164,7 @@ def app_builder():
                 assert response.status_code == 200
         ```
     """
-    return TestAppBuilder()
+    return AppBuilder()
 
 @pytest.fixture(autouse=True)
 def mock_find_plugin_spec():

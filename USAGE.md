@@ -46,67 +46,67 @@ You can define simple `async` functions as handlers and add them to a router, ty
         response.body("Hello from Serv! This is the basic demo.")
     ```
 
-*   **Registration (within a Plugin in `demos/basic_app/main.py`):**
-    ```python
-    from serv.routing import Router
-    from serv.plugins import Plugin
-    from bevy import dependency
+* **Registration (within a Plugin in `demos/basic_app/main.py`):**
+  ```python
+  from serv.plugins.routing import Router
+  from serv.plugins import Plugin
+  from bevy import dependency
 
-    class BasicAppPlugin(Plugin):
-        async def on_app_request_begin(self, router: Router = dependency()):
-            router.add_route("/", homepage) # GET by default
-            router.add_route("/about", about_page, methods=["GET"]) # Explicit method
-    ```
+  class BasicAppPlugin(Plugin):
+      async def on_app_request_begin(self, router: Router = dependency()):
+          router.add_route("/", homepage) # GET by default
+          router.add_route("/about", about_page, methods=["GET"]) # Explicit method
+  ```
     The `router.add_route()` method is used. If `methods` is not specified, it typically defaults to `GET`.
 
 **2. Class-Based Routes (`serv.routes.Route`):**
 
 For more complex scenarios or to group related endpoints, you can create classes that inherit from `serv.routes.Route`.
 
-*   **Definition (`demos/complex_route_demo/demo.py`):**
-    ```python
-    from typing import Annotated, Any
-    from serv.routes import Route, GetRequest, Form, Jinja2Response, HtmlResponse
-    from dataclasses import dataclass
+* **Definition (`demos/complex_route_demo/demo.py`):**
+  ```python
+  from typing import Annotated, Any
+  from serv.plugins.routes import Route, GetRequest, Form, Jinja2Response, HtmlResponse
+  from dataclasses import dataclass
 
-    class HomeRoute(Route):
-        async def show_home_page(
-            self, request: GetRequest # Method determined by GetRequest
-        ) -> Annotated[
-            tuple[str, dict[str, Any]], # (template_name, context)
-            Jinja2Response # Response type
-        ]:
-            return "home.html", {"request": request}
+  class HomeRoute(Route):
+      async def show_home_page(
+          self, request: GetRequest # Method determined by GetRequest
+      ) -> Annotated[
+          tuple[str, dict[str, Any]], # (template_name, context)
+          Jinja2Response # Response type
+      ]:
+          return "home.html", {"request": request}
 
-    @dataclass
-    class UserForm(Form): # Define a form data structure
-        name: str
-        email: str
-        # __form_method__ defaults to "POST" if not specified
+  @dataclass
+  class UserForm(Form): # Define a form data structure
+      name: str
+      email: str
+      # __form_method__ defaults to "POST" if not specified
 
-    class SubmitRoute(Route):
-        async def receive_form_submission(
-            self, form: UserForm # Handles POST requests with matching form data
-        ) -> Annotated[str, HtmlResponse]:
-            return f"<h1>Submission Received!</h1><p>Thanks, {form.name}!</p>"
-    ```
+  class SubmitRoute(Route):
+      async def receive_form_submission(
+          self, form: UserForm # Handles POST requests with matching form data
+      ) -> Annotated[str, HtmlResponse]:
+          return f"<h1>Submission Received!</h1><p>Thanks, {form.name}!</p>"
+  ```
     - Serv inspects methods in `Route` subclasses.
     - If a method's first argument (after `self`) is type-hinted with a specific request type (e.g., `GetRequest`, `PostRequest` from `serv.requests`), that method becomes the handler for the corresponding HTTP method.
     - If a method's first argument is type-hinted with a `Form` subclass (from `serv.routes`), it becomes a handler for form submissions matching that form's structure and `__form_method__` (default POST).
     - `Annotated` return types (e.g., `Annotated[str, HtmlResponse]`) instruct Serv on how to process the return value into an HTTP response. `Jinja2Response` renders a Jinja2 template.
 
-*   **Registration (within a Plugin in `demos/complex_route_demo/plugins.py`):**
-    ```python
-    from serv.routing import Router
-    from serv.plugins import Plugin
-    from bevy import dependency
-    from .demo import HomeRoute, SubmitRoute # Assuming demo.py is in the same directory
+* **Registration (within a Plugin in `demos/complex_route_demo/plugins.py`):**
+  ```python
+  from serv.plugins.routing import Router
+  from serv.plugins import Plugin
+  from bevy import dependency
+  from .demo import HomeRoute, SubmitRoute # Assuming demo.py is in the same directory
 
-    class DemoRoutesPlugin(Plugin):
-        async def on_app_request_begin(self, router: Router = dependency()):
-            router.add_route("/", HomeRoute) # Registers all handlers in HomeRoute for "/"
-            router.add_route("/submit", SubmitRoute)
-    ```
+  class DemoRoutesPlugin(Plugin):
+      async def on_app_request_begin(self, router: Router = dependency()):
+          router.add_route("/", HomeRoute) # Registers all handlers in HomeRoute for "/"
+          router.add_route("/submit", SubmitRoute)
+  ```
     When `router.add_route()` receives a `Route` class, it registers all implicitly discovered handlers (method-based and form-based) from that class.
 
 **3. Path Parameters:**
@@ -189,31 +189,31 @@ Middleware components process requests before they reach route handlers and proc
 *   **Structure:**
     Middleware are `async` generator functions that take dependencies (like `Router`, `Request`, or custom services) via `bevy`. They `yield` control to the next item in the processing chain (another middleware or the router/handler).
 
-*   **Example (`demos/cookie_form_app/main.py`):**
-    ```python
-    from typing import Annotated, AsyncIterator
-    from serv.routing import Router
-    from serv.injectors import Cookie # For injecting cookie values
-    from bevy import dependency
+* **Example (`demos/cookie_form_app/main.py`):**
+  ```python
+  from typing import Annotated, AsyncIterator
+  from serv.plugins.routing import Router
+  from serv.injectors import Cookie # For injecting cookie values
+  from bevy import dependency
 
-    async def cookie_based_router_middleware(
-        router: Router = dependency(), 
-        username: Annotated[str, Cookie("username", default="")] = dependency()
-    ) -> AsyncIterator[None]:
-        if username:
-            print(f"Username cookie found: '{username}'. Setting welcome_router.")
-            router.add_router(welcome_router) # Dynamically add a router
-        else:
-            print("No username cookie. Setting form_router.")
-            router.add_router(form_router)
-        
-        yield # Pass control to the selected router (or next middleware)
-        
-        # Code here would run after the request is handled (response phase)
-        print("Cookie middleware finishing up.")
+  async def cookie_based_router_middleware(
+      router: Router = dependency(), 
+      username: Annotated[str, Cookie("username", default="")] = dependency()
+  ) -> AsyncIterator[None]:
+      if username:
+          print(f"Username cookie found: '{username}'. Setting welcome_router.")
+          router.add_router(welcome_router) # Dynamically add a router
+      else:
+          print("No username cookie. Setting form_router.")
+          router.add_router(form_router)
+      
+      yield # Pass control to the selected router (or next middleware)
+      
+      # Code here would run after the request is handled (response phase)
+      print("Cookie middleware finishing up.")
 
-    app.add_middleware(cookie_based_router_middleware)
-    ```
+  app.add_middleware(cookie_based_router_middleware)
+  ```
     - The middleware receives the main `Router` instance for the request.
     - It uses an injected cookie value (`username`) to decide which specialized router (`welcome_router` or `form_router`) to add to the main router using `router.add_router()`.
     - `yield` passes control. Code after `yield` executes during the response phase, allowing modification or observation of the response.
@@ -288,22 +288,26 @@ from serv.app import App
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
 from bevy import dependency
-from serv.routing import Router
+from serv.plugins.routing import Router
+
 
 # 1. Define Handlers
 async def homepage(response: ResponseBuilder = dependency()):
     response.content_type("text/plain")
     response.body("Hello from Serv! This is the basic demo.")
 
+
 async def about_page(response: ResponseBuilder = dependency()):
     response.content_type("text/html")
     response.body("<h1>About Us</h1><p>This is a simple demo of the Serv framework.</p>")
+
 
 # 2. Create a Plugin to Register Routes
 class BasicAppPlugin(Plugin):
     async def on_app_request_begin(self, router: Router = dependency()):
         router.add_route("/", homepage)
         router.add_route("/about", about_page)
+
 
 # 3. Create App Instance and Add Plugin
 app = App()

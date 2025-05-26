@@ -3,19 +3,16 @@ import os
 import sys
 import importlib
 import asyncio
-from inspect import isawaitable, isclass
+from inspect import isclass
 from pathlib import Path
 import yaml  # PyYAML
 import logging
 import uvicorn
 import re
-from bevy import dependency # For dependency injection
 
 from serv.config import DEFAULT_CONFIG_FILE, ServConfigError, import_from_string # Keep DEFAULT_CONFIG_FILE and ServConfigError
 from serv.app import App # Updated App import
 from serv.plugins import Plugin, search_for_plugin_directory # For generated plugin file
-from serv.loader import ServLoader # May still be needed by some plugin logic, review later
-
 
 # Logging setup
 logger = logging.getLogger("serv")

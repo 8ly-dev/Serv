@@ -3,22 +3,20 @@ Example end-to-end tests demonstrating the use of the e2e_test_helpers module.
 
 This file contains examples of how to use the end-to-end testing tools:
 1. Testing with a basic app and client
-2. Using the TestAppBuilder for more complex setups
+2. Using the AppBuilder for more complex setups
 3. Creating custom app configurations for specific test cases
 """
 import pytest
 from pathlib import Path
 from bevy import dependency
-from httpx import AsyncClient
 
 from serv.app import App
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
 from serv.routing import Router
-from serv.plugin_loader import PluginSpec
+from serv.plugins.loader import PluginSpec
 
-from tests.e2e_test_helpers import create_test_client, TestAppBuilder
-from tests.helpers import RouteAddingPlugin
+from tests.e2e_test_helpers import create_test_client, AppBuilder
 
 
 class SimpleTextPlugin(Plugin):
@@ -121,8 +119,8 @@ async def test_with_app_factory():
 
 
 @pytest.mark.asyncio
-async def test_with_app_builder(app_builder: TestAppBuilder):
-    """Using the TestAppBuilder for a more complex setup."""
+async def test_with_app_builder(app_builder: AppBuilder):
+    """Using the AppBuilder for a more complex setup."""
     # Configure the app builder
     builder = (
         app_builder

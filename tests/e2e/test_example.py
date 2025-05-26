@@ -9,15 +9,13 @@ This file contains examples of how to use the end-to-end testing tools:
 import pytest
 from pathlib import Path
 from bevy import dependency
-from httpx import AsyncClient
 
-from serv.app import App
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
 from serv.routing import Router
-from serv.plugin_loader import PluginSpec
+from serv.plugins.loader import PluginSpec
 
-from tests.e2e.helpers import create_test_client, TestAppBuilder
+from tests.e2e.helpers import create_test_client, AppBuilder
 
 
 class SimpleTextPlugin(Plugin):
@@ -120,7 +118,7 @@ async def test_with_app_factory(app_factory):
 
 
 @pytest.mark.asyncio
-async def test_with_app_builder(app_builder: TestAppBuilder):
+async def test_with_app_builder(app_builder: AppBuilder):
     """Using the TestAppBuilder for a more complex setup."""
     # Configure the app builder
     builder = (

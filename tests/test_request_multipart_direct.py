@@ -1,16 +1,18 @@
+"""
+Test multipart parsing directly without file system or files
+"""
 import pytest
 from pathlib import Path
 from httpx import AsyncClient
-import io
-
-from serv.app import App
-from serv.requests import Request, FileUpload
-from serv.responses import ResponseBuilder
+from bevy import dependency
 from serv.routes import JsonResponse
 from serv.routing import Router
 from serv.plugins import Plugin
-from serv.plugin_loader import PluginSpec
-from bevy import dependency
+from serv.plugins.loader import PluginSpec
+
+from serv.app import App
+from serv.requests import Request
+from serv.responses import ResponseBuilder
 
 # Plugin to add simple handlers
 class DirectHandlerPlugin(Plugin):

@@ -3,12 +3,10 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import yaml
 
-import pytest_asyncio
-from bevy import get_registry
 from bevy.registries import Registry
 
 from serv.app import App
-from serv.plugin_loader import PluginSpec
+from serv.plugins.loader import PluginSpec
 from serv.plugins import Plugin
 
 
@@ -58,7 +56,7 @@ def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should
     )
 
     with patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome, \
-         patch('serv.plugin_loader.PluginLoader.load_plugins') as mock_load_plugins:
+         patch('serv.plugins.loader.PluginLoader.load_plugins') as mock_load_plugins:
         # Set up mock behavior for plugin loading
         mock_load_plugins.return_value = ({Path("."): [MagicMock(spec=Plugin)]} if has_plugins else {}, [MagicMock()] if has_middleware else [])
 

@@ -4,7 +4,7 @@ from serv.routes import Route, GetRequest, Jinja2Response, JsonResponse
 from serv.responses import Template, JSON
 from serv.plugins import Plugin
 from bevy import dependency
-from typing import Dict, Any, List, Tuple, Annotated
+from typing import Dict, Any, Tuple, Annotated
 
 
 # Define API Route classes for different resources

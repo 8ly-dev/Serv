@@ -1,30 +1,19 @@
 import pytest
-import sys
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
-from typing import AsyncIterator, Any
-import contextlib
+from unittest.mock import MagicMock, patch
 import textwrap
-import importlib
 import shutil
-import uuid
 import yaml
 from collections import defaultdict
 
 import pytest_asyncio
-from bevy import get_registry
 from bevy.registries import Registry
-from bevy.containers import Container
 
 from serv.app import App
 from serv.plugins import Plugin
-from serv.middleware import ServMiddleware
-from serv.loader import ServLoader
-from serv.requests import Request
-from serv.responses import ResponseBuilder
-from serv.routing import Router
-from serv.plugin_loader import PluginLoader, PluginSpec  # Import the actual PluginLoader and PluginSpec
+from serv.plugins.middleware import ServMiddleware
+from serv.plugins.loader import PluginSpec  # Import the actual PluginLoader and PluginSpec
 
 
 # Constants for test paths
@@ -110,9 +99,9 @@ async def app_instance(monkeypatch, tmp_path, mock_real_plugin_instance, mock_as
     mock_loader_middleware_return = mock_async_gen_middleware_factory
 
     # Mock the load_plugin method to control plugin loading
-    with patch('serv.plugin_loader.PluginLoader.load_plugin', return_value=(dummy_plugin_spec, [])) as mock_load_plugin, \
-         patch('serv.plugin_loader.PluginLoader._load_plugin_entry_points', return_value=(0, [])) as mock_loader_load_plugin, \
-         patch('serv.plugin_loader.PluginLoader._load_plugin_middleware', return_value=(0, [])) as mock_loader_load_middleware, \
+    with patch('serv.plugins.loader.PluginLoader.load_plugin', return_value=(dummy_plugin_spec, [])) as mock_load_plugin, \
+         patch('serv.plugins.loader.PluginLoader._load_plugin_entry_points', return_value=(0, [])) as mock_loader_load_plugin, \
+         patch('serv.plugins.loader.PluginLoader._load_plugin_middleware', return_value=(0, [])) as mock_loader_load_middleware, \
          patch('serv.app.App.emit') as mock_emit, \
          patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome:  # Mock welcome plugin loading
 
@@ -413,7 +402,7 @@ def test_middleware_load_error_handling(app_instance, caplog, mock_real_plugin_i
     app_instance.set_mock_plugin_return((plugin_spec, []))
     
     # Mock the middleware loading to raise an error
-    with patch('serv.plugin_loader.PluginLoader._load_plugin_middleware') as mock_load_middleware:
+    with patch('serv.plugins.loader.PluginLoader._load_plugin_middleware') as mock_load_middleware:
         mock_load_middleware.return_value = (0, [ValueError("Failed to load middleware")])
         
         # Configure load_plugin to return the plugin spec with the error
@@ -557,7 +546,7 @@ def test_real_plugin_loading_with_directory(monkeypatch, tmp_path, create_plugin
         yaml.dump(app_config, f)
 
     # Create our mock and verify plugin loading
-    with patch('serv.plugin_loader.PluginLoader.load_plugin') as mock_load_plugin:
+    with patch('serv.plugins.loader.PluginLoader.load_plugin') as mock_load_plugin:
         # Set up mock behavior for plugin loading
         plugin_spec = PluginSpec(
             config={
@@ -636,7 +625,7 @@ def test_real_plugin_loading_with_entry_points(monkeypatch, tmp_path, create_plu
         yaml.dump(app_config, f)
     
     # Create our mock and verify plugin loading
-    with patch('serv.plugin_loader.PluginLoader.load_plugin') as mock_load_plugin, \
+    with patch('serv.plugins.loader.PluginLoader.load_plugin') as mock_load_plugin, \
          patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome:
         
         # Set up mock behavior for plugin loading
@@ -732,7 +721,7 @@ def test_real_plugin_loading_with_middleware(monkeypatch, tmp_path, create_plugi
         yaml.dump(app_config, f)
 
     # Create our mock and verify plugin loading
-    with patch('serv.plugin_loader.PluginLoader.load_plugin') as mock_load_plugin, \
+    with patch('serv.plugins.loader.PluginLoader.load_plugin') as mock_load_plugin, \
          patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome:
         # Set up mock behavior for plugin loading
         plugin_spec = PluginSpec(
@@ -825,7 +814,7 @@ def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should
     )
 
     with patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome, \
-         patch('serv.plugin_loader.PluginLoader.load_plugins') as mock_load_plugins:
+         patch('serv.plugins.loader.PluginLoader.load_plugins') as mock_load_plugins:
         # Set up mock behavior for plugin loading
         mock_load_plugins.return_value = ({Path("."): [MagicMock(spec=Plugin)]} if has_plugins else {}, [MagicMock()] if has_middleware else [])
 

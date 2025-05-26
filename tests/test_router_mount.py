@@ -1,7 +1,6 @@
 import pytest
-from typing import Dict, Any
 from serv.routing import Router
-from serv.exceptions import HTTPNotFoundException, HTTPMethodNotAllowedException
+from serv.exceptions import HTTPMethodNotAllowedException
 
 
 # Mock handlers for testing

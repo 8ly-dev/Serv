@@ -211,7 +211,7 @@ async def create_test_client(
             yield client
 
 
-class TestAppBuilder:
+class AppBuilder:
     """
     Builder class for creating test applications with a fluent interface.
     
@@ -221,11 +221,11 @@ class TestAppBuilder:
     Examples:
         ```python
         # Create a basic app with a single plugin
-        app = TestAppBuilder().with_plugin(MyPlugin()).build()
+        app = AppBuilder().with_plugin(MyPlugin()).build()
         
         # Create an app with multiple plugins and custom config
         app = (
-            TestAppBuilder()
+            AppBuilder()
             .with_plugins([AuthPlugin(), LoggingPlugin()])
             .with_config({"debug": True})
             .build()
@@ -240,32 +240,32 @@ class TestAppBuilder:
         self._config_path = "./serv.config.yaml"
         self._plugin_dir = "./plugins"
         
-    def with_plugin(self, plugin: Plugin) -> "TestAppBuilder":
+    def with_plugin(self, plugin: Plugin) -> "AppBuilder":
         """Add a single plugin to the app."""
         self._plugins.append(plugin)
         return self
         
-    def with_plugins(self, plugins: List[Plugin]) -> "TestAppBuilder":
+    def with_plugins(self, plugins: List[Plugin]) -> "AppBuilder":
         """Add multiple plugins to the app."""
         self._plugins.extend(plugins)
         return self
         
-    def with_config(self, config: Dict[str, Any]) -> "TestAppBuilder":
+    def with_config(self, config: Dict[str, Any]) -> "AppBuilder":
         """Set or update configuration values."""
         self._config.update(config)
         return self
         
-    def with_dev_mode(self, dev_mode: bool = True) -> "TestAppBuilder":
+    def with_dev_mode(self, dev_mode: bool = True) -> "AppBuilder":
         """Set development mode."""
         self._dev_mode = dev_mode
         return self
         
-    def with_config_path(self, config_path: str) -> "TestAppBuilder":
+    def with_config_path(self, config_path: str) -> "AppBuilder":
         """Set the configuration file path."""
         self._config_path = config_path
         return self
         
-    def with_plugin_dir(self, plugin_dir: str) -> "TestAppBuilder":
+    def with_plugin_dir(self, plugin_dir: str) -> "AppBuilder":
         """Set the plugin directory."""
         self._plugin_dir = plugin_dir
         return self

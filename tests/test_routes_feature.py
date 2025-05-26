@@ -9,7 +9,7 @@ from serv.app import App
 from serv.routes import Route, Form, GetRequest, Response, TextResponse, JsonResponse, Jinja2Response
 from serv.plugins import Plugin
 from serv.routing import Router # For type hinting if needed, actual router comes from event
-from serv.plugin_loader import PluginSpec
+from serv.plugins.loader import PluginSpec
 from bevy import dependency
 
 # --- Test-specific Form and Route classes ---

@@ -1,13 +1,17 @@
+"""
+Helper utilities for tests.
+"""
+import asyncio
 from typing import Any, Awaitable, Callable
 from pathlib import Path
 from bevy import dependency
 from bevy.containers import Container
 
 from serv.plugins import Plugin
-from serv.routing import Router, get_current_router
+from serv.routing import Router
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from serv.plugin_loader import PluginSpec
+from serv.plugins.loader import PluginSpec
 
 
 class RouteAddingPlugin(Plugin):

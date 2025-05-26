@@ -1,15 +1,18 @@
+"""
+Test files related to routes.
+"""
+import asyncio
 import pytest
 from pathlib import Path
 from httpx import AsyncClient
-from dataclasses import dataclass
+from bevy import dependency
 
 from serv.app import App
-from serv.requests import FileUpload, Request
+from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.plugins import Plugin
 from serv.routing import Router
-from serv.plugin_loader import PluginSpec
-from bevy import dependency
+from serv.plugins.loader import PluginSpec
 
 class FileUploadTestPlugin(Plugin):
     def __init__(self):

@@ -6,13 +6,8 @@ from serv.app import App
 # Import necessary components from the demo
 from demos.cookie_form_app.main import (
     cookie_based_router_middleware,
-    form_router,
-    welcome_router,
-    handle_name_submission_handler, # To potentially mock or spy
-    show_name_form_handler
+    # To potentially mock or spy
 )
-from serv.routing import Router
-from serv.responses import ResponseBuilder # For type hinting if needed
 
 
 @pytest_asyncio.fixture

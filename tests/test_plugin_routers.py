@@ -1,17 +1,18 @@
-import os
 import tempfile
 from pathlib import Path
 import pytest
 from unittest.mock import MagicMock, patch
 import yaml
+import asyncio
+from httpx import AsyncClient
 
-from bevy import dependency, get_registry
-from bevy.containers import Container
+from bevy import dependency
 from bevy.registries import Registry
 from serv.plugins import Plugin
 from serv.routing import Router
 from serv.responses import ResponseBuilder
-from serv.plugin_loader import PluginSpec
+from serv.plugins.loader import PluginSpec
+from serv.app import App
 
 
 def create_plugin_with_config(plugin_yaml_content):

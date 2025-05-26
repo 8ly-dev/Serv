@@ -1,5 +1,5 @@
 """
-Package loader utility for Serv.
+Package importer utility for Serv.
 
 This module provides functionality to load packages from directories
 without modifying sys.path. Packages are loaded and namespaced with
@@ -21,7 +21,7 @@ T = TypeVar("T")
 type DottedPath = str
 
 
-class LoaderMetaPathFinder(importlib.abc.MetaPathFinder):
+class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
     def __init__(self, directory):
         self.directory = directory
 
@@ -39,7 +39,7 @@ class LoaderMetaPathFinder(importlib.abc.MetaPathFinder):
             if not (path / "__init__.py").exists():
                 return importlib.util.spec_from_loader(
                     fullname,
-                    LoaderPackageInjector(self.directory)
+                    ImporterPackageInjector(self.directory)
                 )
 
             path /= "__init__.py"
@@ -55,10 +55,10 @@ class LoaderMetaPathFinder(importlib.abc.MetaPathFinder):
 
     @classmethod
     def inject(cls, directory: Path):
-        sys.meta_path.insert(0, LoaderMetaPathFinder(directory))
+        sys.meta_path.insert(0, ImporterMetaPathFinder(directory))
 
 
-class LoaderPackageInjector(importlib.abc.Loader):
+class ImporterPackageInjector(importlib.abc.Loader):
     def __init__(self, path):
         self.path = path
 
@@ -77,7 +77,7 @@ class LoaderPackageInjector(importlib.abc.Loader):
     def exec_module(self, module):
         return
 
-class ServLoader:
+class Importer:
     """
     Loader for Serv packages.
 
@@ -91,7 +91,7 @@ class ServLoader:
             directory: Directory to search for packages
         """
         self.directory = Path(directory).resolve()
-        LoaderMetaPathFinder.inject(self.directory)
+        ImporterMetaPathFinder.inject(self.directory)
 
     def load_module(self, module_path: DottedPath) -> ModuleType:
         """Imports a module from inside of the search directory package. This assumes that

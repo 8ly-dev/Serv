@@ -8,18 +8,17 @@ from inspect import isawaitable
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, List, Callable, Type, Optional, TypeVar, TYPE_CHECKING, cast
+from typing import Any, TYPE_CHECKING
 
-from bevy import dependency, get_container
+from bevy import get_container
 from bevy.containers import Container
-import yaml
 
-import serv.plugin_loader as pl
+import serv.plugins.loader as pl
 
 
 # Avoid circular imports by only importing Router for type checking
 if TYPE_CHECKING:
-    from serv.routing import Router
+    pass
 
 
 type PluginMapping = dict[str, list[str]]

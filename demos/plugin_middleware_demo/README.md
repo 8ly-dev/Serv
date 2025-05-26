@@ -51,7 +51,7 @@ serv launch
 
 Then visit http://localhost:8000 in your browser.
 
-**IMPORTANT NOTE:** As of the last check, this demo **does not run correctly** due to an issue in how `serv.app.App` currently loads plugins specified in `serv.config.yaml`. The `App._load_plugin_from_config` method incorrectly uses `ServLoader` with full module paths (e.g., `plugins.auth.main`) instead of simple package names. `ServLoader` is designed for discovery within a directory, while full paths should typically be handled by direct import mechanisms (like `import_from_string`). This results in plugins failing to load.
+**IMPORTANT NOTE:** As of the last check, this demo **does not run correctly** due to an issue in how `serv.app.App` currently loads plugins specified in `serv.config.yaml`. The `App._load_plugin_from_config` method incorrectly uses `Importer` with full module paths (e.g., `plugins.auth.main`) instead of simple package names. `Importer` is designed for discovery within a directory, while full paths should typically be handled by direct import mechanisms (like `import_from_string`). This results in plugins failing to load.
 
 Additionally, the `plugins/auth/main.py:Auth` plugin uses a `configure(self, config)` method. The current `App` plugin loading mechanism primarily looks for `__init__(self, config=...)` or a `load_config(self, config)` method to pass configuration, so the `configure` method might not be called as intended.
 

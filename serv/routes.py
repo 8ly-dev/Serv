@@ -12,7 +12,7 @@ from bevy.containers import Container
 
 import serv
 from serv.exceptions import HTTPMethodNotAllowedException
-from serv.plugin_loader import find_plugin_spec, PluginSpec
+from serv.plugins.loader import find_plugin_spec, PluginSpec
 from serv.plugins import Plugin, search_for_plugin_directory
 from serv.requests import Request
 from serv.responses import ResponseBuilder

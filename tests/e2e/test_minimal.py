@@ -8,7 +8,7 @@ from bevy import dependency
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
 from serv.routing import Router
-from serv.plugin_loader import PluginSpec
+from serv.plugins.loader import PluginSpec
 
 from tests.e2e.helpers import create_test_client
 

@@ -6,7 +6,7 @@ import yaml
 from bevy import get_container
 
 from serv.additional_context import ExceptionContext
-from serv.loader import ServLoader
+from serv.plugins.importer import Importer
 import serv.plugins as p
 
 if TYPE_CHECKING:
@@ -159,11 +159,11 @@ class PluginSpec:
 class PluginLoader:
     """Handles loading and management of plugins and middleware."""
 
-    def __init__(self, app: "App", plugin_loader: ServLoader):
+    def __init__(self, app: "App", plugin_loader: Importer):
         """Initialize the PluginLoader.
 
         Args:
-            plugin_loader: ServLoader instance for loading plugin packages
+            plugin_loader: Importer instance for loading plugin packages
         """
         self._app = app
         self._plugin_loader = plugin_loader

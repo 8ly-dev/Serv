@@ -1,16 +1,12 @@
 """
-Tests for the ServLoader class using pytest.
+Tests for the Importer class using pytest.
 """
 
-import os
 import sys
 import pytest
-from pathlib import Path
-from unittest import mock
-import importlib # Added for test_cross_plugin_import
 import logging # Added for logger.debug in test_cross_plugin_import
 
-from serv.loader import ServLoader, LoaderMetaPathFinder
+from serv.plugins.importer import Importer, ImporterMetaPathFinder
 
 logger = logging.getLogger(__name__) # For test debugging
 
@@ -20,10 +16,10 @@ def isolate_loader_tests():
     # Store the original meta_path state
     original_meta_path = sys.meta_path.copy()
     
-    # Remove any existing LoaderMetaPathFinder instances that might have been
+    # Remove any existing ImporterMetaPathFinder instances that might have been
     # left by other tests before we start
-    sys.meta_path[:] = [finder for finder in sys.meta_path 
-                       if not isinstance(finder, LoaderMetaPathFinder)]
+    sys.meta_path[:] = [finder for finder in sys.meta_path
+                        if not isinstance(finder, ImporterMetaPathFinder)]
     
     # Store original modules to restore later (only for our test modules)
     test_module_prefixes = ['test_plugins', 'test_middleware']
@@ -41,10 +37,10 @@ def isolate_loader_tests():
     
     yield
     
-    # Clean up: restore the original meta_path and remove any LoaderMetaPathFinder
+    # Clean up: restore the original meta_path and remove any ImporterMetaPathFinder
     # instances that were added during this test
-    sys.meta_path[:] = [finder for finder in original_meta_path 
-                       if not isinstance(finder, LoaderMetaPathFinder)]
+    sys.meta_path[:] = [finder for finder in original_meta_path
+                        if not isinstance(finder, ImporterMetaPathFinder)]
     
     # Remove any test modules that were loaded during this test
     modules_to_clean = []
@@ -60,7 +56,7 @@ def isolate_loader_tests():
         sys.modules[module_name] = module
 
 class TestServLoader:
-    """Tests for the ServLoader class."""
+    """Tests for the Importer class."""
     
     @pytest.fixture
     def setup_test_dirs(self, tmp_path):
@@ -85,7 +81,7 @@ class TestServLoader:
         (middleware_pkg_dir_inner_path / "__init__.py").write_text("# Test middleware package")
         (middleware_pkg_dir_inner_path / "module1.py").write_text("VALUE = 'mw_module1_val'")
 
-        loader_instance = ServLoader(directory=str(plugins_dir_path))
+        loader_instance = Importer(directory=str(plugins_dir_path))
     
         return {
             "plugins_dir": plugins_dir_path,
@@ -171,7 +167,7 @@ IMPORTED_VALUE = VALUE
         middleware_dir = setup_test_dirs["middleware_dir"]
         
         # Create a new loader for middleware directory
-        middleware_loader = ServLoader(directory=str(middleware_dir))
+        middleware_loader = Importer(directory=str(middleware_dir))
         
         # Load modules from both loaders
         plugins_module = setup_test_dirs["loader"].load_module("test_plugin.module1")
@@ -185,6 +181,6 @@ IMPORTED_VALUE = VALUE
         plugins_dir = setup_test_dirs["plugins_dir"]
         absolute_path = plugins_dir.resolve()
         
-        loader = ServLoader(directory=absolute_path)
+        loader = Importer(directory=absolute_path)
         module = loader.load_module("test_plugin.module1")
         assert module.VALUE == 'plugin_module1_val'

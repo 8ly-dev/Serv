@@ -1,5 +1,4 @@
 import pytest
-from typing import Dict, Any
 from serv.routing import Router
 from serv.routes import GetRequest, Route
 
