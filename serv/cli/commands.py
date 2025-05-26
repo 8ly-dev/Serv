@@ -6,6 +6,7 @@ This module contains all the command handlers for the Serv CLI.
 
 import importlib
 import importlib.util
+import json
 import logging
 import os
 import sys
@@ -1313,3 +1314,418 @@ async def handle_launch_command(args_ns):
     except Exception as e:
         logger.error(f"Error launching application: {e}")
         sys.exit(1)
+
+
+async def handle_dev_command(args_ns):
+    """Handles the 'dev' command for enhanced development server."""
+    logger.debug("Dev command started.")
+
+    try:
+        print("🚀 Starting Serv development server...")
+        print("📝 Development mode features:")
+        print("   • Auto-reload enabled (unless --no-reload)")
+        print("   • Enhanced error reporting")
+        print("   • Development mode enabled")
+
+        app = _get_configured_app(args_ns.app, args_ns)
+
+        # Force development mode
+        if hasattr(app, "dev_mode"):
+            app.dev_mode = True
+
+        # Configure uvicorn for development
+        reload = not args_ns.no_reload
+        uvicorn_config = {
+            "app": app,
+            "host": args_ns.host,
+            "port": args_ns.port,
+            "reload": reload,
+            "workers": 1
+            if reload
+            else args_ns.workers,  # Reload doesn't work with multiple workers
+            "log_level": "debug",
+            "access_log": True,
+        }
+
+        logger.info(f"Starting development server on {args_ns.host}:{args_ns.port}")
+        if reload:
+            print("🔄 Auto-reload is enabled - files will be watched for changes")
+        else:
+            print("⚠️  Auto-reload is disabled")
+
+        # Start the server
+        server = uvicorn.Server(uvicorn.Config(**uvicorn_config))
+        await server.serve()
+
+    except Exception as e:
+        logger.error(f"Error starting development server: {e}")
+        sys.exit(1)
+
+
+def handle_test_command(args_ns):
+    """Handles the 'test' command."""
+    logger.debug("Test command started.")
+
+    # Check if pytest is available
+    try:
+        import pytest
+    except ImportError:
+        print("❌ pytest is not installed. Install it with: pip install pytest")
+        return False
+
+    print("🧪 Running tests...")
+
+    # Build pytest command
+    pytest_args = []
+
+    # Determine what to test
+    if args_ns.test_path:
+        pytest_args.append(args_ns.test_path)
+    elif args_ns.plugins:
+        # Look for plugin tests
+        plugins_dir = Path.cwd() / "plugins"
+        if plugins_dir.exists():
+            plugin_test_paths = []
+            for plugin_dir in plugins_dir.iterdir():
+                if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
+                    test_files = list(plugin_dir.glob("test_*.py")) + list(
+                        plugin_dir.glob("*_test.py")
+                    )
+                    if test_files:
+                        plugin_test_paths.extend(str(f) for f in test_files)
+
+            if plugin_test_paths:
+                pytest_args.extend(plugin_test_paths)
+                print(f"📦 Found {len(plugin_test_paths)} plugin test files")
+            else:
+                print("ℹ️  No plugin tests found")
+                return True
+        else:
+            print("⚠️  No plugins directory found")
+            return True
+    elif args_ns.e2e:
+        # Run e2e tests
+        e2e_dir = Path.cwd() / "tests" / "e2e"
+        if e2e_dir.exists():
+            pytest_args.append(str(e2e_dir))
+            print("🌐 Running end-to-end tests")
+        else:
+            print("⚠️  No e2e tests directory found")
+            return True
+    else:
+        # Run all tests
+        test_dir = Path.cwd() / "tests"
+        if test_dir.exists():
+            pytest_args.append(str(test_dir))
+            print("🔍 Running all tests")
+        else:
+            print("⚠️  No tests directory found")
+            return True
+
+    # Add coverage if requested
+    if args_ns.coverage:
+        try:
+            import importlib.util
+
+            if importlib.util.find_spec("pytest_cov") is not None:
+                pytest_args.extend(
+                    ["--cov=.", "--cov-report=html", "--cov-report=term"]
+                )
+                print("📊 Coverage reporting enabled")
+            else:
+                print("⚠️  pytest-cov not installed, skipping coverage reporting")
+        except ImportError:
+            print(
+                "⚠️  pytest-cov not installed, skipping coverage. Install with: pip install pytest-cov"
+            )
+
+    # Add verbose if requested
+    if args_ns.verbose:
+        pytest_args.append("-v")
+
+    # Run pytest
+    try:
+        print(f"Running: pytest {' '.join(pytest_args)}")
+        exit_code = pytest.main(pytest_args)
+
+        if exit_code == 0:
+            print("✅ All tests passed!")
+        else:
+            print(f"❌ Tests failed with exit code {exit_code}")
+
+        return exit_code == 0
+
+    except Exception as e:
+        logger.error(f"Error running tests: {e}")
+        return False
+
+
+def handle_shell_command(args_ns):
+    """Handles the 'shell' command."""
+    logger.debug("Shell command started.")
+
+    print("🐍 Starting interactive Python shell...")
+
+    # Prepare the shell environment
+    shell_locals = {"__name__": "__console__", "__doc__": None}
+
+    if not args_ns.no_startup:
+        try:
+            print("📦 Loading Serv app context...")
+            app = _get_configured_app(args_ns.app, args_ns)
+            shell_locals.update(
+                {
+                    "app": app,
+                    "serv": importlib.import_module("serv"),
+                    "Path": Path,
+                    "yaml": yaml,
+                }
+            )
+
+            # Add plugins to shell context
+            if hasattr(app, "_plugins"):
+                all_plugins = []
+                for plugin_list in app._plugins.values():
+                    all_plugins.extend(plugin_list)
+                shell_locals["plugins"] = all_plugins
+                print(f"🔌 Loaded {len(all_plugins)} plugins into context")
+
+            print("✅ App context loaded successfully")
+            print("Available objects: app, serv, plugins, Path, yaml")
+
+        except Exception as e:
+            logger.warning(f"Could not load app context: {e}")
+            print("⚠️  App context not available, starting basic shell")
+
+    # Try to use IPython if available and requested
+    if args_ns.ipython:
+        try:
+            from IPython import start_ipython
+
+            print("🎨 Starting IPython shell...")
+            start_ipython(argv=[], user_ns=shell_locals)
+            return
+        except ImportError:
+            print("⚠️  IPython not available, falling back to standard shell")
+
+    # Use standard Python shell
+    import code
+
+    print("🐍 Starting Python shell...")
+    print("Type 'exit()' or Ctrl+D to exit")
+
+    shell = code.InteractiveConsole(locals=shell_locals)
+    shell.interact(banner="")
+
+
+def _get_config_value(config, key):
+    """Get a nested configuration value using dot notation."""
+    keys = key.split(".")
+    value = config
+
+    for k in keys:
+        if isinstance(value, dict) and k in value:
+            value = value[k]
+        else:
+            return None
+
+    return value
+
+
+def _set_config_value(config, key, value):
+    """Set a nested configuration value using dot notation."""
+    keys = key.split(".")
+    current = config
+
+    # Navigate to the parent of the target key
+    for k in keys[:-1]:
+        if k not in current:
+            current[k] = {}
+        elif not isinstance(current[k], dict):
+            raise ValueError(f"Cannot set nested value: '{k}' is not a dictionary")
+        current = current[k]
+
+    # Set the final value
+    current[keys[-1]] = value
+
+
+def handle_config_show_command(args_ns):
+    """Handles the 'config show' command."""
+    logger.debug("Config show command started.")
+
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
+    if not config_path.exists():
+        print(f"❌ Configuration file '{config_path}' not found")
+        print("   Run 'serv app init' to create a configuration file")
+        return False
+
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+
+        if not config:
+            print("❌ Configuration file is empty")
+            return False
+
+        print(f"📄 Configuration from '{config_path}':")
+        print("=" * 50)
+
+        if args_ns.format == "json":
+            print(json.dumps(config, indent=2, default=str))
+        else:
+            print(
+                yaml.dump(config, sort_keys=False, indent=2, default_flow_style=False)
+            )
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error reading configuration: {e}")
+        print(f"❌ Error reading configuration: {e}")
+        return False
+
+
+def handle_config_validate_command(args_ns):
+    """Handles the 'config validate' command."""
+    logger.debug("Config validate command started.")
+
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
+    if not config_path.exists():
+        print(f"❌ Configuration file '{config_path}' not found")
+        return False
+
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+
+        if not config:
+            print("❌ Configuration file is empty")
+            return False
+
+        print("✅ Configuration file is valid YAML")
+
+        # Basic structure validation
+        issues = 0
+
+        # Check required sections
+        required_sections = ["site_info"]
+        for section in required_sections:
+            if section not in config:
+                print(f"⚠️  Missing recommended section: {section}")
+                issues += 1
+
+        # Check site_info structure
+        if "site_info" in config:
+            site_info = config["site_info"]
+            if not isinstance(site_info, dict):
+                print("❌ 'site_info' must be a dictionary")
+                issues += 1
+            elif not site_info.get("name"):
+                print("⚠️  Missing 'site_info.name'")
+                issues += 1
+
+        # Check plugins structure
+        if "plugins" in config:
+            plugins = config["plugins"]
+            if not isinstance(plugins, list):
+                print("❌ 'plugins' must be a list")
+                issues += 1
+
+        # Check middleware structure
+        if "middleware" in config:
+            middleware = config["middleware"]
+            if not isinstance(middleware, list):
+                print("❌ 'middleware' must be a list")
+                issues += 1
+
+        if issues == 0:
+            print("🎉 Configuration validation passed!")
+        else:
+            print(f"⚠️  Found {issues} validation issue(s)")
+
+        return issues == 0
+
+    except yaml.YAMLError as e:
+        print(f"❌ Invalid YAML syntax: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Error validating configuration: {e}")
+        print(f"❌ Error validating configuration: {e}")
+        return False
+
+
+def handle_config_get_command(args_ns):
+    """Handles the 'config get' command."""
+    logger.debug("Config get command started.")
+
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
+    if not config_path.exists():
+        print(f"❌ Configuration file '{config_path}' not found")
+        return False
+
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+
+        if not config:
+            print("❌ Configuration file is empty")
+            return False
+
+        value = _get_config_value(config, args_ns.key)
+
+        if value is None:
+            print(f"❌ Key '{args_ns.key}' not found in configuration")
+            return False
+
+        print(f"🔑 {args_ns.key}: {value}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error reading configuration: {e}")
+        print(f"❌ Error reading configuration: {e}")
+        return False
+
+
+def handle_config_set_command(args_ns):
+    """Handles the 'config set' command."""
+    logger.debug("Config set command started.")
+
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
+    if not config_path.exists():
+        print(f"❌ Configuration file '{config_path}' not found")
+        print("   Run 'serv app init' to create a configuration file")
+        return False
+
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f) or {}
+
+        # Convert value to appropriate type
+        value = args_ns.value
+        if args_ns.type == "int":
+            value = int(value)
+        elif args_ns.type == "float":
+            value = float(value)
+        elif args_ns.type == "bool":
+            value = value.lower() in ("true", "yes", "1", "on")
+        elif args_ns.type == "list":
+            # Simple comma-separated list
+            value = [item.strip() for item in value.split(",")]
+
+        # Set the value
+        _set_config_value(config, args_ns.key, value)
+
+        # Write back to file
+        with open(config_path, "w") as f:
+            yaml.dump(config, f, sort_keys=False, indent=2, default_flow_style=False)
+
+        print(f"✅ Set {args_ns.key} = {value}")
+        return True
+
+    except ValueError as e:
+        print(f"❌ Invalid value type: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Error setting configuration: {e}")
+        print(f"❌ Error setting configuration: {e}")
+        return False

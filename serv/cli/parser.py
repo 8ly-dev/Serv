@@ -11,15 +11,22 @@ from serv.config import DEFAULT_CONFIG_FILE
 from .commands import (
     handle_app_check_command,
     handle_app_details_command,
+    handle_config_get_command,
+    handle_config_set_command,
+    handle_config_show_command,
+    handle_config_validate_command,
     handle_create_entrypoint_command,
     handle_create_middleware_command,
     handle_create_plugin_command,
     handle_create_route_command,
+    handle_dev_command,
     handle_disable_plugin_command,
     handle_enable_plugin_command,
     handle_init_command,
     handle_launch_command,
     handle_list_plugin_command,
+    handle_shell_command,
+    handle_test_command,
     handle_validate_plugin_command,
 )
 
@@ -103,6 +110,120 @@ def create_parser():
         help="Enable development mode for the application.",
     )
     launch_parser.set_defaults(func=handle_launch_command)
+
+    # Dev parser
+    dev_parser = subparsers.add_parser(
+        "dev", help="Start development server with enhanced features."
+    )
+    dev_parser.add_argument(
+        "--host",
+        help="Bind socket to this host. Default: 127.0.0.1",
+        default="127.0.0.1",
+    )
+    dev_parser.add_argument(
+        "--port",
+        "-p",
+        type=int,
+        help="Bind socket to this port. Default: 8000",
+        default=8000,
+    )
+    dev_parser.add_argument(
+        "--no-reload",
+        action="store_true",
+        help="Disable auto-reload (enabled by default in dev mode).",
+    )
+    dev_parser.add_argument(
+        "--workers",
+        "-w",
+        type=int,
+        help="Number of worker processes. Defaults to 1 (reload disabled with multiple workers).",
+        default=1,
+    )
+    dev_parser.set_defaults(func=handle_dev_command)
+
+    # Test parser
+    test_parser = subparsers.add_parser(
+        "test", help="Run tests for the application and plugins."
+    )
+    test_parser.add_argument(
+        "--plugins", action="store_true", help="Run plugin tests only"
+    )
+    test_parser.add_argument(
+        "--e2e", action="store_true", help="Run end-to-end tests only"
+    )
+    test_parser.add_argument(
+        "--coverage", action="store_true", help="Generate coverage report"
+    )
+    test_parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Verbose test output"
+    )
+    test_parser.add_argument(
+        "test_path", nargs="?", help="Specific test file or directory to run"
+    )
+    test_parser.set_defaults(func=handle_test_command)
+
+    # Shell parser
+    shell_parser = subparsers.add_parser(
+        "shell", help="Start interactive Python shell with app context."
+    )
+    shell_parser.add_argument(
+        "--ipython", action="store_true", help="Use IPython if available"
+    )
+    shell_parser.add_argument(
+        "--no-startup", action="store_true", help="Skip loading app context"
+    )
+    shell_parser.set_defaults(func=handle_shell_command)
+
+    # Config commands
+    config_parser = subparsers.add_parser(
+        "config", help="Configuration management commands"
+    )
+    config_subparsers = config_parser.add_subparsers(
+        title="config commands",
+        dest="config_command",
+        required=True,
+        help="Config command to execute",
+    )
+
+    # Config show command
+    config_show_parser = config_subparsers.add_parser(
+        "show", help="Display current configuration"
+    )
+    config_show_parser.add_argument(
+        "--format", choices=["yaml", "json"], default="yaml", help="Output format"
+    )
+    config_show_parser.set_defaults(func=handle_config_show_command)
+
+    # Config validate command
+    config_validate_parser = config_subparsers.add_parser(
+        "validate", help="Validate configuration file"
+    )
+    config_validate_parser.set_defaults(func=handle_config_validate_command)
+
+    # Config get command
+    config_get_parser = config_subparsers.add_parser(
+        "get", help="Get configuration value"
+    )
+    config_get_parser.add_argument(
+        "key", help="Configuration key (dot notation supported)"
+    )
+    config_get_parser.set_defaults(func=handle_config_get_command)
+
+    # Config set command
+    config_set_parser = config_subparsers.add_parser(
+        "set", help="Set configuration value"
+    )
+    config_set_parser.add_argument(
+        "key", help="Configuration key (dot notation supported)"
+    )
+    config_set_parser.add_argument("value", help="Configuration value")
+    config_set_parser.add_argument(
+        "--type",
+        choices=["string", "int", "float", "bool", "list"],
+        default="string",
+        help="Value type",
+    )
+    config_set_parser.set_defaults(func=handle_config_set_command)
 
     # App commands
     app_parser = subparsers.add_parser("app", help="App management commands")

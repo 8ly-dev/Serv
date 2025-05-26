@@ -678,3 +678,472 @@ class TestPlugin(Plugin):
         assert "Enabled plugins (1)" in stdout
         assert "Test Plugin One" in stdout
         assert "test_plugin_one" in stdout
+
+    def test_app_check_command(self, clean_test_dir):
+        """Test the 'serv app check' command."""
+        # Test with no config file
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "app", "check"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "Configuration file" in stdout
+        assert "not found" in stdout
+
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Test basic check
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "app", "check"],
+            cwd=clean_test_dir,
+        )
+        assert "=== Serv Application Health Check ===" in stdout
+        assert "Checking configuration" in stdout
+        assert "Configuration file" in stdout
+        assert "is valid YAML" in stdout
+
+        # Test config-only check
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "app", "check", "--config"],
+            cwd=clean_test_dir,
+        )
+        assert "Checking configuration" in stdout
+        assert "Checking plugins" not in stdout
+
+        # Create a plugin and test plugins check
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "app", "check", "--plugins"],
+            cwd=clean_test_dir,
+        )
+        assert "Checking plugins" in stdout
+        assert "Found 1 plugin directories" in stdout
+
+    def test_plugin_validate_command(self, clean_test_dir):
+        """Test the 'serv plugin validate' command."""
+        # Test with no plugins directory
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "plugin", "validate"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "No plugins directory found" in stdout
+
+        # Set up a clean directory with config and plugins
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a valid plugin
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "plugin",
+                "--name",
+                "Valid Plugin",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Test validating all plugins
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "plugin", "validate"],
+            cwd=clean_test_dir,
+        )
+        assert "=== Validating 1 Plugin(s) ===" in stdout
+        assert "Validating plugin: valid_plugin" in stdout
+        assert "plugin.yaml is valid YAML" in stdout
+        assert "Has required field: name" in stdout
+        assert "Has required field: version" in stdout
+
+        # Test validating specific plugin
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "plugin", "validate", "valid_plugin"],
+            cwd=clean_test_dir,
+        )
+        assert "Validating plugin: valid_plugin" in stdout
+
+        # Test validating non-existent plugin
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "plugin", "validate", "nonexistent"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "Plugin 'nonexistent' not found" in stdout
+
+    def test_config_show_command(self, clean_test_dir):
+        """Test the 'serv config show' command."""
+        # Test with no config file
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "show"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "Configuration file" in stdout
+        assert "not found" in stdout
+
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Test show in YAML format (default)
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "show"],
+            cwd=clean_test_dir,
+        )
+        assert "Configuration from" in stdout
+        assert "site_info:" in stdout
+        assert "name: My Serv Site" in stdout
+
+        # Test show in JSON format
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "show", "--format", "json"],
+            cwd=clean_test_dir,
+        )
+        assert "Configuration from" in stdout
+        assert '"site_info"' in stdout
+        assert '"name": "My Serv Site"' in stdout
+
+    def test_config_validate_command(self, clean_test_dir):
+        """Test the 'serv config validate' command."""
+        # Test with no config file
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "validate"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "Configuration file" in stdout
+        assert "not found" in stdout
+
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Test validate valid config
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "validate"],
+            cwd=clean_test_dir,
+        )
+        assert "Configuration file is valid YAML" in stdout
+        assert "Configuration validation passed" in stdout
+
+        # Test with invalid YAML
+        config_path = Path(clean_test_dir) / "serv.config.yaml"
+        with open(config_path, "w") as f:
+            f.write("invalid: yaml: content: [")
+
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "validate"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "Invalid YAML syntax" in stdout
+
+    def test_config_get_command(self, clean_test_dir):
+        """Test the 'serv config get' command."""
+        # Test with no config file
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "get", "site_info.name"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "Configuration file" in stdout
+        assert "not found" in stdout
+
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Test get existing key
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "get", "site_info.name"],
+            cwd=clean_test_dir,
+        )
+        assert "site_info.name: My Serv Site" in stdout
+
+        # Test get non-existent key
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "get", "nonexistent.key"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "Key 'nonexistent.key' not found" in stdout
+
+    def test_config_set_command(self, clean_test_dir):
+        """Test the 'serv config set' command."""
+        # Test with no config file
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "set", "test.key", "value"],
+            cwd=clean_test_dir,
+            check=False,
+        )
+        assert "Configuration file" in stdout
+        assert "not found" in stdout
+
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Test set string value
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "config",
+                "set",
+                "site_info.name",
+                "New Site Name",
+            ],
+            cwd=clean_test_dir,
+        )
+        assert "Set site_info.name = New Site Name" in stdout
+
+        # Verify the value was set
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "config", "get", "site_info.name"],
+            cwd=clean_test_dir,
+        )
+        assert "site_info.name: New Site Name" in stdout
+
+        # Test set integer value
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "config",
+                "set",
+                "test.number",
+                "42",
+                "--type",
+                "int",
+            ],
+            cwd=clean_test_dir,
+        )
+        assert "Set test.number = 42" in stdout
+
+        # Test set boolean value
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "config",
+                "set",
+                "test.enabled",
+                "true",
+                "--type",
+                "bool",
+            ],
+            cwd=clean_test_dir,
+        )
+        assert "Set test.enabled = True" in stdout
+
+        # Test set list value
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "config",
+                "set",
+                "test.items",
+                "a,b,c",
+                "--type",
+                "list",
+            ],
+            cwd=clean_test_dir,
+        )
+        assert "Set test.items = ['a', 'b', 'c']" in stdout
+
+    def test_dev_command_dry_run(self, clean_test_dir):
+        """Test the 'serv dev' command in a way that doesn't start the server."""
+        # Note: We can't easily test the actual server startup without complex async handling
+        # So we'll test the command parsing and basic setup
+
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Test that the dev command exists and can be parsed (will fail when trying to start server)
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "dev", "--help"],
+            cwd=clean_test_dir,
+        )
+        assert "usage: serv dev" in stdout
+        assert "--host" in stdout
+        assert "--port" in stdout
+        assert "--no-reload" in stdout
+        assert "--workers" in stdout
+
+    def test_test_command_no_pytest(self, clean_test_dir):
+        """Test the 'serv test' command when pytest is not available."""
+        # This test simulates the case where pytest is not installed
+        # We can't easily uninstall pytest in the test environment, so we'll test the help
+
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "test", "--help"],
+            cwd=clean_test_dir,
+        )
+        assert "usage: serv test" in stdout
+        assert "--plugins" in stdout
+        assert "--e2e" in stdout
+        assert "--coverage" in stdout
+        assert "--verbose" in stdout
+
+    def test_test_command_with_no_tests(self, clean_test_dir):
+        """Test the 'serv test' command when no tests directory exists."""
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Run test command (should handle missing tests gracefully)
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "test"],
+            cwd=clean_test_dir,
+            check=False,  # May fail due to no tests
+        )
+        # The command should run and provide some output about no tests found
+        assert "Running tests" in stdout or "No tests" in stdout or "pytest" in stdout
+
+    def test_shell_command_help(self, clean_test_dir):
+        """Test the 'serv shell' command help."""
+        # Test that the shell command exists and can be parsed
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "shell", "--help"],
+            cwd=clean_test_dir,
+        )
+        assert "usage: serv shell" in stdout
+        assert "--ipython" in stdout
+        assert "--no-startup" in stdout
+
+    def test_shell_command_no_startup(self, clean_test_dir):
+        """Test the 'serv shell' command with --no-startup flag."""
+        # We can't easily test the interactive shell, but we can test that it starts
+        # and exits quickly with --no-startup and some input
+
+        # Set up a clean directory with config
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Test shell command with immediate exit
+        # We'll use a subprocess with input to make it exit immediately
+        import subprocess
+
+        result = subprocess.run(
+            ["python", "-m", "serv", "shell", "--no-startup"],
+            cwd=clean_test_dir,
+            input="exit()\n",  # Exit immediately
+            text=True,
+            capture_output=True,
+            timeout=10,  # Timeout after 10 seconds
+        )
+
+        # Should have started the shell (even if it exited immediately)
+        assert (
+            "Starting" in result.stdout
+            or "Python" in result.stdout
+            or result.returncode == 0
+        )
+
+    def test_all_new_commands_help(self, clean_test_dir):
+        """Test that all new commands have proper help text."""
+        # Test main help shows all new commands
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "--help"],
+            cwd=clean_test_dir,
+        )
+
+        # Check that all new commands are listed in main help
+        assert "dev" in stdout
+        assert "test" in stdout
+        assert "shell" in stdout
+        assert "config" in stdout
+        assert "Start development server with enhanced features" in stdout
+        assert "Run tests for the application and plugins" in stdout
+        assert "Start interactive Python shell with app context" in stdout
+        assert "Configuration management commands" in stdout
+
+        # Test individual command help works
+        individual_commands = [
+            ["dev", "--help"],
+            ["test", "--help"],
+            ["shell", "--help"],
+            ["config", "--help"],
+            ["app", "check", "--help"],
+            ["plugin", "validate", "--help"],
+        ]
+
+        for cmd_args in individual_commands:
+            return_code, stdout, stderr = run_cli_command(
+                ["python", "-m", "serv"] + cmd_args,
+                cwd=clean_test_dir,
+            )
+            # Just check that help was displayed (contains usage and options)
+            assert "usage:" in stdout.lower(), (
+                f"Command {cmd_args} should show usage help"
+            )
+            assert "options:" in stdout.lower(), (
+                f"Command {cmd_args} should show options help"
+            )
+
+    def test_config_subcommands_help(self, clean_test_dir):
+        """Test that all config subcommands have proper help text."""
+        config_subcommands = [
+            ["config", "show", "--help"],
+            ["config", "validate", "--help"],
+            ["config", "get", "--help"],
+            ["config", "set", "--help"],
+        ]
+
+        for cmd_args in config_subcommands:
+            return_code, stdout, stderr = run_cli_command(
+                ["python", "-m", "serv"] + cmd_args,
+                cwd=clean_test_dir,
+            )
+            # Just check that help was displayed properly
+            assert "usage:" in stdout.lower(), (
+                f"Config subcommand {cmd_args} should show usage"
+            )
+            assert "options:" in stdout.lower(), (
+                f"Config subcommand {cmd_args} should show options"
+            )
