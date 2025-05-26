@@ -10,11 +10,8 @@ from serv.config import DEFAULT_CONFIG_FILE
 
 from .commands import (
     handle_app_details_command,
-    handle_create_middleware_command,
     handle_create_plugin_command,
-    handle_disable_middleware_command,
     handle_disable_plugin_command,
-    handle_enable_middleware_command,
     handle_enable_plugin_command,
     handle_init_command,
     handle_launch_command,
@@ -92,7 +89,7 @@ def create_parser():
     launch_parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Load and configure the app, plugins, and middleware but don't start the server.",
+        help="Load and configure the app and plugins but don't start the server.",
     )
     launch_parser.add_argument(
         "--dev",
@@ -172,45 +169,5 @@ def create_parser():
         "plugin_identifier", help="Plugin identifier (directory name or module path)"
     )
     plugin_disable_parser.set_defaults(func=handle_disable_plugin_command)
-
-    # Middleware commands
-    middleware_parser = subparsers.add_parser(
-        "middleware", help="Middleware management commands"
-    )
-    middleware_subparsers = middleware_parser.add_subparsers(
-        title="middleware commands",
-        dest="middleware_command",
-        required=True,
-        help="Middleware command to execute",
-    )
-
-    # Middleware create command
-    middleware_create_parser = middleware_subparsers.add_parser(
-        "create", help="Create a new middleware"
-    )
-    middleware_create_parser.add_argument(
-        "--force", action="store_true", help="Force overwrite of existing middleware"
-    )
-    middleware_create_parser.set_defaults(func=handle_create_middleware_command)
-
-    # Middleware enable command
-    middleware_enable_parser = middleware_subparsers.add_parser(
-        "enable", help="Enable a middleware"
-    )
-    middleware_enable_parser.add_argument(
-        "middleware_identifier",
-        help="Middleware identifier (file name without .py extension)",
-    )
-    middleware_enable_parser.set_defaults(func=handle_enable_middleware_command)
-
-    # Middleware disable command
-    middleware_disable_parser = middleware_subparsers.add_parser(
-        "disable", help="Disable a middleware"
-    )
-    middleware_disable_parser.add_argument(
-        "middleware_identifier",
-        help="Middleware identifier (file name without .py extension)",
-    )
-    middleware_disable_parser.set_defaults(func=handle_disable_middleware_command)
 
     return parser, launch_parser
