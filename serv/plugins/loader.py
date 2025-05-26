@@ -19,7 +19,7 @@ known_plugins: "dict[Path, PluginSpec]" = {}
 
 def find_plugin_spec(path: Path) -> "PluginSpec | None":
     _path = path
-    while path.exists() and path != path.parent:
+    while _path.exists() and _path != _path.parent:
         if _path in known_plugins:
             return known_plugins[_path]
 
@@ -28,7 +28,7 @@ def find_plugin_spec(path: Path) -> "PluginSpec | None":
             continue
 
         try:
-            plugin_spec = PluginSpec.from_path(_path)
+            plugin_spec = PluginSpec.from_path(_path, {})
             known_plugins[_path] = plugin_spec
             return plugin_spec
         except Exception:

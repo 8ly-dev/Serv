@@ -15,6 +15,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import TypeVar
 
+import serv.plugins.loader as pl
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -31,6 +33,11 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
         if parts[0] != self.directory.name:
             return
 
+        try:
+            plugin_spec = pl.find_plugin_spec(self.directory / parts[1])
+        except (FileNotFoundError, IndexError):
+            plugin_spec = None
+
         path = self.directory
         if len(parts) > 1:
             path = Path(path, *parts[1:])
@@ -39,7 +46,7 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
             if not (path / "__init__.py").exists():
                 return importlib.util.spec_from_loader(
                     fullname,
-                    ImporterPackageInjector(self.directory)
+                    ImporterPackageInjector(self.directory, plugin_spec)
                 )
 
             path /= "__init__.py"
@@ -50,7 +57,7 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
         if path.exists():
             return importlib.util.spec_from_loader(
                 fullname,
-                importlib.machinery.SourceFileLoader(fullname, str(path))
+                PluginSourceFileLoader(fullname, str(path), plugin_spec)
             )
 
     @classmethod
@@ -58,9 +65,20 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
         sys.meta_path.insert(0, ImporterMetaPathFinder(directory))
 
 
+class PluginSourceFileLoader(importlib.machinery.SourceFileLoader):
+    def __init__(self, fullname, path, plugin_spec):
+        super().__init__(fullname, path)
+        self.plugin_spec = plugin_spec
+
+    def exec_module(self, module):
+        super().exec_module(module)
+        module.__plugin_spec__ = self.plugin_spec
+
+
 class ImporterPackageInjector(importlib.abc.Loader):
-    def __init__(self, path):
+    def __init__(self, path, plugin_spec):
         self.path = path
+        self.plugin_spec = plugin_spec
 
     def create_module(self, spec):
         class Module(ModuleType):
@@ -71,6 +89,7 @@ class ImporterPackageInjector(importlib.abc.Loader):
             __path__ = str(self.path)
             __name__ = spec.name
             __package_injector__ = True
+            __plugin_spec__ = self.plugin_spec
 
         return Module(spec.name)
 

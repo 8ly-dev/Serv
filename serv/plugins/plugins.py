@@ -14,7 +14,7 @@ from bevy import get_container
 from bevy.containers import Container
 
 import serv.plugins.loader as pl
-
+from serv.plugins.loader import find_plugin_spec
 
 # Avoid circular imports by only importing Router for type checking
 if TYPE_CHECKING:
@@ -63,17 +63,15 @@ class Plugin:
             stand_alone: If True, don't attempt to load plugin.yaml
         """
         self._stand_alone = stand_alone
-        self._plugin_spec: "pl.PluginSpec" | None = None
 
     @property
     def __plugin_spec__(self) -> "pl.PluginSpec":
         """Get the plugin spec object."""
-        if self._plugin_spec:
-            return self._plugin_spec
-
-        path = search_for_plugin_directory(Path(sys.modules[self.__module__].__file__))
-        self._plugin_spec = pl.PluginSpec.from_path(path, {})
-        return self._plugin_spec
+        module = sys.modules[self.__module__]
+        try:
+            return module.__plugin_spec__
+        except AttributeError:
+            return find_plugin_spec(Path(module.__file__))
 
     async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:
         """Receives event notifications.
