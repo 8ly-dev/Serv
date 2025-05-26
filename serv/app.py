@@ -4,41 +4,54 @@ import json
 import logging
 import sys
 import traceback
-from asyncio import get_running_loop, Task
+from asyncio import Task, get_running_loop
 from collections import defaultdict
+from collections.abc import AsyncIterator, Awaitable, Callable
 from itertools import chain
-from typing import AsyncIterator, Awaitable, Callable, Any
 from pathlib import Path
+from typing import Any
+
+from asgiref.typing import (
+    ASGIReceiveCallable as Receive,
+)
+from asgiref.typing import (
+    ASGISendCallable as Send,
+)
+from asgiref.typing import (
+    LifespanShutdownCompleteEvent,
+    LifespanStartupCompleteEvent,
+    Scope,
+)
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
 from bevy.registries import Registry
 from jinja2 import Environment, FileSystemLoader
-from asgiref.typing import (
-    Scope,
-    ASGIReceiveCallable as Receive,
-    ASGISendCallable as Send,
-    LifespanShutdownCompleteEvent,
-    LifespanStartupCompleteEvent,
-)
 
 from serv.config import load_raw_config
+from serv.exceptions import HTTPMethodNotAllowedException, ServException
+from serv.injectors import inject_request_object
 from serv.plugins import Plugin
 from serv.plugins.importer import Importer
+from serv.plugins.loader import PluginLoader
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from serv.injectors import inject_request_object
-from serv.routing import Router, HTTPNotFoundException
-from serv.exceptions import HTTPMethodNotAllowedException, ServException
-from serv.plugins.loader import PluginLoader
+from serv.routing import HTTPNotFoundException, Router
 
 logger = logging.getLogger(__name__)
+
+# Test comment for pre-commit hooks
+
 
 class EventEmitter:
     def __init__(self, plugins: dict[Path, list[Plugin]]):
         self.plugins = plugins
 
-    def emit_sync(self, event: str, *, container: Container = dependency(), **kwargs) -> Task:
-        return get_running_loop().create_task(self.emit(event, container=container, **kwargs))
+    def emit_sync(
+        self, event: str, *, container: Container = dependency(), **kwargs
+    ) -> Task:
+        return get_running_loop().create_task(
+            self.emit(event, container=container, **kwargs)
+        )
 
     async def emit(self, event: str, *, container: Container = dependency(), **kwargs):
         async with asyncio.TaskGroup() as tg:
@@ -71,33 +84,37 @@ class App:
         self._registry = get_registry()
         self._container = self._registry.create_container()
         self._async_exit_stack = contextlib.AsyncExitStack()
-        self._error_handlers: dict[type[Exception], Callable[[Exception], Awaitable[None]]] = {}
+        self._error_handlers: dict[
+            type[Exception], Callable[[Exception], Awaitable[None]]
+        ] = {}
         self._middleware = []
 
         self._plugin_loader = Importer(plugin_dir)
         self._plugins: dict[Path, list[Plugin]] = defaultdict(list)
-        
+
         # Initialize the plugin loader
         self._plugin_loader_instance = PluginLoader(self, self._plugin_loader)
-        
+
         self._emit = EventEmitter(self._plugins)
 
         self._init_container()
         self._register_default_error_handlers()
         self._init_plugins(self._config.get("plugins", []))
-        
+
     def _load_config(self, config_path: str) -> dict[str, Any]:
         return load_raw_config(config_path)
 
     def _init_plugins(self, plugins_config: list[dict[str, Any]]):
-        loaded_plugins, loaded_middleware = self._plugin_loader_instance.load_plugins(plugins_config)
+        loaded_plugins, loaded_middleware = self._plugin_loader_instance.load_plugins(
+            plugins_config
+        )
         if not loaded_plugins and not loaded_middleware:
             self._enable_welcome_plugin()
 
     def _init_container(self):
         # Register hooks for injection
         inject_request_object.register_hook(self._registry)
-        
+
         # Set up container instances
         self._container.instances[App] = self
         self._container.instances[Container] = self._container
@@ -107,7 +124,11 @@ class App:
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
         self.add_error_handler(HTTPMethodNotAllowedException, self._default_405_handler)
 
-    def add_error_handler(self, error_type: type[Exception], handler: Callable[[Exception], Awaitable[None]]):
+    def add_error_handler(
+        self,
+        error_type: type[Exception],
+        handler: Callable[[Exception], Awaitable[None]],
+    ):
         self._error_handlers[error_type] = handler
 
     def add_middleware(self, middleware: Callable[[], AsyncIterator[None]]):
@@ -131,9 +152,13 @@ class App:
 
     def _enable_welcome_plugin(self):
         """Enable the bundled welcome plugin if no other plugins are registered."""
-        plugin_spec, exceptions = self._plugin_loader_instance.load_plugin("serv.bundled.plugins.welcome")
+        plugin_spec, exceptions = self._plugin_loader_instance.load_plugin(
+            "serv.bundled.plugins.welcome"
+        )
         if exceptions:
-            raise ExceptionGroup("Exceptions raised while loading welcome plugin", exceptions)
+            raise ExceptionGroup(
+                "Exceptions raised while loading welcome plugin", exceptions
+            )
 
         return True
 
@@ -142,9 +167,13 @@ class App:
         """Backward compatibility method that delegates to PluginLoader."""
         return self._plugin_loader_instance._load_plugin_entry_point(entry_point_config)
 
-    def _load_middleware_entry_point(self, middleware_config: dict[str, Any]) -> Callable[[], AsyncIterator[None]]:
+    def _load_middleware_entry_point(
+        self, middleware_config: dict[str, Any]
+    ) -> Callable[[], AsyncIterator[None]]:
         """Backward compatibility method that delegates to PluginLoader."""
-        return self._plugin_loader_instance._load_middleware_entry_point(middleware_config)
+        return self._plugin_loader_instance._load_middleware_entry_point(
+            middleware_config
+        )
 
     def _load_plugin_from_config(self, config: dict[str, Any]) -> Plugin:
         # This method is now primarily for backward compatibility if an old-style config is encountered.
@@ -169,7 +198,9 @@ class App:
         Returns:
             True if the plugin was loaded successfully
         """
-        success, plugin = self._plugin_loader_instance.load_plugin(package_name, namespace)
+        success, plugin = self._plugin_loader_instance.load_plugin(
+            package_name, namespace
+        )
         if success and plugin:
             self.add_plugin(plugin)
             return True
@@ -185,7 +216,11 @@ class App:
         Returns:
             True if the middleware was loaded successfully
         """
-        success, middleware_factory = self._plugin_loader_instance.load_middleware_from_package(package_name, namespace)
+        success, middleware_factory = (
+            self._plugin_loader_instance.load_middleware_from_package(
+                package_name, namespace
+            )
+        )
         if success and middleware_factory:
             self.add_middleware(middleware_factory)
             return True
@@ -199,16 +234,16 @@ class App:
         """
         plugins_count = 0
         plugins_dir = Path(self._plugin_loader.plugin_dir)
-        
+
         if not plugins_dir.exists():
             logger.warning(f"Plugin directory {plugins_dir} does not exist.")
             return 0
-            
+
         for plugin_dir in plugins_dir.iterdir():
             if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
                 if self.load_plugin(plugin_dir.name):
                     plugins_count += 1
-                    
+
         return plugins_count
 
     def load_middleware_packages(self) -> int:
@@ -219,19 +254,21 @@ class App:
         """
         middleware_count = 0
         plugins_dir = Path(self._plugin_loader.plugin_dir)
-        
+
         if not plugins_dir.exists():
             logger.warning(f"Plugin directory {plugins_dir} does not exist.")
             return 0
-            
+
         for plugin_dir in plugins_dir.iterdir():
             if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
                 if self.load_middleware(plugin_dir.name):
                     middleware_count += 1
-                    
+
         return middleware_count
 
-    def emit(self, event: str, *, container: Container = dependency(), **kwargs) -> Task:
+    def emit(
+        self, event: str, *, container: Container = dependency(), **kwargs
+    ) -> Task:
         return self._emit.emit_sync(event, container=container, **kwargs)
 
     async def handle_lifespan(self, scope: Scope, receive: Receive, send: Send):
@@ -239,14 +276,22 @@ class App:
             match event:
                 case {"type": "lifespan.startup"}:
                     logger.debug("Lifespan startup event")
-                    await self.emit("app.startup", scope=scope, container=self._container)
-                    await send(LifespanStartupCompleteEvent(type="lifespan.startup.complete"))
+                    await self.emit(
+                        "app.startup", scope=scope, container=self._container
+                    )
+                    await send(
+                        LifespanStartupCompleteEvent(type="lifespan.startup.complete")
+                    )
 
                 case {"type": "lifespan.shutdown"}:
                     logger.debug("Lifespan shutdown event")
-                    await self.emit("app.shutdown", scope=scope, container=self._container)
+                    await self.emit(
+                        "app.shutdown", scope=scope, container=self._container
+                    )
                     await self._async_exit_stack.aclose()
-                    await send(LifespanShutdownCompleteEvent(type="lifespan.shutdown.complete"))
+                    await send(
+                        LifespanShutdownCompleteEvent(type="lifespan.shutdown.complete")
+                    )
 
     def _get_template_locations(self) -> list[Path]:
         """Get the template locations for this app.
@@ -267,18 +312,18 @@ class App:
         """
         template_locations = self._get_template_locations()
         env = Environment(loader=FileSystemLoader(template_locations))
-        
+
         # Try to load the template
         try:
             template = env.get_template(template_name)
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to load template {template_name}")
             # Special case for error templates - provide a fallback
             if template_name.startswith("error/"):
                 status_code = context.get("status_code", 500)
                 error_title = context.get("error_title", "Error")
                 error_message = context.get("error_message", "An error occurred")
-                
+
                 return f"""
                 <!DOCTYPE html>
                 <html>
@@ -297,18 +342,27 @@ class App:
                 </html>
                 """
             raise
-            
+
         # Render the template
         return template.render(**context)
 
     @inject
-    async def _default_error_handler(self, error: Exception, response: ResponseBuilder = dependency(), request: Request = dependency()):
+    async def _default_error_handler(
+        self,
+        error: Exception,
+        response: ResponseBuilder = dependency(),
+        request: Request = dependency(),
+    ):
         logger.exception("Unhandled exception", exc_info=error)
-        
+
         # Check if the error is a ServException subclass and use its status code
-        status_code = getattr(error, "status_code", 500) if isinstance(error, ServException) else 500
+        status_code = (
+            getattr(error, "status_code", 500)
+            if isinstance(error, ServException)
+            else 500
+        )
         response.set_status(status_code)
-        
+
         # Check if the client accepts HTML
         accept_header = request.headers.get("accept", "")
         if "text/html" in accept_header:
@@ -323,9 +377,9 @@ class App:
                 "traceback": "".join(traceback.format_exception(error)),
                 "request_path": request.path,
                 "request_method": request.method,
-                "show_details": self._dev_mode
+                "show_details": self._dev_mode,
             }
-            
+
             html_content = self._render_template("error/500.html", context)
             response.body(html_content)
         elif "application/json" in accept_header:
@@ -334,25 +388,36 @@ class App:
             error_data = {
                 "status_code": status_code,
                 "error": type(error).__name__,
-                "message": str(error) if self._dev_mode else "An unexpected error occurred.",
+                "message": str(error)
+                if self._dev_mode
+                else "An unexpected error occurred.",
                 "path": request.path,
-                "method": request.method
+                "method": request.method,
             }
-            
+
             if self._dev_mode:
                 error_data["traceback"] = traceback.format_exception(error)
-                
+
             response.body(json.dumps(error_data))
         else:
             # Use plaintext response
             response.content_type("text/plain")
-            error_message = f"{status_code} Error: {type(error).__name__}: {error}" if self._dev_mode else f"{status_code} Error: An unexpected error occurred."
+            error_message = (
+                f"{status_code} Error: {type(error).__name__}: {error}"
+                if self._dev_mode
+                else f"{status_code} Error: An unexpected error occurred."
+            )
             response.body(error_message)
 
     @inject
-    async def _default_404_handler(self, error: HTTPNotFoundException, response: ResponseBuilder = dependency(), request: Request = dependency()):
+    async def _default_404_handler(
+        self,
+        error: HTTPNotFoundException,
+        response: ResponseBuilder = dependency(),
+        request: Request = dependency(),
+    ):
         response.set_status(HTTPNotFoundException.status_code)
-        
+
         # Check if the client accepts HTML
         accept_header = request.headers.get("accept", "")
         if "text/html" in accept_header:
@@ -361,13 +426,15 @@ class App:
             context = {
                 "status_code": HTTPNotFoundException.status_code,
                 "error_title": "Not Found",
-                "error_message": error.args[0] if error.args else "The requested resource was not found.",
+                "error_message": error.args[0]
+                if error.args
+                else "The requested resource was not found.",
                 "error_type": "NotFound",
                 "request_path": request.path,
                 "request_method": request.method,
-                "show_details": False
+                "show_details": False,
             }
-            
+
             html_content = self._render_template("error/404.html", context)
             response.body(html_content)
         elif "application/json" in accept_header:
@@ -378,22 +445,31 @@ class App:
                 "error": "NotFound",
                 "message": "The requested resource was not found.",
                 "path": request.path,
-                "method": request.method
+                "method": request.method,
             }
             response.body(json.dumps(error_data))
         else:
             # Use plaintext response
             response.content_type("text/plain")
-            response.body(f"404 Not Found: The requested resource ({request.path}) was not found.")
+            response.body(
+                f"404 Not Found: The requested resource ({request.path}) was not found."
+            )
 
     @inject
-    async def _default_405_handler(self, error: HTTPMethodNotAllowedException, response: ResponseBuilder = dependency(), request: Request = dependency()):
+    async def _default_405_handler(
+        self,
+        error: HTTPMethodNotAllowedException,
+        response: ResponseBuilder = dependency(),
+        request: Request = dependency(),
+    ):
         response.set_status(HTTPMethodNotAllowedException.status_code)
-        
-        allowed_methods_str = ", ".join(error.allowed_methods) if error.allowed_methods else ""
+
+        allowed_methods_str = (
+            ", ".join(error.allowed_methods) if error.allowed_methods else ""
+        )
         if error.allowed_methods:
             response.add_header("Allow", allowed_methods_str)
-        
+
         # Check if the client accepts HTML
         accept_header = request.headers.get("accept", "")
         if "text/html" in accept_header:
@@ -402,15 +478,17 @@ class App:
             context = {
                 "status_code": HTTPMethodNotAllowedException.status_code,
                 "error_title": "Method Not Allowed",
-                "error_message": error.args[0] if error.args else "The method used is not allowed for the requested resource.",
+                "error_message": error.args[0]
+                if error.args
+                else "The method used is not allowed for the requested resource.",
                 "error_type": type(error).__name__,
                 "error_str": str(error),
                 "request_path": request.path,
                 "request_method": request.method,
                 "allowed_methods": allowed_methods_str,
-                "show_details": False
+                "show_details": False,
             }
-            
+
             html_content = self._render_template("error/405.html", context)
             response.body(html_content)
         elif "application/json" in accept_header:
@@ -419,20 +497,30 @@ class App:
             error_data = {
                 "status_code": HTTPMethodNotAllowedException.status_code,
                 "error": "MethodNotAllowed",
-                "message": error.args[0] if error.args else "The method used is not allowed for the requested resource.",
+                "message": error.args[0]
+                if error.args
+                else "The method used is not allowed for the requested resource.",
                 "path": request.path,
                 "method": request.method,
-                "allowed_methods": error.allowed_methods if error.allowed_methods else []
+                "allowed_methods": error.allowed_methods
+                if error.allowed_methods
+                else [],
             }
             response.body(json.dumps(error_data))
         else:
             # Use plaintext response
             response.content_type("text/plain")
-            message = error.args[0] if error.args else f"The method used is not allowed for the requested resource {request.path}."
+            message = (
+                error.args[0]
+                if error.args
+                else f"The method used is not allowed for the requested resource {request.path}."
+            )
             response.body(f"405 Method Not Allowed: {message}")
 
     @inject
-    async def _run_error_handler(self, error: Exception, container: Container = dependency()):
+    async def _run_error_handler(
+        self, error: Exception, container: Container = dependency()
+    ):
         response_builder = container.get(ResponseBuilder)
         if not response_builder._headers_sent:
             response_builder.clear()
@@ -449,7 +537,9 @@ class App:
         try:
             await container.call(handler, error)
         except Exception as e:
-            logger.exception("Critical error in error handling mechanism itself", exc_info=True)
+            logger.exception(
+                "Critical error in error handling mechanism itself", exc_info=True
+            )
             if handler is not self._default_error_handler:
                 e.__context__ = error
                 ultimate_response_builder = container.get(ResponseBuilder)
@@ -490,7 +580,9 @@ class App:
 
                 # Run middleware stack
                 try:
-                    await self._run_middleware_stack(container=container, request_instance=request)
+                    await self._run_middleware_stack(
+                        container=container, request_instance=request
+                    )
                 except Exception as e:
                     error_to_propagate = e
 
@@ -498,10 +590,14 @@ class App:
                 if error_to_propagate:
                     await container.call(self._run_error_handler, error_to_propagate)
 
-                await self.emit("app.request.end", error=error_to_propagate, container=container)
+                await self.emit(
+                    "app.request.end", error=error_to_propagate, container=container
+                )
 
             except Exception as e:
-                logger.exception("Unhandled exception during request processing", exc_info=e)
+                logger.exception(
+                    "Unhandled exception during request processing", exc_info=e
+                )
                 await container.call(self._run_error_handler, e)
                 await self.emit("app.request.end", error=e, container=container)
 
@@ -513,10 +609,13 @@ class App:
                 try:
                     await response_builder.send_response()
                 except Exception as final_send_exc:
-                    logger.error("Exception during final send_response", exc_info=final_send_exc)
+                    logger.error(
+                        "Exception during final send_response", exc_info=final_send_exc
+                    )
 
-
-    async def _run_middleware_stack(self, container: Container, request_instance: Request):
+    async def _run_middleware_stack(
+        self, container: Container, request_instance: Request
+    ):
         stack = []
         error_to_propagate = None
         router_instance = container.get(Router)
@@ -528,39 +627,64 @@ class App:
                 middleware_iterator = container.call(middleware_factory)
                 await anext(middleware_iterator)
             except Exception as e:
-                logger.exception(f"Error during setup of middleware {getattr(middleware_factory, '__name__', str(middleware_factory))}", exc_info=True)
+                logger.exception(
+                    f"Error during setup of middleware {getattr(middleware_factory, '__name__', str(middleware_factory))}",
+                    exc_info=True,
+                )
                 error_to_propagate = e
                 break
             else:
                 stack.append(middleware_iterator)
 
         if not error_to_propagate:
-            await self.emit("app.request.before_router", container=container, request=request_instance, router_instance=router_instance)
+            await self.emit(
+                "app.request.before_router",
+                container=container,
+                request=request_instance,
+                router_instance=router_instance,
+            )
             try:
-                resolved_route_info = router_instance.resolve_route(request_instance.path, request_instance.method)
+                resolved_route_info = router_instance.resolve_route(
+                    request_instance.path, request_instance.method
+                )
                 if not resolved_route_info:
-                    raise HTTPNotFoundException(f"No route found for {request_instance.method} {request_instance.path}")
+                    raise HTTPNotFoundException(
+                        f"No route found for {request_instance.method} {request_instance.path}"
+                    )
 
             except Exception as e:
-                logger.info(f"Router resolution resulted in exception: {type(e).__name__}: {e}")
+                logger.info(
+                    f"Router resolution resulted in exception: {type(e).__name__}: {e}"
+                )
                 error_to_propagate = e
 
             else:
                 handler_callable, path_params, route_settings = resolved_route_info
-                
+
                 # Create a branch of the container with route settings
                 with container.branch() as route_container:
                     # Add route settings to the container using RouteSettings
                     from serv.routing import RouteSettings
-                    route_container.instances[RouteSettings] = RouteSettings(**route_settings)
-                    
+
+                    route_container.instances[RouteSettings] = RouteSettings(
+                        **route_settings
+                    )
+
                     try:
                         await route_container.call(handler_callable, **path_params)
                     except Exception as e:
-                        logger.info(f"Handler execution resulted in exception: {type(e).__name__}: {e}")
+                        logger.info(
+                            f"Handler execution resulted in exception: {type(e).__name__}: {e}"
+                        )
                         error_to_propagate = e
 
-            await self.emit("app.request.after_router", container=container, request=request_instance, error=error_to_propagate, router_instance=router_instance)
+            await self.emit(
+                "app.request.after_router",
+                container=container,
+                request=request_instance,
+                error=error_to_propagate,
+                router_instance=router_instance,
+            )
 
         for middleware_iterator in reversed(stack):
             try:
