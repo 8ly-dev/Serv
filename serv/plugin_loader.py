@@ -1,13 +1,11 @@
 import importlib.util
 import logging
-from dataclasses import dataclass, field
-from importlib.metadata import entry_points
 from typing import Any, Callable, AsyncIterator, NotRequired, TYPE_CHECKING, TypedDict
 from pathlib import Path
 import yaml
 from bevy import get_container
 
-from serv.additional_context import AdditionalExceptionContext
+from serv.additional_context import ExceptionContext
 from serv.loader import ServLoader
 import serv.plugins as p
 
@@ -253,16 +251,21 @@ class PluginLoader:
         failed = []
         for entry_point in entry_points:
             module_path, class_name = entry_point.split(":")
-            try:
-                try:
+            with (
+                ExceptionContext()
+                    .apply_note(f" - Attempting to load entry point {entry_point}")
+                    .capture(failed.append)
+            ):
+                with (
+                    ExceptionContext()
+                        .apply_note(f" - Attempting to import module {plugin_import}.{module_path}:{class_name}"
+                    )
+                ):
                     try:
                         module = self._plugin_loader.load_module(f"{plugin_import}.{module_path}")
                     except ModuleNotFoundError as e:
                         e.add_note(f" - Attempted to import relative to plugins directory")
                         module = importlib.import_module(f"{plugin_import}.{module_path}")
-                except Exception as e:
-                    e.add_note(f" - Attempting to import module {plugin_import}.{module_path}")
-                    raise
 
                 entry_point_class = getattr(module, class_name)
 
@@ -270,10 +273,7 @@ class PluginLoader:
                     raise ValueError(
                         f"Entry point {entry_point} from {plugin_import}.{module_path} is not a subclass of Plugin"
                     )
-            except Exception as e:
-                e.add_note(f" - Attempting to load entry point {entry_point}")
-                failed.append(e)
-            else:
+
                 self._app.add_plugin(get_container().call(entry_point_class))
                 succeeded += 1
 

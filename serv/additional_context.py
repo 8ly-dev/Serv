@@ -1,48 +1,43 @@
-from typing import overload, Type
+from typing import Callable, overload, Type
 
 
-class AdditionalExceptionContext:
+class ExceptionContext:
     """
-    Context manager that adds additional context to an exception if it is raised within the context.
+    Context manager for adding additional context to exceptions.
 
-    Args:
-        exception_type: The type of exception to add context to. Defaults to Exception.
-        message: The message to add to the exception.
+    This can be used to add notes or perform additional actions when an exception is raised within the context.
 
-    Usage:
-        with AdditionalExceptionContext(ValueError, "Additional context"):
+    Example:
+        with ExceptionContext(ValueError).apply_note("Additional context"):
             raise ValueError("Original error message")
 
-        # ValueError will be raised with the message: "Additional context\nOriginal error message"
+    Example:
+        with ExceptionContext().capture(lambda exc: print(f"Captured: {exc}")):
+            raise ValueError("Original error message")
 
-    Usage:
-        with AdditionalExceptionContext("Additional context"):
-            raise RuntimeError("Original error message")
-
-        # Exception will be raised with the message: "Additional context\nOriginal error message"
+    Example:
+        with ExceptionContext(ValueError).capture(lambda exc: print(f"Captured: {exc}")).apply_note("Additional
+        context"):
+            raise ValueError("Original error message")
     """
-    @overload
-    def __init__(self, exception_type: type[Exception], message: str):
-        ...
+    def __init__(self, exception: Type[Exception] = Exception):
+        self.exception_type = exception
+        self.capture_callback = None
+        self.note = None
 
-    @overload
-    def __init__(self, message: str):
-        ...
+    def apply_note(self, note: str):
+        self.note = note
+        return self
 
-    def __init__(self, *args: str | Type[Exception]):
-        match args:
-            case [Exception() as exception_type, str() as message]:
-                self.exception_type = exception_type
-                self.message = message
-            case [str() as message]:
-                self.exception_type = Exception
-                self.message = message
-            case _:
-                raise ValueError(f"Invalid arguments for AdditionalExceptionContext: {args}")
+    def capture(self, callback: Callable[[Exception], None]):
+        self.capture_callback = callback
+        return self
 
     def __enter__(self):
         pass
 
     def __exit__(self, exc_type, exc_value, traceback):
         if exc_type and issubclass(exc_type, self.exception_type):
-            exc_value.add_note(self.message)
+            exc_value.add_note(self.note)
+            if self.capture_callback:
+                self.capture_callback(exc_value)
