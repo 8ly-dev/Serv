@@ -69,8 +69,10 @@ async def sample_handler(response: ResponseBuilder):
                 # simple functions or need to be mocked. A real plugin might import them.
                 # For now, let's assume a dummy handler if not found, or allow specific
                 # tests to mock/patch this part.
-                async def dummy_handler(response: ResponseBuilder = dependency()):
-                    response.body(f"Handler for {path}")
+                async def dummy_handler(
+                    response: ResponseBuilder = dependency(), current_path: str = path
+                ):
+                    response.body(f"Handler for {current_path}")
 
                 actual_handler = dummy_handler  # Placeholder
 

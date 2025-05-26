@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient  # Import ASGITransport
 
 from serv.app import App
 from serv.plugins import Plugin
-from tests.e2e.helpers import AppBuilder, create_test_client
+from tests.e2e.helpers import AppBuilder
 
 
 @pytest.fixture(scope="session")

@@ -184,7 +184,7 @@ class PluginSpec:
 class PluginLoader:
     """Handles loading and management of plugins and middleware."""
 
-    def __init__(self, app: "App", plugin_loader: "pi.Importer"):
+    def __init__(self, app: "App", plugin_loader: "Importer"):
         """Initialize the PluginLoader.
 
         Args:

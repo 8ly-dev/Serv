@@ -205,7 +205,7 @@ class Request:
         except Exception as e:
             raise ValueError(
                 f"Unsupported coercion for type {target_type} from value {value!r}: {e}"
-            )
+            ) from e
 
     async def _parse_form_data(
         self, max_size: int = 10 * 1024 * 1024, encoding: str = "utf-8"
@@ -262,7 +262,7 @@ class Request:
             except TypeError as e:
                 raise TypeError(
                     f"Failed to instantiate model {model.__name__} from empty form. Error: {e}"
-                )
+                ) from e
 
         return self._build_model(model, raw_form_values)
 
@@ -303,7 +303,7 @@ class Request:
                             # For now, let's be strict and raise, or one could collect errors.
                             raise ValueError(
                                 f"Error coercing item '{item_str}' for field '{field_name}': {e}"
-                            )
+                            ) from e
                     coerced_data[field_name] = coerced_items
             else:  # Single value expected
                 # Rule 1: Use the first value if multiple submitted for a non-list field
@@ -316,7 +316,7 @@ class Request:
                     # Handle coercion errors for single items
                     raise ValueError(
                         f"Error coercing value '{value_to_coerce_str}' for field '{field_name}': {e}"
-                    )
+                    ) from e
 
         try:
             return model(**coerced_data)
@@ -325,7 +325,7 @@ class Request:
             # or if there's a mismatch not caught by type hints alone.
             raise TypeError(
                 f"Failed to instantiate model {model.__name__} with coerced data. Error: {e}. Data: {coerced_data}"
-            )
+            ) from e
 
     def __repr__(self):
         return (

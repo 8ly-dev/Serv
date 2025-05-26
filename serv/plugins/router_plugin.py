@@ -73,6 +73,8 @@ class RouterPlugin(Plugin):
         """Build routes from the given configuration."""
         return route_configs
 
-    async def on_app_request_begin(self, router: "r.Router" = dependency()) -> None:
+    async def on_app_request_begin(
+        self, main_router: "r.Router" = dependency()
+    ) -> None:
         for router_builder in self._routers.values():
-            router_builder.build(router)
+            router_builder.build(main_router)

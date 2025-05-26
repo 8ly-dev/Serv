@@ -7,6 +7,7 @@ from bevy import dependency
 # Import from the main module of the utils plugin
 from plugins.utils.main import Utils
 from serv.plugins import Plugin
+from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routing import Router
 

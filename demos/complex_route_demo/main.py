@@ -1,16 +1,15 @@
 import pathlib
 import sys
 
+from demos.complex_route_demo.plugins import DemoRoutesPlugin
+from serv import App
+
 # Add project root to sys.path
 # Assumes this script is in demos/complex_route_demo
 # Project root is two levels up from this script's directory
 project_root = pathlib.Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
-
-# Router is no longer directly used in main.py for route definition
-from demos.complex_route_demo.plugins import DemoRoutesPlugin
-from serv import App
 
 # HomeRoute and SubmitRoute are used by the plugin, not directly here
 
