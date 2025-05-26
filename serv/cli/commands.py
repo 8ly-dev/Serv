@@ -568,6 +568,342 @@ def handle_list_plugin_command(args_ns):
             print(f"  • {plugin_name} (v{plugin_version}) [{plugin_id}]{config_info}")
 
 
+def handle_validate_plugin_command(args_ns):
+    """Handles the 'plugin validate' command."""
+    logger.debug("Plugin validate command started.")
+
+    plugins_dir = Path.cwd() / "plugins"
+    if not plugins_dir.exists():
+        print("❌ No plugins directory found.")
+        return False
+
+    # Determine which plugins to validate
+    if args_ns.plugin_identifier and not args_ns.all:
+        # Validate specific plugin
+        plugin_dirs = []
+        plugin_dir = plugins_dir / args_ns.plugin_identifier
+        if plugin_dir.exists() and plugin_dir.is_dir():
+            plugin_dirs = [plugin_dir]
+        else:
+            print(f"❌ Plugin '{args_ns.plugin_identifier}' not found.")
+            return False
+    else:
+        # Validate all plugins
+        plugin_dirs = [
+            d
+            for d in plugins_dir.iterdir()
+            if d.is_dir() and not d.name.startswith("_")
+        ]
+
+    if not plugin_dirs:
+        print("ℹ️  No plugins found to validate.")
+        return True
+
+    print(f"=== Validating {len(plugin_dirs)} Plugin(s) ===")
+
+    total_issues = 0
+
+    for plugin_dir in plugin_dirs:
+        print(f"\n🔍 Validating plugin: {plugin_dir.name}")
+        issues = 0
+
+        # Check for plugin.yaml
+        plugin_yaml = plugin_dir / "plugin.yaml"
+        if not plugin_yaml.exists():
+            print("❌ Missing plugin.yaml")
+            issues += 1
+        else:
+            try:
+                with open(plugin_yaml) as f:
+                    plugin_config = yaml.safe_load(f)
+
+                if not plugin_config:
+                    print("❌ plugin.yaml is empty")
+                    issues += 1
+                else:
+                    print("✅ plugin.yaml is valid YAML")
+
+                    # Check required fields
+                    required_fields = ["name", "version"]
+                    for field in required_fields:
+                        if field not in plugin_config:
+                            print(f"❌ Missing required field: {field}")
+                            issues += 1
+                        else:
+                            print(f"✅ Has required field: {field}")
+
+                    # Check optional but recommended fields
+                    recommended_fields = ["description", "author"]
+                    for field in recommended_fields:
+                        if field not in plugin_config:
+                            print(f"⚠️  Missing recommended field: {field}")
+                        else:
+                            print(f"✅ Has recommended field: {field}")
+
+                    # Validate version format
+                    version = plugin_config.get("version", "")
+                    if (
+                        version
+                        and not version.replace(".", "")
+                        .replace("-", "")
+                        .replace("_", "")
+                        .isalnum()
+                    ):
+                        print(f"⚠️  Version format may be invalid: {version}")
+
+            except yaml.YAMLError as e:
+                print(f"❌ plugin.yaml contains invalid YAML: {e}")
+                issues += 1
+            except Exception as e:
+                print(f"❌ Error reading plugin.yaml: {e}")
+                issues += 1
+
+        # Check for __init__.py
+        init_file = plugin_dir / "__init__.py"
+        if not init_file.exists():
+            print("⚠️  Missing __init__.py (recommended for Python packages)")
+        else:
+            print("✅ Has __init__.py")
+
+        # Check for Python files
+        py_files = list(plugin_dir.glob("*.py"))
+        if not py_files:
+            print("❌ No Python files found")
+            issues += 1
+        else:
+            print(f"✅ Found {len(py_files)} Python file(s)")
+
+            # Check for main plugin file (matching directory name)
+            expected_main_file = plugin_dir / f"{plugin_dir.name}.py"
+            if expected_main_file.exists():
+                print(f"✅ Has main plugin file: {expected_main_file.name}")
+            else:
+                print(f"⚠️  No main plugin file found (expected: {plugin_dir.name}.py)")
+
+        # Check for common issues
+        if (plugin_dir / "main.py").exists() and not expected_main_file.exists():
+            print(
+                f"⚠️  Found main.py but expected {plugin_dir.name}.py (consider renaming)"
+            )
+
+        # Try to import the plugin (basic syntax check)
+        if py_files:
+            try:
+                # This is a basic check - we're not actually importing to avoid side effects
+                for py_file in py_files:
+                    with open(py_file) as f:
+                        content = f.read()
+
+                    # Basic syntax check
+                    try:
+                        compile(content, str(py_file), "exec")
+                        print(f"✅ {py_file.name} has valid Python syntax")
+                    except SyntaxError as e:
+                        print(f"❌ {py_file.name} has syntax error: {e}")
+                        issues += 1
+
+            except Exception as e:
+                print(f"⚠️  Could not perform syntax check: {e}")
+
+        if issues == 0:
+            print(f"🎉 Plugin '{plugin_dir.name}' validation passed!")
+        else:
+            print(f"⚠️  Plugin '{plugin_dir.name}' has {issues} issue(s)")
+
+        total_issues += issues
+
+    print("\n=== Validation Summary ===")
+    if total_issues == 0:
+        print("🎉 All plugins passed validation!")
+    else:
+        print(f"⚠️  Found {total_issues} total issue(s) across all plugins")
+
+    return total_issues == 0
+
+
+def handle_app_check_command(args_ns):
+    """Handles the 'app check' command."""
+    logger.debug("App check command started.")
+
+    config_path = Path.cwd() / DEFAULT_CONFIG_FILE
+    issues_found = 0
+
+    # Determine what to check
+    check_config = args_ns.config or not (args_ns.plugins or args_ns.routes)
+    check_plugins = args_ns.plugins or not (args_ns.config or args_ns.routes)
+    check_routes = args_ns.routes or not (args_ns.config or args_ns.plugins)
+
+    print("=== Serv Application Health Check ===")
+
+    # Check configuration file
+    if check_config:
+        print("\n🔍 Checking configuration...")
+
+        if not config_path.exists():
+            print(f"❌ Configuration file '{config_path}' not found")
+            print("   Run 'serv app init' to create a configuration file")
+            issues_found += 1
+        else:
+            try:
+                with open(config_path) as f:
+                    config = yaml.safe_load(f)
+
+                if not config:
+                    print(f"❌ Configuration file '{config_path}' is empty")
+                    issues_found += 1
+                else:
+                    print(f"✅ Configuration file '{config_path}' is valid YAML")
+
+                    # Check required sections
+                    if "site_info" not in config:
+                        print("⚠️  Missing 'site_info' section in configuration")
+                        issues_found += 1
+                    else:
+                        site_info = config["site_info"]
+                        if not site_info.get("name"):
+                            print("⚠️  Missing 'site_info.name' in configuration")
+                            issues_found += 1
+                        else:
+                            print(f"✅ Site name: {site_info['name']}")
+
+                    if "plugins" not in config:
+                        print("⚠️  Missing 'plugins' section in configuration")
+                        issues_found += 1
+                    elif not isinstance(config["plugins"], list):
+                        print("❌ 'plugins' section must be a list")
+                        issues_found += 1
+                    else:
+                        print(
+                            f"✅ Plugins section configured with {len(config['plugins'])} plugins"
+                        )
+
+                    if "middleware" not in config:
+                        print("⚠️  Missing 'middleware' section in configuration")
+                        issues_found += 1
+                    elif not isinstance(config["middleware"], list):
+                        print("❌ 'middleware' section must be a list")
+                        issues_found += 1
+                    else:
+                        print(
+                            f"✅ Middleware section configured with {len(config['middleware'])} middleware"
+                        )
+
+            except yaml.YAMLError as e:
+                print(f"❌ Configuration file contains invalid YAML: {e}")
+                issues_found += 1
+            except Exception as e:
+                print(f"❌ Error reading configuration file: {e}")
+                issues_found += 1
+
+    # Check plugins
+    if check_plugins:
+        print("\n🔍 Checking plugins...")
+
+        plugins_dir = Path.cwd() / "plugins"
+        if not plugins_dir.exists():
+            print("⚠️  No plugins directory found")
+        else:
+            plugin_dirs = [
+                d
+                for d in plugins_dir.iterdir()
+                if d.is_dir() and not d.name.startswith("_")
+            ]
+
+            if not plugin_dirs:
+                print("ℹ️  No plugins found in plugins directory")
+            else:
+                print(f"✅ Found {len(plugin_dirs)} plugin directories")
+
+                for plugin_dir in plugin_dirs:
+                    plugin_yaml = plugin_dir / "plugin.yaml"
+                    if not plugin_yaml.exists():
+                        print(f"❌ Plugin '{plugin_dir.name}' missing plugin.yaml")
+                        issues_found += 1
+                        continue
+
+                    try:
+                        with open(plugin_yaml) as f:
+                            plugin_config = yaml.safe_load(f)
+
+                        if not plugin_config:
+                            print(
+                                f"❌ Plugin '{plugin_dir.name}' has empty plugin.yaml"
+                            )
+                            issues_found += 1
+                            continue
+
+                        # Check required fields
+                        required_fields = ["name", "version"]
+                        missing_fields = [
+                            field
+                            for field in required_fields
+                            if field not in plugin_config
+                        ]
+
+                        if missing_fields:
+                            print(
+                                f"❌ Plugin '{plugin_dir.name}' missing required fields: {', '.join(missing_fields)}"
+                            )
+                            issues_found += 1
+                        else:
+                            print(
+                                f"✅ Plugin '{plugin_config['name']}' (v{plugin_config['version']}) is valid"
+                            )
+
+                        # Check for Python files
+                        py_files = list(plugin_dir.glob("*.py"))
+                        if not py_files:
+                            print(f"⚠️  Plugin '{plugin_dir.name}' has no Python files")
+                            issues_found += 1
+
+                    except yaml.YAMLError as e:
+                        print(f"❌ Plugin '{plugin_dir.name}' has invalid YAML: {e}")
+                        issues_found += 1
+                    except Exception as e:
+                        print(f"❌ Error checking plugin '{plugin_dir.name}': {e}")
+                        issues_found += 1
+
+    # Check routes (basic check by trying to load the app)
+    if check_routes:
+        print("\n🔍 Checking routes...")
+
+        try:
+            app = _get_configured_app(args_ns.app, args_ns)
+
+            if hasattr(app, "router") and hasattr(app.router, "routes"):
+                routes = app.router.routes
+                print(f"✅ Application loaded successfully with {len(routes)} routes")
+
+                # Check for common route issues
+                paths = []
+                for route in routes:
+                    path = getattr(route, "path", None)
+                    if path:
+                        if path in paths:
+                            print(f"⚠️  Duplicate route path: {path}")
+                            issues_found += 1
+                        paths.append(path)
+
+                if not routes:
+                    print("⚠️  No routes found - application may not be functional")
+
+            else:
+                print("⚠️  Unable to determine route configuration")
+
+        except Exception as e:
+            print(f"❌ Error loading application for route check: {e}")
+            issues_found += 1
+
+    # Summary
+    print("\n=== Check Summary ===")
+    if issues_found == 0:
+        print("🎉 All checks passed! Your Serv application looks healthy.")
+    else:
+        print(f"⚠️  Found {issues_found} issue(s) that should be addressed.")
+
+    return issues_found == 0
+
+
 def handle_app_details_command(args_ns):
     """Handles the 'app details' command."""
     logger.debug("App details command started.")

@@ -9,6 +9,7 @@ import argparse
 from serv.config import DEFAULT_CONFIG_FILE
 
 from .commands import (
+    handle_app_check_command,
     handle_app_details_command,
     handle_create_entrypoint_command,
     handle_create_middleware_command,
@@ -19,6 +20,7 @@ from .commands import (
     handle_init_command,
     handle_launch_command,
     handle_list_plugin_command,
+    handle_validate_plugin_command,
 )
 
 
@@ -132,6 +134,21 @@ def create_parser():
     )
     app_details_parser.set_defaults(func=handle_app_details_command)
 
+    # App check command
+    app_check_parser = app_subparsers.add_parser(
+        "check", help="Validate application configuration and health"
+    )
+    app_check_parser.add_argument(
+        "--config", action="store_true", help="Check configuration file only"
+    )
+    app_check_parser.add_argument(
+        "--plugins", action="store_true", help="Check plugins only"
+    )
+    app_check_parser.add_argument(
+        "--routes", action="store_true", help="Check routes only"
+    )
+    app_check_parser.set_defaults(func=handle_app_check_command)
+
     # Plugin commands
     plugin_parser = subparsers.add_parser("plugin", help="Plugin management commands")
     plugin_subparsers = plugin_parser.add_subparsers(
@@ -169,6 +186,20 @@ def create_parser():
         help="Show all available plugins (default shows enabled plugins)",
     )
     plugin_list_parser.set_defaults(func=handle_list_plugin_command)
+
+    # Plugin validate command
+    plugin_validate_parser = plugin_subparsers.add_parser(
+        "validate", help="Validate plugin structure and configuration"
+    )
+    plugin_validate_parser.add_argument(
+        "plugin_identifier",
+        nargs="?",
+        help="Plugin identifier (directory name or module path). If not provided, validates all plugins.",
+    )
+    plugin_validate_parser.add_argument(
+        "--all", action="store_true", help="Validate all plugins"
+    )
+    plugin_validate_parser.set_defaults(func=handle_validate_plugin_command)
 
     # Create commands
     create_parser = subparsers.add_parser(
