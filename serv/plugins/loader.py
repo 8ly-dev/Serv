@@ -1,12 +1,20 @@
 import importlib.util
 import logging
-from typing import Any, Callable, AsyncIterator, Literal, NotRequired, TYPE_CHECKING, TypedDict
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NotRequired,
+    TypedDict,
+)
+
 import yaml
 from bevy import get_container
 
-from serv.additional_context import ExceptionContext
 import serv.plugins as p
+from serv.additional_context import ExceptionContext
 
 if TYPE_CHECKING:
     from serv import App
@@ -70,7 +78,9 @@ class RouteConfig(TypedDict):
     path: str
     handler: str
     config: NotRequired[dict[str, Any]]
-    methods: NotRequired[list[Literal["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]]]
+    methods: NotRequired[
+        list[Literal["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]]
+    ]
 
 
 class EntryPointConfig(TypedDict):
@@ -98,7 +108,13 @@ class PluginConfig(TypedDict):
 
 
 class PluginSpec:
-    def __init__(self, config: PluginConfig, path: Path, override_settings: dict[str, Any], importer: "Importer"):
+    def __init__(
+        self,
+        config: PluginConfig,
+        path: Path,
+        override_settings: dict[str, Any],
+        importer: "Importer",
+    ):
         self.name = config["name"]
         self.version = config["version"]
         self._config = config
@@ -142,12 +158,14 @@ class PluginSpec:
         return self._path
 
     @classmethod
-    def from_path(cls, path: Path, override_settings: dict[str, Any], importer: "Importer") -> 'PluginSpec':
+    def from_path(
+        cls, path: Path, override_settings: dict[str, Any], importer: "Importer"
+    ) -> "PluginSpec":
         plugin_config = path / "plugin.yaml"
         if not plugin_config.exists():
             raise FileNotFoundError(f"plugin.yaml not found in {path}")
 
-        with open(plugin_config, "r") as f:
+        with open(plugin_config) as f:
             raw_config_data = yaml.safe_load(f)
 
         # Convert settings to plugin_settings
@@ -194,8 +212,12 @@ class PluginLoader:
         middleware_list = []
         for plugin_settings in plugins_config:
             try:
-                plugin_import, settings = self._process_app_plugin_settings(plugin_settings)
-                plugin_spec, plugin_exceptions = self.load_plugin(plugin_import, settings)
+                plugin_import, settings = self._process_app_plugin_settings(
+                    plugin_settings
+                )
+                plugin_spec, plugin_exceptions = self.load_plugin(
+                    plugin_import, settings
+                )
 
             except Exception as e:
                 e.add_note(f" - Failed to load plugin {plugin_settings}")
@@ -211,13 +233,18 @@ class PluginLoader:
                     exceptions.extend(plugin_exceptions)
 
         if exceptions:
-            logger.warning(f"Encountered {len(exceptions)} errors during plugin and middleware loading.")
-            raise ExceptionGroup("Exceptions raised while loading plugins and middleware", exceptions)
+            logger.warning(
+                f"Encountered {len(exceptions)} errors during plugin and middleware loading."
+            )
+            raise ExceptionGroup(
+                "Exceptions raised while loading plugins and middleware", exceptions
+            )
 
         return loaded_plugins, middleware_list
 
-    def load_plugin(self, plugin_import: str, app_plugin_settings: dict[str, Any] | None = None) -> tuple[
-        PluginSpec | None, list[Exception]]:
+    def load_plugin(
+        self, plugin_import: str, app_plugin_settings: dict[str, Any] | None = None
+    ) -> tuple[PluginSpec | None, list[Exception]]:
         """Load a single plugin.
 
         Args:
@@ -228,14 +255,18 @@ class PluginLoader:
         """
         exceptions = []
         try:
-            plugin_spec = self._load_plugin_spec(plugin_import, app_plugin_settings or {})
+            plugin_spec = self._load_plugin_spec(
+                plugin_import, app_plugin_settings or {}
+            )
         except Exception as e:
             e.add_note(f" - Failed to load plugin spec for {plugin_import}")
             exceptions.append(e)
             return None, exceptions
 
         try:
-            _, failed_entry_points = self._load_plugin_entry_points(plugin_spec.entry_points, plugin_import)
+            _, failed_entry_points = self._load_plugin_entry_points(
+                plugin_spec.entry_points, plugin_import
+            )
         except Exception as e:
             e.add_note(f" - Failed while loading entry points for {plugin_import}")
             exceptions.append(e)
@@ -243,7 +274,9 @@ class PluginLoader:
             exceptions.extend(failed_entry_points)
 
         try:
-            _, failed_middleware = self._load_plugin_middleware(plugin_spec.middleware, plugin_import)
+            _, failed_middleware = self._load_plugin_middleware(
+                plugin_spec.middleware, plugin_import
+            )
         except Exception as e:
             e.add_note(f" - Failed while loading middleware for {plugin_import}")
             exceptions.append(e)
@@ -264,26 +297,32 @@ class PluginLoader:
 
         self._app.add_plugin(RouterPlugin(plugin_spec=plugin_spec))
 
-    def _load_plugin_entry_points(self, entry_points: list[str], plugin_import: str) -> tuple[int, list[Exception]]:
+    def _load_plugin_entry_points(
+        self, entry_points: list[str], plugin_import: str
+    ) -> tuple[int, list[Exception]]:
         succeeded = 0
         failed = []
         for entry_point in entry_points:
             module_path, class_name = entry_point.split(":")
             with (
                 ExceptionContext()
-                    .apply_note(f" - Attempting to load entry point {entry_point}")
-                    .capture(failed.append)
+                .apply_note(f" - Attempting to load entry point {entry_point}")
+                .capture(failed.append)
             ):
-                with (
-                    ExceptionContext()
-                        .apply_note(f" - Attempting to import module {plugin_import}.{module_path}:{class_name}"
-                    )
+                with ExceptionContext().apply_note(
+                    f" - Attempting to import module {plugin_import}.{module_path}:{class_name}"
                 ):
                     try:
-                        module = self._plugin_loader.load_module(f"{plugin_import}.{module_path}")
+                        module = self._plugin_loader.load_module(
+                            f"{plugin_import}.{module_path}"
+                        )
                     except ModuleNotFoundError as e:
-                        e.add_note(f" - Attempted to import relative to plugins directory")
-                        module = importlib.import_module(f"{plugin_import}.{module_path}")
+                        e.add_note(
+                            " - Attempted to import relative to plugins directory"
+                        )
+                        module = importlib.import_module(
+                            f"{plugin_import}.{module_path}"
+                        )
 
                 entry_point_class = getattr(module, class_name)
 
@@ -297,13 +336,17 @@ class PluginLoader:
 
         return succeeded, failed
 
-    def _load_plugin_middleware(self, middleware_entries: list[str], plugin_import: str) -> tuple[int, list[Exception]]:
+    def _load_plugin_middleware(
+        self, middleware_entries: list[str], plugin_import: str
+    ) -> tuple[int, list[Exception]]:
         succeeded = 0
         failed = []
         for entry_point in middleware_entries:
             module_path, class_name = entry_point.split(":")
             try:
-                module = self._plugin_loader.import_path(f"{plugin_import}.{module_path}")
+                module = self._plugin_loader.import_path(
+                    f"{plugin_import}.{module_path}"
+                )
                 entry_point_class = getattr(module, class_name)
 
                 if not hasattr(entry_point_class, "__aiter__"):
@@ -319,7 +362,9 @@ class PluginLoader:
 
         return succeeded, failed
 
-    def _load_plugin_spec(self, plugin_import: str, app_plugin_settings: dict[str, Any]) -> PluginSpec:
+    def _load_plugin_spec(
+        self, plugin_import: str, app_plugin_settings: dict[str, Any]
+    ) -> PluginSpec:
         if (self._plugin_loader.directory / plugin_import).exists():
             plugin_path = self._plugin_loader.directory / plugin_import
 
@@ -330,15 +375,23 @@ class PluginLoader:
             return known_plugins[plugin_path]
 
         try:
-            plugin_spec = PluginSpec.from_path(plugin_path, app_plugin_settings, self._plugin_loader.using_sub_module(plugin_import))
+            plugin_spec = PluginSpec.from_path(
+                plugin_path,
+                app_plugin_settings,
+                self._plugin_loader.using_sub_module(plugin_import),
+            )
         except Exception as e:
-            e.add_note(f" - Failed while attempting to load plugin spec from {plugin_path}")
+            e.add_note(
+                f" - Failed while attempting to load plugin spec from {plugin_path}"
+            )
             raise
         else:
             known_plugins[plugin_path] = plugin_spec
             return plugin_spec
 
-    def _process_app_plugin_settings(self, plugin_settings: dict[str, Any] | str) -> tuple[str, dict[str, Any]]:
+    def _process_app_plugin_settings(
+        self, plugin_settings: dict[str, Any] | str
+    ) -> tuple[str, dict[str, Any]]:
         """Process plugin settings from serv.config.yaml.
 
         Args:

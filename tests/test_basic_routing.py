@@ -1,11 +1,11 @@
 import pytest
+from bevy import dependency  # Added
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.requests import Request
 from serv.responses import ResponseBuilder
-from tests.helpers import RouteAddingPlugin, EventWatcherPlugin
-from bevy import dependency # Added
+from tests.helpers import EventWatcherPlugin, RouteAddingPlugin
+
 
 @pytest.mark.asyncio
 async def test_hello_world(app: App, client: AsyncClient):
@@ -22,12 +22,14 @@ async def test_hello_world(app: App, client: AsyncClient):
     assert response.text == "Hello, World!"
     assert response.headers["content-type"] == "text/plain; charset=utf-8"
 
+
 @pytest.mark.asyncio
 async def test_not_found(client: AsyncClient):
     response = await client.get("/nonexistent")
     assert response.status_code == 404
     assert "Not Found" in response.text
     assert response.headers["content-type"] == "text/plain; charset=utf-8"
+
 
 @pytest.mark.asyncio
 async def test_method_not_allowed(app: App, client: AsyncClient):
@@ -47,16 +49,23 @@ async def test_method_not_allowed(app: App, client: AsyncClient):
     assert response_post.text == "Processed POST"
     assert plugin.was_called
 
+
 @pytest.mark.asyncio
 async def test_path_parameters(app: App, client: AsyncClient):
-    async def user_handler(response: ResponseBuilder = dependency(), user_id: str = "", item_id: str | None = None):
+    async def user_handler(
+        response: ResponseBuilder = dependency(),
+        user_id: str = "",
+        item_id: str | None = None,
+    ):
         if item_id:
             response.body(f"User: {user_id}, Item: {item_id}")
         else:
             response.body(f"User: {user_id}")
 
     plugin_user = RouteAddingPlugin("/users/{user_id}", user_handler, methods=["GET"])
-    plugin_user_item = RouteAddingPlugin("/users/{user_id}/items/{item_id}", user_handler, methods=["GET"])
+    plugin_user_item = RouteAddingPlugin(
+        "/users/{user_id}/items/{item_id}", user_handler, methods=["GET"]
+    )
     app.add_plugin(plugin_user)
     app.add_plugin(plugin_user_item)
 
@@ -72,6 +81,7 @@ async def test_path_parameters(app: App, client: AsyncClient):
     assert plugin_user_item.was_called
     assert plugin_user_item.received_kwargs.get("user_id") == "abc"
     assert plugin_user_item.received_kwargs.get("item_id") == "xyz"
+
 
 @pytest.mark.asyncio
 async def test_request_events_emitted(app: App, client: AsyncClient):
@@ -96,4 +106,4 @@ async def test_request_events_emitted(app: App, client: AsyncClient):
     for name, kwargs_evt in event_watcher.events_seen:
         if name == "app.request.after_router" or name == "app.request.end":
             assert "error" in kwargs_evt
-            assert kwargs_evt["error"] is None 
+            assert kwargs_evt["error"] is None

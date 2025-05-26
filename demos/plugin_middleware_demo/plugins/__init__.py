@@ -1,1 +1,1 @@
-# Plugins namespace package 
+# Plugins namespace package

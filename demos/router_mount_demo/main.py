@@ -1,54 +1,70 @@
-from serv.app import App
-from serv.routing import Router
-from serv.routes import Route, GetRequest, Jinja2Response, JsonResponse
-from serv.responses import Template, JSON
-from serv.plugins import Plugin
+from typing import Annotated, Any
+
 from bevy import dependency
-from typing import Dict, Any, Tuple, Annotated
+
+from serv.app import App
+from serv.plugins import Plugin
+from serv.routes import GetRequest, Jinja2Response, JsonResponse, Route
+from serv.routing import Router
 
 
 # Define API Route classes for different resources
 class UsersAPI(Route):
-    async def list_all(self, request: GetRequest) -> Annotated[Dict[str, Any], JsonResponse]:
-        users = [
-            {"id": 1, "name": "John Doe"},
-            {"id": 2, "name": "Jane Smith"}
-        ]
+    async def list_all(
+        self, request: GetRequest
+    ) -> Annotated[dict[str, Any], JsonResponse]:
+        users = [{"id": 1, "name": "John Doe"}, {"id": 2, "name": "Jane Smith"}]
         return {"users": users}
-    
-    async def get_one(self, request: GetRequest, id: str) -> Annotated[Dict[str, Any], JsonResponse]:
+
+    async def get_one(
+        self, request: GetRequest, id: str
+    ) -> Annotated[dict[str, Any], JsonResponse]:
         return {"id": int(id), "name": f"User {id}"}
 
 
 class ArticlesAPI(Route):
-    async def list_all(self, request: GetRequest) -> Annotated[Dict[str, Any], JsonResponse]:
+    async def list_all(
+        self, request: GetRequest
+    ) -> Annotated[dict[str, Any], JsonResponse]:
         articles = [
             {"id": 1, "title": "Getting Started with Serv"},
-            {"id": 2, "title": "Advanced Routing in Serv"}
+            {"id": 2, "title": "Advanced Routing in Serv"},
         ]
         return {"articles": articles}
-    
-    async def get_one(self, request: GetRequest, id: str) -> Annotated[Dict[str, Any], JsonResponse]:
+
+    async def get_one(
+        self, request: GetRequest, id: str
+    ) -> Annotated[dict[str, Any], JsonResponse]:
         return {"id": int(id), "title": f"Article {id}"}
 
 
 # Define frontend routes
 class HomePage(Route):
-    async def on_get(self, request: GetRequest) -> Annotated[Tuple[str, Dict[str, Any]], Jinja2Response]:
+    async def on_get(
+        self, request: GetRequest
+    ) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
         return "home.html", {"request": request}
 
 
 class AboutPage(Route):
-    async def on_get(self, request: GetRequest) -> Annotated[Tuple[str, Dict[str, Any]], Jinja2Response]:
+    async def on_get(
+        self, request: GetRequest
+    ) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
         return "about.html", {"request": request}
 
 
 # Define Admin Handlers
-async def admin_dashboard_handler(request: GetRequest) -> Annotated[Tuple[str, Dict[str, Any]], Jinja2Response]:
+async def admin_dashboard_handler(
+    request: GetRequest,
+) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
     return "admin/dashboard.html", {"request": request}
 
-async def admin_users_handler(request: GetRequest) -> Annotated[Tuple[str, Dict[str, Any]], Jinja2Response]:
+
+async def admin_users_handler(
+    request: GetRequest,
+) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
     return "admin/users.html", {"request": request}
+
 
 class MountDemoPlugin(Plugin):
     def __init__(self):
@@ -78,13 +94,15 @@ class MountDemoPlugin(Plugin):
     def on_app_request_begin(self, router: Router = dependency()):
         router.add_router(self.main_router)
 
+
 # Create the app
 app = App(dev_mode=True)
-app.add_plugin(MountDemoPlugin()) # Add the plugin instance
+app.add_plugin(MountDemoPlugin())  # Add the plugin instance
 
 # Start the app
 if __name__ == "__main__":
     import uvicorn
+
     print("Starting Serv Router Mount Demo on http://127.0.0.1:8000")
     print("Access it at:")
     print("  http://127.0.0.1:8000/")
@@ -93,4 +111,4 @@ if __name__ == "__main__":
     print("  http://127.0.0.1:8000/api/v1/users")
     print("  http://127.0.0.1:8000/api/v1/users/{id}")
     print("Press Ctrl+C to stop.")
-    uvicorn.run(app, host="127.0.0.1", port=8000) 
+    uvicorn.run(app, host="127.0.0.1", port=8000)

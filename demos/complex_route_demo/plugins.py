@@ -1,7 +1,11 @@
 from bevy import dependency
-from serv.routing import Router
+from demo import (  # Assuming HomeRoute and SubmitRoute are in demo.py
+    HomeRoute,
+    SubmitRoute,
+)
+
 from serv.plugins import Plugin
-from demo import HomeRoute, SubmitRoute # Assuming HomeRoute and SubmitRoute are in demo.py
+from serv.routing import Router
 
 
 class DemoRoutesPlugin(Plugin):
@@ -12,4 +16,6 @@ class DemoRoutesPlugin(Plugin):
         """
         router.add_route("/", HomeRoute)
         router.add_route("/submit", SubmitRoute)
-        print(f"INFO: Demo routes registered with router {id(router)}") # For debugging/confirmation 
+        print(
+            f"INFO: Demo routes registered with router {id(router)}"
+        )  # For debugging/confirmation

@@ -1,18 +1,18 @@
 """Defines a base type that can observe events happening in the Serv app. Handlers are defined as methods on the class
-with names following the format '[optional_]on_{event_name}'. This gives the author the ability to make readable 
+with names following the format '[optional_]on_{event_name}'. This gives the author the ability to make readable
 function names like 'set_role_on_user_create' or 'create_annotations_on_form_submit'."""
+
+import re
 import sys
 from collections import defaultdict
 from inspect import isawaitable
 from pathlib import Path
-import re
 from typing import Any
 
 from bevy import get_container
 from bevy.containers import Container
 
 import serv.plugins.loader as pl
-
 
 type PluginMapping = dict[str, list[str]]
 
@@ -34,7 +34,7 @@ class Plugin:
         for name in dir(cls):
             if name.startswith("_"):
                 continue
-            
+
             event = re.match(r"^(?:.+_)?on_(.*)$", name)
             if not event:
                 continue
@@ -42,16 +42,18 @@ class Plugin:
             callback = getattr(cls, name)
             if not callable(callback):
                 continue
-            
+
             event_name = event.group(1)
             cls.__plugins__[event_name].append(name)
-    
-    def __init__(self, *, plugin_spec: "pl.PluginSpec | None" = None, stand_alone: bool = False):
+
+    def __init__(
+        self, *, plugin_spec: "pl.PluginSpec | None" = None, stand_alone: bool = False
+    ):
         """Initialize the plugin.
-        
+
         Loads plugin configuration and sets up any defined routers and routes
         if they are configured in the plugin.yaml file.
-        
+
         Args:
             stand_alone: If True, don't attempt to load plugin.yaml
         """
@@ -67,7 +69,13 @@ class Plugin:
                 )
             self.__plugin_spec__ = module.__plugin_spec__
 
-    async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:
+    async def on(
+        self,
+        event_name: str,
+        container: Container | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """Receives event notifications.
 
         This method will be called by the application when an event this plugin

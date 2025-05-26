@@ -1,16 +1,21 @@
 import asyncio
+from collections.abc import AsyncIterator  # For middleware
 from dataclasses import dataclass
+from typing import Annotated
+
+from bevy import dependency
+
 from serv.app import App
 from serv.injectors import Cookie
-from serv.routing import Router
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from bevy import dependency
-from typing import Annotated, AsyncIterator # For middleware
+from serv.routing import Router
+
 
 # --- Application Setup ---
 def app():
     _app = None
+
     async def app_wrapper(scope, receive, send):
         nonlocal _app
         if _app is None:
@@ -28,17 +33,20 @@ welcome_router = Router()
 
 # --- Model Definitions ---
 
+
 @dataclass
 class NameForm:
     username: str
 
+
 # --- Handler Definitions ---
+
 
 # Form Router Handlers
 async def show_name_form_handler(response: ResponseBuilder = dependency()):
     response.content_type("text/html")
     response.body(
-        '''
+        """
         <html>
             <head><title>Enter Your Name</title></head>
             <body>
@@ -50,32 +58,44 @@ async def show_name_form_handler(response: ResponseBuilder = dependency()):
                 </form>
             </body>
         </html>
-        '''
+        """
     )
 
-async def handle_name_submission_handler(request: Request = dependency(), response: ResponseBuilder = dependency()):
+
+async def handle_name_submission_handler(
+    request: Request = dependency(), response: ResponseBuilder = dependency()
+):
     form = await request.form(NameForm)
 
     if form.username:
-        response.set_cookie("username", form.username, path="/", httponly=True, samesite="lax")
+        response.set_cookie(
+            "username", form.username, path="/", httponly=True, samesite="lax"
+        )
         print(f"Username submitted: {form.username}. Cookie set.")
     else:
         print("No username submitted in form.")
 
     response.redirect("/", status_code=303)
 
+
 # Welcome Router Handlers
-async def show_welcome_message_handler(request: Request = dependency(), response: ResponseBuilder = dependency()):
-    username = request.cookies.get("username") # Should be present if this router is active
+async def show_welcome_message_handler(
+    request: Request = dependency(), response: ResponseBuilder = dependency()
+):
+    username = request.cookies.get(
+        "username"
+    )  # Should be present if this router is active
     if not username:
         # This is a safeguard; middleware should prevent this router from being used if no cookie.
-        print("Error: Welcome router called without username cookie. Redirecting to form.")
+        print(
+            "Error: Welcome router called without username cookie. Redirecting to form."
+        )
         response.redirect("/", status_code=303)
         return
 
     response.content_type("text/html")
     response.body(
-        f'''
+        f"""
         <html>
             <head><title>Welcome!</title></head>
             <body>
@@ -86,14 +106,18 @@ async def show_welcome_message_handler(request: Request = dependency(), response
                 </form>
             </body>
         </html>
-        '''
+        """
     )
 
+
 # Logout Handler
-async def app_logout_handler(response: ResponseBuilder = dependency()): # No request needed if not used
+async def app_logout_handler(
+    response: ResponseBuilder = dependency(),
+):  # No request needed if not used
     response.delete_cookie("username", path="/", httponly=True, samesite="lax")
     print("User logged out. Cookie deleted.")
     response.redirect("/", status_code=303)
+
 
 # --- Add Routes to Router Instances ---
 form_router.add_route("/", show_name_form_handler, methods=["GET"])
@@ -104,17 +128,23 @@ welcome_router.add_route("/logout", app_logout_handler, methods=["POST"])
 
 
 # --- Middleware for Router Selection ---
-async def cookie_based_router_middleware(router: Router = dependency(), username: Annotated[str, Cookie("username", default="")] = dependency()) -> AsyncIterator[None]:
+async def cookie_based_router_middleware(
+    router: Router = dependency(),
+    username: Annotated[str, Cookie("username", default="")] = dependency(),
+) -> AsyncIterator[None]:
     if username:
-        print(f"Username cookie found: '{username}'. Setting welcome_router for the request.")
+        print(
+            f"Username cookie found: '{username}'. Setting welcome_router for the request."
+        )
         router.add_router(welcome_router)
     else:
         print("No username cookie. Setting form_router for the request.")
         router.add_router(form_router)
 
-    yield # Allow processing to continue to the (now selected) router
+    yield  # Allow processing to continue to the (now selected) router
 
     # No cleanup needed after yield for this middleware
+
 
 # --- Run the application ---
 if __name__ == "__main__":
@@ -125,7 +155,9 @@ if __name__ == "__main__":
         print("You also need 'bevy': pip install bevy")
         print("And 'serv' itself (e.g. pip install -e . from project root)")
     else:
-        print("Starting Serv cookie_form_app demo (middleware routing) on http://127.0.0.1:8001")
+        print(
+            "Starting Serv cookie_form_app demo (middleware routing) on http://127.0.0.1:8001"
+        )
         print("Access it at: http://127.0.0.1:8001/")
         print("Press Ctrl+C to stop.")
 

@@ -1,41 +1,40 @@
 """
 Simplified end-to-end tests demonstrating the most basic usage pattern.
 """
-import pytest
+
 from pathlib import Path
+
+import pytest
 from bevy import dependency
 
 from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
 from serv.routing import Router
-from serv.plugins.loader import PluginSpec
-
 from tests.e2e.helpers import create_test_client
 from tests.helpers import create_test_plugin_spec
 
 
 class SimplePlugin(Plugin):
     """Super simple plugin that adds a /hello route."""
-    
+
     def __init__(self):
         # Set up the plugin spec on the module before calling super().__init__()
         self._plugin_spec = create_test_plugin_spec(
-            name="SimplePlugin",
-            version="0.1.0",
-            path=Path(__file__).parent
+            name="SimplePlugin", version="0.1.0", path=Path(__file__).parent
         )
-        
+
         # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
         import sys
+
         module = sys.modules[self.__module__]
         module.__plugin_spec__ = self._plugin_spec
-        
+
         super().__init__(stand_alone=True)
         self._stand_alone = True
-        
+
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route("/hello", self._hello_handler, methods=["GET"])
-        
+
     async def _hello_handler(self, response: ResponseBuilder = dependency()):
         response.content_type("text/plain")
         response.body("Hello, World!")
@@ -48,7 +47,7 @@ async def test_simple_route():
     async with create_test_client(plugins=[SimplePlugin()]) as client:
         # Make a request to the app
         response = await client.get("/hello")
-        
+
         # Check the response
         assert response.status_code == 200
         assert response.text == "Hello, World!"
@@ -60,10 +59,10 @@ async def test_basic_fixtures(app, test_client):
     """Test using the basic fixtures provided in conftest.py."""
     # Add a plugin to the app
     app.add_plugin(SimplePlugin())
-    
+
     # Make a request
     response = await test_client.get("/hello")
-    
+
     # Check the response
     assert response.status_code == 200
-    assert response.text == "Hello, World!" 
+    assert response.text == "Hello, World!"

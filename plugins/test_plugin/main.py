@@ -1,12 +1,14 @@
-from serv.plugins import Plugin
 from bevy import dependency
-from serv.routing import Router
+
+from serv.plugins import Plugin
 from serv.responses import ResponseBuilder
+from serv.routing import Router
+
 
 class TestPluginPlugin(Plugin):
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route("/test-route", self._handler, methods=["GET"])
-        
+
     async def _handler(self, response: ResponseBuilder = dependency()):
         response.content_type("text/plain")
-        response.body("Hello from test plugin!") 
+        response.body("Hello from test plugin!")

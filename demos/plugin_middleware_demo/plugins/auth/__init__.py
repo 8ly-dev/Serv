@@ -1,1 +1,1 @@
-# Auth plugin package 
+# Auth plugin package

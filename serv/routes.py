@@ -1,11 +1,19 @@
+import json
 import sys
 from collections import defaultdict
-from datetime import datetime, date
+from collections.abc import AsyncGenerator
+from datetime import date, datetime
 from inspect import get_annotations, signature
-import json
 from pathlib import Path
 from types import NoneType, UnionType
-from typing import Any, AsyncGenerator, Type, Union, get_args, get_origin, Annotated, get_type_hints
+from typing import (
+    Annotated,
+    Any,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from bevy import dependency, inject
 from bevy.containers import Container
@@ -19,16 +27,21 @@ from serv.responses import ResponseBuilder
 
 
 class Response:
-    def __init__(self, status_code: int, body: str | bytes | None = None, headers: dict[str, str] | None = None):
+    def __init__(
+        self,
+        status_code: int,
+        body: str | bytes | None = None,
+        headers: dict[str, str] | None = None,
+    ):
         self.status_code = status_code
-        self.body = body or bytes()
+        self.body = body or b""
         self.headers = headers or {}
-        
+
         # A reference to the handler that returned this response. This is only set after creation but
         # before the response is rendered.
         self.created_by = None
 
-    async def render(self) -> AsyncGenerator[bytes, None]:
+    async def render(self) -> AsyncGenerator[bytes]:
         yield self.body
 
     def set_created_by(self, handler: Any) -> None:
@@ -47,7 +60,7 @@ class JsonResponse(Response):
         self.body = json.dumps(data)
         self.headers["Content-Type"] = "application/json"
 
-    
+
 class TextResponse(Response):
     def __init__(self, text: str, status_code: int = 200):
         super().__init__(status_code)
@@ -63,7 +76,13 @@ class HtmlResponse(Response):
 
 
 class FileResponse(Response):
-    def __init__(self, file: bytes, filename: str, status_code: int = 200, content_type: str = "application/octet-stream"):
+    def __init__(
+        self,
+        file: bytes,
+        filename: str,
+        status_code: int = 200,
+        content_type: str = "application/octet-stream",
+    ):
         super().__init__(status_code)
         self.body = file
         self.headers["Content-Type"] = content_type
@@ -82,7 +101,9 @@ class Jinja2Response(Response):
 
         template_locations = self._get_template_locations(self.created_by)
 
-        env = Environment(loader=FileSystemLoader(template_locations), enable_async=True)
+        env = Environment(
+            loader=FileSystemLoader(template_locations), enable_async=True
+        )
         template = env.get_template(self.template)
         return template.generate_async(**self.context)
 
@@ -95,7 +116,6 @@ class Jinja2Response(Response):
             Path.cwd() / "templates" / plugin.name,
             plugin.path / "templates",
         ]
-
 
 
 class GetRequest(Request):
@@ -136,11 +156,12 @@ MethodMapping = {
     HeadRequest: "HEAD",
 }
 
+
 def normalized_origin(annotation: Any) -> Any:
     origin = get_origin(annotation)
     if origin is UnionType:
         return Union
-    
+
     return origin
 
 
@@ -148,10 +169,10 @@ def is_optional(annotation: Any) -> bool:
     origin = normalized_origin(annotation)
     if origin is list:
         return True
-    
+
     if origin is Union and NoneType in get_args(annotation):
         return True
-    
+
     return False
 
 
@@ -161,7 +182,7 @@ def _datetime_validator(x: str) -> bool:
         return True
     except ValueError:
         return False
-    
+
 
 def _date_validator(x: str) -> bool:
     try:
@@ -190,7 +211,7 @@ def _is_valid_type(value: Any, allowed_types: list[type]) -> bool:
 
         if string_value_type_validators[allowed_type](value):
             return True
-        
+
     return False
 
 
@@ -202,40 +223,43 @@ class Form:
         annotations = get_annotations(cls)
 
         allowed_keys = set(annotations.keys())
-        required_keys = {key for key, value in annotations.items() if not is_optional(value)}
+        required_keys = {
+            key for key, value in annotations.items() if not is_optional(value)
+        }
 
         form_data_keys = set(form_data.keys())
         has_missing_required_keys = required_keys - form_data_keys
         has_extra_keys = form_data_keys > allowed_keys
         if has_missing_required_keys or has_extra_keys:
-            return False # Form data keys do not match the expected keys
+            return False  # Form data keys do not match the expected keys
 
         for key, value in annotations.items():
             optional = key not in required_keys
             if key not in form_data and not optional:
                 return False
-            
+
             allowed_types = get_args(value)
             if not allowed_types:
                 allowed_types = [value]
 
-            if (
-                get_origin(value) is list and
-                not all(_is_valid_type(item, allowed_types) for item in form_data[key])
+            if get_origin(value) is list and not all(
+                _is_valid_type(item, allowed_types) for item in form_data[key]
             ):
                 return False
 
-            if key in form_data and not _is_valid_type(form_data[key][0], allowed_types):
+            if key in form_data and not _is_valid_type(
+                form_data[key][0], allowed_types
+            ):
                 return False
 
-        return True # All fields match 
+        return True  # All fields match
 
 
 class Route:
     __method_handlers__: dict[str, str]
-    __error_handlers__: dict[Type[Exception], list[str]]
-    __form_handlers__: dict[str, dict[Type[Form], list[str]]]
-    __annotated_response_wrappers__: dict[str, Type[Response]]
+    __error_handlers__: dict[type[Exception], list[str]]
+    __form_handlers__: dict[str, dict[type[Form], list[str]]]
+    __annotated_response_wrappers__: dict[str, type[Response]]
 
     _plugin: "Plugin | None"
 
@@ -244,11 +268,11 @@ class Route:
         cls.__error_handlers__ = defaultdict(list)
         cls.__form_handlers__ = defaultdict(lambda: defaultdict(list))
         cls.__annotated_response_wrappers__ = {}
-        
+
         try:
-            all_type_hints = get_type_hints(cls, include_extras=True)
+            get_type_hints(cls, include_extras=True)
         except Exception:
-            all_type_hints = {}
+            pass
 
         for name in dir(cls):
             if name.startswith("_"):
@@ -260,37 +284,54 @@ class Route:
 
             sig = signature(member)
             params = list(sig.parameters.values())
-            
+
             if not params:
                 continue
 
             if len(params) > 1:
                 second_arg_annotation = params[1].annotation
-                if isinstance(second_arg_annotation, type) and issubclass(second_arg_annotation, Request):
+                if isinstance(second_arg_annotation, type) and issubclass(
+                    second_arg_annotation, Request
+                ):
                     method = MethodMapping.get(second_arg_annotation)
                     if method:
                         cls.__method_handlers__[method] = name
                         try:
-                            handler_type_hints = get_type_hints(member, include_extras=True)
-                            return_annotation = handler_type_hints.get('return')
+                            handler_type_hints = get_type_hints(
+                                member, include_extras=True
+                            )
+                            return_annotation = handler_type_hints.get("return")
                         except Exception:
                             return_annotation = None
-                            
-                        if return_annotation and get_origin(return_annotation) is Annotated:
+
+                        if (
+                            return_annotation
+                            and get_origin(return_annotation) is Annotated
+                        ):
                             args = get_args(return_annotation)
-                            if len(args) == 2 and isinstance(args[1], type) and issubclass(args[1], Response):
+                            if (
+                                len(args) == 2
+                                and isinstance(args[1], type)
+                                and issubclass(args[1], Response)
+                            ):
                                 cls.__annotated_response_wrappers__[name] = args[1]
 
-                elif isinstance(second_arg_annotation, type) and issubclass(second_arg_annotation, Form):
+                elif isinstance(second_arg_annotation, type) and issubclass(
+                    second_arg_annotation, Form
+                ):
                     form_type = second_arg_annotation
-                    cls.__form_handlers__[form_type.__form_method__][form_type].append(name)
+                    cls.__form_handlers__[form_type.__form_method__][form_type].append(
+                        name
+                    )
 
-                elif isinstance(second_arg_annotation, type) and issubclass(second_arg_annotation, Exception):
+                elif isinstance(second_arg_annotation, type) and issubclass(
+                    second_arg_annotation, Exception
+                ):
                     cls.__error_handlers__[second_arg_annotation] = name
 
     async def __call__(
-        self, 
-        request: Request = dependency(), 
+        self,
+        request: Request = dependency(),
         container: Container = dependency(),
         response_builder: ResponseBuilder = dependency(),
     ):
@@ -315,7 +356,9 @@ class Route:
             return self._plugin
 
         try:
-            self._plugin = pl.find_plugin_spec(Path(sys.modules[self.__module__].__file__))
+            self._plugin = pl.find_plugin_spec(
+                Path(sys.modules[self.__module__].__file__)
+            )
         except Exception:
             type(self)._plugin = None
 
@@ -339,7 +382,7 @@ class Route:
                             args_to_pass = [parsed_form]
                             break
                         except Exception as e:
-                            return await container.call(self._error_handler, e) 
+                            return await container.call(self._error_handler, e)
                     if handler:
                         break
 
@@ -352,9 +395,11 @@ class Route:
             return await container.call(
                 self._error_handler,
                 HTTPMethodNotAllowedException(
-                    f"{type(self).__name__} does not support {method} or a matching form handler for provided data.", 
-                    list(self.__method_handlers__.keys() | self.__form_handlers__.keys())
-                )
+                    f"{type(self).__name__} does not support {method} or a matching form handler for provided data.",
+                    list(
+                        self.__method_handlers__.keys() | self.__form_handlers__.keys()
+                    ),
+                ),
             )
 
         try:
@@ -373,14 +418,16 @@ class Route:
                     f"{type(handler_output_data).__name__!r} but was expected to return a Response instance or use an "
                     f"Annotated response type."
                 )
-            
+
             response.set_created_by(self.plugin)
             return response
-        
+
         except Exception as e:
             return await container.call(self._error_handler, e)
-    
-    async def _error_handler(self, exception: Exception, container: Container = dependency()) -> Response:
+
+    async def _error_handler(
+        self, exception: Exception, container: Container = dependency()
+    ) -> Response:
         for error_type, handler_name in self.__error_handlers__.items():
             if isinstance(exception, error_type):
                 try:
@@ -389,5 +436,5 @@ class Route:
                 except Exception as e:
                     e.__cause__ = exception
                     return await container.call(self._error_handler, e)
-                
+
         raise exception

@@ -1,4 +1,4 @@
-from typing import Callable, overload, Type
+from collections.abc import Callable
 
 
 class ExceptionContext:
@@ -20,7 +20,8 @@ class ExceptionContext:
         context"):
             raise ValueError("Original error message")
     """
-    def __init__(self, exception: Type[Exception] = Exception):
+
+    def __init__(self, exception: type[Exception] = Exception):
         self.exception_type = exception
         self.capture_callback = None
         self.note = None

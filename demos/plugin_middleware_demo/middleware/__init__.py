@@ -1,1 +1,1 @@
-# Middleware namespace package 
+# Middleware namespace package

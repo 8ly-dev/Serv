@@ -38,7 +38,9 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
             else:
                 return importlib.util.spec_from_loader(
                     fullname,
-                    PluginSourceFileLoader(fullname, str(Path(path[0]) / f"{parts[-1]}.py") , plugin_spec)
+                    PluginSourceFileLoader(
+                        fullname, str(Path(path[0]) / f"{parts[-1]}.py"), plugin_spec
+                    ),
                 )
 
         try:
@@ -53,8 +55,7 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
         if path.is_dir():
             if not (path / "__init__.py").exists():
                 return importlib.util.spec_from_loader(
-                    fullname,
-                    ImporterPackageInjector(self.directory, plugin_spec)
+                    fullname, ImporterPackageInjector(self.directory, plugin_spec)
                 )
 
             path /= "__init__.py"
@@ -64,8 +65,7 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
 
         if path.exists():
             return importlib.util.spec_from_loader(
-                fullname,
-                PluginSourceFileLoader(fullname, str(path), plugin_spec)
+                fullname, PluginSourceFileLoader(fullname, str(path), plugin_spec)
             )
 
     @classmethod
@@ -103,6 +103,7 @@ class ImporterPackageInjector(importlib.abc.Loader):
 
     def exec_module(self, module):
         return
+
 
 class Importer:
     """

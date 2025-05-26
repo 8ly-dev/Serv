@@ -4,14 +4,12 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class AsyncIterable(Protocol):
-    async def __aiter__(self):
-        ...
+    async def __aiter__(self): ...
 
 
 @runtime_checkable
 class Iterable(Protocol):
-    def __iter__(self):
-        ...
+    def __iter__(self): ...
 
 
 class ResponseBuilder:
@@ -46,9 +44,9 @@ class ResponseBuilder:
         if charset is None:
             charset = self._default_encoding
         # Remove existing Content-Type headers before adding the new one to avoid duplicates
-        self._headers = [h for h in self._headers if h[0] != b'content-type']
+        self._headers = [h for h in self._headers if h[0] != b"content-type"]
         self.add_header("Content-Type", f"{ctype}; charset={charset}")
-        self._has_content_type = True # Explicitly set true by this method
+        self._has_content_type = True  # Explicitly set true by this method
         return self
 
     def set_cookie(
@@ -56,7 +54,7 @@ class ResponseBuilder:
         key: str,
         value: str = "",
         max_age: int | None = None,
-        expires: int | None = None, # Timestamp
+        expires: int | None = None,  # Timestamp
         path: str = "/",
         domain: str | None = None,
         secure: bool = False,
@@ -74,7 +72,7 @@ class ResponseBuilder:
         if max_age is not None:
             cookie_parts.append(f"Max-Age={max_age}")
         if expires is not None:
-            # This expects a pre-formatted string or a timestamp. 
+            # This expects a pre-formatted string or a timestamp.
             # For robust formatting from timestamp, datetime.strftime would be needed.
             # Example: datetime.datetime.utcfromtimestamp(expires).strftime('%a, %d %b %Y %H:%M:%S GMT')
             cookie_parts.append(f"Expires={expires}")
@@ -84,24 +82,33 @@ class ResponseBuilder:
             cookie_parts.append("HttpOnly")
         if samesite and samesite.lower() in ["lax", "strict", "none"]:
             cookie_parts.append(f"SameSite={samesite.capitalize()}")
-        
+
         self.add_header("Set-Cookie", "; ".join(cookie_parts))
         return self
 
-    def delete_cookie(self, key: str, path: str = "/", domain: str | None = None, secure: bool = False, httponly: bool = False, samesite: str = "lax"):
+    def delete_cookie(
+        self,
+        key: str,
+        path: str = "/",
+        domain: str | None = None,
+        secure: bool = False,
+        httponly: bool = False,
+        samesite: str = "lax",
+    ):
         """Instructs the client to delete a cookie by setting its Max-Age to 0 and an expiry date in the past."""
         # Setting Max-Age=0 is the primary method. Expires is a fallback.
         # Use a known past date string for Expires for robustness.
         past_expiry_date = "Thu, 01 Jan 1970 00:00:00 GMT"
         self.set_cookie(
-            key, value="", 
-            max_age=0, 
-            path=path, 
-            domain=domain, 
+            key,
+            value="",
+            max_age=0,
+            path=path,
+            domain=domain,
             expires=past_expiry_date,
             secure=secure,
             httponly=httponly,
-            samesite=samesite
+            samesite=samesite,
         )
         return self
 
@@ -115,14 +122,14 @@ class ResponseBuilder:
         # Browsers typically convert POST to GET for 301/302 as well.
         # We don't need to send a body for redirects, but can ensure content type is minimal.
         if not self._has_content_type:
-            self.content_type("text/plain") # Minimal body if any is expected by client
-        self.body(f"Redirecting to {url}") # Minimal body
+            self.content_type("text/plain")  # Minimal body if any is expected by client
+        self.body(f"Redirecting to {url}")  # Minimal body
         return self
 
     def body(self, component):
         self._body_components.append(component)
         return self
-    
+
     def clear(self):
         """Clears the response body and headers. This is useful for error handlers. It cannot change
         anything that has already been sent, it only affects future sends and is intended to be used
@@ -135,38 +142,48 @@ class ResponseBuilder:
     async def _send_headers_if_not_sent(self):
         if not self._headers_sent:
             if not self._has_content_type:
-                self.add_header("Content-Type", f"text/plain; charset={self._default_encoding}")
-            
-            await self._send({
-                "type": "http.response.start",
-                "status": self._status,
-                "headers": self._headers,
-            })
+                self.add_header(
+                    "Content-Type", f"text/plain; charset={self._default_encoding}"
+                )
+
+            await self._send(
+                {
+                    "type": "http.response.start",
+                    "status": self._status,
+                    "headers": self._headers,
+                }
+            )
             self._headers_sent = True
 
     async def _send_body_chunk(self, chunk: bytes):
-        if not chunk: 
+        if not chunk:
             return
-        
-        await self._send({
-            "type": "http.response.body",
-            "body": chunk,
-            "more_body": True,
-        })
+
+        await self._send(
+            {
+                "type": "http.response.body",
+                "body": chunk,
+                "more_body": True,
+            }
+        )
 
     async def send_response(self):
-        await self._send_headers_if_not_sent() # Ensures headers are sent even for empty body
+        await (
+            self._send_headers_if_not_sent()
+        )  # Ensures headers are sent even for empty body
         for component in self._body_components:
             await self._stream_component(component)
-        
+
         # Final empty body chunk
-        await self._send({
-            "type": "http.response.body",
-            "body": b"",
-            "more_body": False,
-        })
+        await self._send(
+            {
+                "type": "http.response.body",
+                "body": b"",
+                "more_body": False,
+            }
+        )
         # Ensure _headers_sent is true, even if body was empty and _send_headers_if_not_sent was the one setting it.
-        self._headers_sent = True 
+        self._headers_sent = True
 
     async def _stream_component(self, component):
         match component:
@@ -192,4 +209,4 @@ class ResponseBuilder:
                 raise TypeError(
                     f"Body component or function return value must resolve to str, bytes, bytearray, None, "
                     f"or an iterable/async iterable yielding these types. Got: {type(component)}"
-                ) 
+                )

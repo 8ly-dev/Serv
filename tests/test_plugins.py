@@ -1,11 +1,9 @@
 import sys
-from typing import Annotated
-from bevy import dependency, get_container
+
 import pytest
+from bevy import dependency, get_container
 
 from serv.plugins import Plugin
-from serv.plugins.loader import PluginSpec
-from pathlib import Path
 from tests.helpers import create_test_plugin_spec
 
 
@@ -30,25 +28,27 @@ async def test_plugins():
 
     # Patch the module for this locally defined TestPlugin
     test_plugin_module = sys.modules[TestPlugin.__module__]
-    original_spec = getattr(test_plugin_module, '__plugin_spec__', None)
+    original_spec = getattr(test_plugin_module, "__plugin_spec__", None)
     # Create a minimal spec, as these plugins don't rely on plugin.yaml content here
     spec = create_test_plugin_spec(name="LocalTestPlugin", version="0.0.0")
     test_plugin_module.__plugin_spec__ = spec
 
-    plugin_instance = TestPlugin(stand_alone=True) # stand_alone still good practice
-    plugin_instance.__plugin_spec__ = spec # Set on instance too if anything might check
+    plugin_instance = TestPlugin(stand_alone=True)  # stand_alone still good practice
+    plugin_instance.__plugin_spec__ = (
+        spec  # Set on instance too if anything might check
+    )
 
     await plugin_instance.on("user_create", container)
 
     # Clean up module patch
     if original_spec is not None:
         test_plugin_module.__plugin_spec__ = original_spec
-    elif hasattr(test_plugin_module, '__plugin_spec__'):
+    elif hasattr(test_plugin_module, "__plugin_spec__"):
         del test_plugin_module.__plugin_spec__
 
 
 @pytest.mark.asyncio
-async def test_plugins_with_args():    
+async def test_plugins_with_args():
     class TestPlugin(Plugin):
         async def on_user_create(
             self,
@@ -61,7 +61,7 @@ async def test_plugins_with_args():
     container.instances[_TestUser] = _TestUser(1, "John Doe")
 
     test_plugin_module = sys.modules[TestPlugin.__module__]
-    original_spec = getattr(test_plugin_module, '__plugin_spec__', None)
+    original_spec = getattr(test_plugin_module, "__plugin_spec__", None)
     spec = create_test_plugin_spec(name="LocalTestPluginArgs", version="0.0.0")
     test_plugin_module.__plugin_spec__ = spec
 
@@ -72,7 +72,7 @@ async def test_plugins_with_args():
 
     if original_spec is not None:
         test_plugin_module.__plugin_spec__ = original_spec
-    elif hasattr(test_plugin_module, '__plugin_spec__'):
+    elif hasattr(test_plugin_module, "__plugin_spec__"):
         del test_plugin_module.__plugin_spec__
 
 
@@ -92,7 +92,7 @@ async def test_plugins_with_args_and_dependency():
     container.instances[_TestUser] = _TestUser(1, "John Doe")
 
     test_plugin_module = sys.modules[TestPlugin.__module__]
-    original_spec = getattr(test_plugin_module, '__plugin_spec__', None)
+    original_spec = getattr(test_plugin_module, "__plugin_spec__", None)
     spec = create_test_plugin_spec(name="LocalTestPluginDep", version="0.0.0")
     test_plugin_module.__plugin_spec__ = spec
 
@@ -103,17 +103,16 @@ async def test_plugins_with_args_and_dependency():
 
     if original_spec is not None:
         test_plugin_module.__plugin_spec__ = original_spec
-    elif hasattr(test_plugin_module, '__plugin_spec__'):
+    elif hasattr(test_plugin_module, "__plugin_spec__"):
         del test_plugin_module.__plugin_spec__
 
 
 @pytest.mark.asyncio
 async def test_plugins_without_handler():
-    class TestPlugin(Plugin):
-        ...
+    class TestPlugin(Plugin): ...
 
     test_plugin_module = sys.modules[TestPlugin.__module__]
-    original_spec = getattr(test_plugin_module, '__plugin_spec__', None)
+    original_spec = getattr(test_plugin_module, "__plugin_spec__", None)
     spec = create_test_plugin_spec(name="LocalTestPluginNoHandler", version="0.0.0")
     test_plugin_module.__plugin_spec__ = spec
 
@@ -124,7 +123,7 @@ async def test_plugins_without_handler():
 
     if original_spec is not None:
         test_plugin_module.__plugin_spec__ = original_spec
-    elif hasattr(test_plugin_module, '__plugin_spec__'):
+    elif hasattr(test_plugin_module, "__plugin_spec__"):
         del test_plugin_module.__plugin_spec__
 
 
@@ -140,19 +139,19 @@ async def test_plugins_with_multiple_handlers():
             reached_handlers.add("b_on_user_create")
 
     test_plugin_module = sys.modules[TestPlugin.__module__]
-    original_spec = getattr(test_plugin_module, '__plugin_spec__', None)
+    original_spec = getattr(test_plugin_module, "__plugin_spec__", None)
     spec = create_test_plugin_spec(name="LocalTestPluginMulti", version="0.0.0")
     test_plugin_module.__plugin_spec__ = spec
 
     plugin_instance = TestPlugin(stand_alone=True)
     plugin_instance.__plugin_spec__ = spec
-    
+
     await plugin_instance.on("user_create")
     assert reached_handlers == {"a_on_user_create", "b_on_user_create"}
 
     if original_spec is not None:
         test_plugin_module.__plugin_spec__ = original_spec
-    elif hasattr(test_plugin_module, '__plugin_spec__'):
+    elif hasattr(test_plugin_module, "__plugin_spec__"):
         del test_plugin_module.__plugin_spec__
 
 
@@ -162,11 +161,10 @@ async def test_plugins_with_unfilled_dependency():
         async def on_user_create(
             self,
             user: _TestUser = dependency(),
-        ):
-            ...
-        
+        ): ...
+
     test_plugin_module = sys.modules[TestPlugin.__module__]
-    original_spec = getattr(test_plugin_module, '__plugin_spec__', None)
+    original_spec = getattr(test_plugin_module, "__plugin_spec__", None)
     spec = create_test_plugin_spec(name="LocalTestPluginUnfilled", version="0.0.0")
     test_plugin_module.__plugin_spec__ = spec
 
@@ -178,5 +176,5 @@ async def test_plugins_with_unfilled_dependency():
 
     if original_spec is not None:
         test_plugin_module.__plugin_spec__ = original_spec
-    elif hasattr(test_plugin_module, '__plugin_spec__'):
+    elif hasattr(test_plugin_module, "__plugin_spec__"):
         del test_plugin_module.__plugin_spec__
