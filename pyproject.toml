@@ -26,9 +26,11 @@ multipart = []
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "pre-commit>=4.2.0",
     "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
     "pytest-mock>=3.14.0",
+    "ruff>=0.11.11",
     "uvicorn>=0.34.2",
 ]
 
@@ -38,9 +40,38 @@ serv = "serv.__main__:main"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
 
 [tool.setuptools]
 packages = ["serv"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults (common in dependency injection)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["serv"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.uv]
 override-dependencies = [
