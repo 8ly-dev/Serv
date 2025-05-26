@@ -248,18 +248,6 @@ class PluginLoader:
         logger.info(f"Loaded plugin {plugin_spec.name!r}")
         return plugin_spec, exceptions
 
-    def _load_plugin_routers(self, router_settings: list[RouterConfig], plugin_import: str) -> tuple[int, list[Exception]]:
-        succeeded = 0
-        failed = []
-        for router in router_settings:
-            with AdditionalExceptionContext(f" - Failed to load router {router['name']}"):
-                try:
-                    self._app.add_router(router["name"], router["settings"])
-                    succeeded += 1
-                except Exception as e:
-                    failed.append(e)
-        return succeeded, failed
-
     def _load_plugin_entry_points(self, entry_points: list[str], plugin_import: str) -> tuple[int, list[Exception]]:
         succeeded = 0
         failed = []
