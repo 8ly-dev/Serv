@@ -29,6 +29,39 @@ from .utils import (
 logger = logging.getLogger("serv")
 
 
+def _should_prompt_interactively(args_ns):
+    """Check if we should prompt the user interactively."""
+    # Don't prompt if non-interactive mode is enabled
+    if getattr(args_ns, "non_interactive", False):
+        return False
+
+    # Don't prompt if stdin is not available (like in tests or CI)
+    try:
+        import sys
+
+        # Check if stdin is a TTY and can actually be read from
+        if not sys.stdin.isatty():
+            return False
+
+        # Additional check: try to see if stdin is readable
+        # In subprocess environments with capture_output=True, stdin might be closed
+        if sys.stdin.closed:
+            return False
+
+        # Check if we're in a testing environment
+        if hasattr(sys, "_getframe"):
+            # Look for pytest in the call stack
+            frame = sys._getframe()
+            while frame:
+                if "pytest" in str(frame.f_code.co_filename):
+                    return False
+                frame = frame.f_back
+
+        return True
+    except (AttributeError, OSError):
+        return False
+
+
 def _detect_plugin_context(plugin_arg=None):
     """Detect which plugin to operate on based on context and arguments.
 
@@ -197,8 +230,17 @@ def handle_create_plugin_command(args_ns):
     """Handles the 'create plugin' command."""
     logger.debug("Create plugin command started.")
 
-    # Get plugin name from args
+    # Get plugin name from args or prompt for it
     plugin_name_human = args_ns.name
+    if not plugin_name_human:
+        if _should_prompt_interactively(args_ns):
+            plugin_name_human = prompt_user("Plugin name")
+            if not plugin_name_human:
+                logger.error("Plugin name is required.")
+                return
+        else:
+            logger.error("Plugin name is required. Use --name to specify it.")
+            return
 
     # For non-interactive mode, use default values
     if getattr(args_ns, "non_interactive", False):
@@ -767,14 +809,24 @@ def handle_create_entrypoint_command(args_ns):
     """Handles the 'create entrypoint' command."""
     logger.debug("Create entrypoint command started.")
 
+    # Get entrypoint name from args or prompt for it
     component_name = args_ns.name
+    if not component_name:
+        if _should_prompt_interactively(args_ns):
+            component_name = prompt_user("Entrypoint name")
+            if not component_name:
+                logger.error("Entrypoint name is required.")
+                return
+        else:
+            logger.error("Entrypoint name is required. Use --name to specify it.")
+            return
     plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
 
     if not plugin_name:
         if args_ns.plugin:
             logger.error(f"Plugin '{args_ns.plugin}' not found.")
             return
-        else:
+        elif _should_prompt_interactively(args_ns):
             # Interactive prompt for plugin
             plugins_dir = Path.cwd() / "plugins"
             if plugins_dir.exists():
@@ -802,6 +854,9 @@ def handle_create_entrypoint_command(args_ns):
             if not plugin_name:
                 logger.error("No plugin specified and none could be auto-detected.")
                 return
+        else:
+            logger.error("No plugin specified and none could be auto-detected.")
+            return
 
     class_name = to_pascal_case(component_name)
     file_name = f"entrypoint_{to_snake_case(component_name)}.py"
@@ -852,14 +907,24 @@ def handle_create_route_command(args_ns):
     """Handles the 'create route' command."""
     logger.debug("Create route command started.")
 
+    # Get route name from args or prompt for it
     component_name = args_ns.name
+    if not component_name:
+        if _should_prompt_interactively(args_ns):
+            component_name = prompt_user("Route name")
+            if not component_name:
+                logger.error("Route name is required.")
+                return
+        else:
+            logger.error("Route name is required. Use --name to specify it.")
+            return
     plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
 
     if not plugin_name:
         if args_ns.plugin:
             logger.error(f"Plugin '{args_ns.plugin}' not found.")
             return
-        else:
+        elif _should_prompt_interactively(args_ns):
             # Interactive prompt for plugin
             plugins_dir = Path.cwd() / "plugins"
             if plugins_dir.exists():
@@ -887,22 +952,17 @@ def handle_create_route_command(args_ns):
             if not plugin_name:
                 logger.error("No plugin specified and none could be auto-detected.")
                 return
+        else:
+            logger.error("No plugin specified and none could be auto-detected.")
+            return
 
     # Get route path
     route_path = args_ns.path
     if not route_path:
         default_path = f"/{to_snake_case(component_name)}"
-        # Check if stdin is available for interactive input
-        try:
-            import sys
-
-            if not sys.stdin.isatty():
-                # Non-interactive environment (like tests), use default
-                route_path = default_path
-            else:
-                route_path = prompt_user("Route path", default_path) or default_path
-        except (EOFError, OSError):
-            # Fallback to default if input fails
+        if _should_prompt_interactively(args_ns):
+            route_path = prompt_user("Route path", default_path) or default_path
+        else:
             route_path = default_path
 
     # Ensure path starts with /
@@ -928,14 +988,8 @@ def handle_create_route_command(args_ns):
             except Exception:
                 pass
 
-        # Check if stdin is available for interactive input
-        try:
-            import sys
-
-            if not sys.stdin.isatty():
-                # Non-interactive environment (like tests), use default
-                router_name = "main_router"
-            elif existing_routers:
+        if _should_prompt_interactively(args_ns):
+            if existing_routers:
                 print("Existing routers:")
                 for i, router in enumerate(existing_routers, 1):
                     print(f"  {i}. {router}")
@@ -957,8 +1011,8 @@ def handle_create_route_command(args_ns):
                     router_name = router_choice or "main_router"
             else:
                 router_name = prompt_user("Router name", "main_router") or "main_router"
-        except (EOFError, OSError):
-            # Fallback to default if input fails
+        else:
+            # Non-interactive mode, use default
             router_name = "main_router"
 
     class_name = to_pascal_case(component_name)
@@ -1014,14 +1068,24 @@ def handle_create_middleware_command(args_ns):
     """Handles the 'create middleware' command."""
     logger.debug("Create middleware command started.")
 
+    # Get middleware name from args or prompt for it
     component_name = args_ns.name
+    if not component_name:
+        if _should_prompt_interactively(args_ns):
+            component_name = prompt_user("Middleware name")
+            if not component_name:
+                logger.error("Middleware name is required.")
+                return
+        else:
+            logger.error("Middleware name is required. Use --name to specify it.")
+            return
     plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
 
     if not plugin_name:
         if args_ns.plugin:
             logger.error(f"Plugin '{args_ns.plugin}' not found.")
             return
-        else:
+        elif _should_prompt_interactively(args_ns):
             # Interactive prompt for plugin
             plugins_dir = Path.cwd() / "plugins"
             if plugins_dir.exists():
@@ -1049,6 +1113,9 @@ def handle_create_middleware_command(args_ns):
             if not plugin_name:
                 logger.error("No plugin specified and none could be auto-detected.")
                 return
+        else:
+            logger.error("No plugin specified and none could be auto-detected.")
+            return
 
     middleware_name = to_snake_case(component_name)
     file_name = f"middleware_{middleware_name}.py"
@@ -1058,10 +1125,22 @@ def handle_create_middleware_command(args_ns):
         print(f"Warning: File '{file_path}' already exists. Use --force to overwrite.")
         return
 
+    # Get middleware description
+    default_description = (
+        f"Middleware for {component_name.replace('_', ' ')} functionality."
+    )
+    if _should_prompt_interactively(args_ns):
+        middleware_description = (
+            prompt_user("Middleware description", default_description)
+            or default_description
+        )
+    else:
+        middleware_description = default_description
+
     # Create the middleware file
     context = {
         "middleware_name": middleware_name,
-        "middleware_description": f"Middleware for {component_name.replace('_', ' ')} functionality.",
+        "middleware_description": middleware_description,
     }
 
     try:

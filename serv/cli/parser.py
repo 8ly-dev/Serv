@@ -306,7 +306,7 @@ def create_parser():
         "plugin", help="Create a new plugin"
     )
     create_plugin_parser.add_argument(
-        "--name", required=True, help="Name of the plugin"
+        "--name", help="Name of the plugin (will be prompted if not provided)"
     )
     create_plugin_parser.add_argument(
         "--force", action="store_true", help="Force overwrite of existing plugin"
@@ -324,7 +324,7 @@ def create_parser():
         "entrypoint", help="Create a new plugin entrypoint"
     )
     create_entrypoint_parser.add_argument(
-        "--name", required=True, help="Name of the entrypoint"
+        "--name", help="Name of the entrypoint (will be prompted if not provided)"
     )
     create_entrypoint_parser.add_argument(
         "--plugin",
@@ -333,13 +333,21 @@ def create_parser():
     create_entrypoint_parser.add_argument(
         "--force", action="store_true", help="Force overwrite of existing files"
     )
+    create_entrypoint_parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        dest="non_interactive",
+        help="Non-interactive mode with default values (for testing)",
+    )
     create_entrypoint_parser.set_defaults(func=handle_create_entrypoint_command)
 
     # Create route command
     create_route_parser = create_subparsers.add_parser(
         "route", help="Create a new plugin route"
     )
-    create_route_parser.add_argument("--name", required=True, help="Name of the route")
+    create_route_parser.add_argument(
+        "--name", help="Name of the route (will be prompted if not provided)"
+    )
     create_route_parser.add_argument(
         "--path", help="URL path for the route (e.g., /users/{id}/profile)"
     )
@@ -350,6 +358,12 @@ def create_parser():
     create_route_parser.add_argument(
         "--force", action="store_true", help="Force overwrite of existing files"
     )
+    create_route_parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        dest="non_interactive",
+        help="Non-interactive mode with default values (for testing)",
+    )
     create_route_parser.set_defaults(func=handle_create_route_command)
 
     # Create middleware command
@@ -357,7 +371,7 @@ def create_parser():
         "middleware", help="Create a new plugin middleware"
     )
     create_middleware_parser.add_argument(
-        "--name", required=True, help="Name of the middleware"
+        "--name", help="Name of the middleware (will be prompted if not provided)"
     )
     create_middleware_parser.add_argument(
         "--plugin",
@@ -365,6 +379,12 @@ def create_parser():
     )
     create_middleware_parser.add_argument(
         "--force", action="store_true", help="Force overwrite of existing files"
+    )
+    create_middleware_parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        dest="non_interactive",
+        help="Non-interactive mode with default values (for testing)",
     )
     create_middleware_parser.set_defaults(func=handle_create_middleware_command)
 

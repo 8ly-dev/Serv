@@ -1,12 +1,13 @@
-from bevy import dependency
-from serv.requests import Request
-from serv.responses import ResponseBuilder
-from serv.routes import Route
+from typing import Annotated
+
+from serv.routes import GetRequest, PostRequest, Route, TextResponse
 
 
 class {{ class_name }}(Route):
-    async def get(self, request: Request = dependency(), response: ResponseBuilder = dependency()):
-        response.body("Hello from {{ route_name }} route!")
+    async def handle_get(self, request: GetRequest) -> Annotated[str, TextResponse]:
+        """Handle GET requests to {{ route_path }}"""
+        return "Hello from {{ route_name }} route!"
         
-    async def post(self, request: Request = dependency(), response: ResponseBuilder = dependency()):
-        response.body("POST request to {{ route_name }} route!")
+    async def handle_post(self, request: PostRequest) -> Annotated[str, TextResponse]:
+        """Handle POST requests to {{ route_path }}"""
+        return "POST request to {{ route_name }} route!"

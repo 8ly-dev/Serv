@@ -389,6 +389,7 @@ class TestPlugin(Plugin):
                 "user_profile",
                 "--plugin",
                 "test_plugin",
+                "--non-interactive",
             ],
             cwd=clean_test_dir,
         )
@@ -457,6 +458,7 @@ class TestPlugin(Plugin):
                 "auth_check",
                 "--plugin",
                 "test_plugin",
+                "--non-interactive",
             ],
             cwd=clean_test_dir,
         )
@@ -520,7 +522,16 @@ class TestPlugin(Plugin):
 
         # Create an entrypoint without specifying plugin (should auto-detect)
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "create", "entrypoint", "--name", "auto_detect"],
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "entrypoint",
+                "--name",
+                "auto_detect",
+                "--non-interactive",
+            ],
             cwd=clean_test_dir,
         )
 
@@ -571,6 +582,7 @@ class TestPlugin(Plugin):
                 "entrypoint",
                 "--name",
                 "from_plugin_dir",
+                "--non-interactive",
             ],
             cwd=str(plugin_dir),
         )
