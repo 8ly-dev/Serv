@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import sys
 import traceback
 from asyncio import get_running_loop, Task
 from collections import defaultdict
@@ -113,7 +114,8 @@ class App:
         self._middleware.append(middleware)
 
     def add_plugin(self, plugin: Plugin):
-        path = plugin.__plugin_spec__.path
+        module = sys.modules[plugin.__module__]
+        path = module.__plugin_spec__.path
         if path not in self._plugins:
             self._plugins[path] = []
         self._plugins[path].append(plugin)

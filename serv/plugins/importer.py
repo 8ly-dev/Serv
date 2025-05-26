@@ -31,7 +31,15 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
         # Only inject for modules in your target package
         parts = fullname.split(".")
         if parts[0] != self.directory.name:
-            return
+            try:
+                plugin_spec = pl.find_plugin_spec(Path(path[0]))
+            except (FileNotFoundError, IndexError, TypeError):
+                return None
+            else:
+                return importlib.util.spec_from_loader(
+                    fullname,
+                    PluginSourceFileLoader(fullname, str(Path(path[0]) / f"{parts[-1]}.py") , plugin_spec)
+                )
 
         try:
             plugin_spec = pl.find_plugin_spec(self.directory / parts[1])

@@ -10,6 +10,7 @@ class WelcomeRoute(Route):
         # The context dict is currently empty as the template is static.
         return ("welcome.html", {})
 
+
 class WelcomePlugin(Plugin):
     """
     A simple plugin that registers the WelcomeRoute at the root path (/).
@@ -25,7 +26,7 @@ class WelcomePlugin(Plugin):
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         """Registers the WelcomeRoute at '/' if no other route is already defined for it."""
-        
+
         # Basic check: see if any route is already registered for GET on "/"
         # This is a simplification. A more robust router might offer a has_route(path, method) method.
         path_already_handled = False

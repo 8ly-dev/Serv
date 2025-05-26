@@ -841,7 +841,7 @@ async def handle_launch_command(args_ns):
             logger.error(f"An import error occurred: {e}")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Failed to run the Uvicorn server: {e}", exc_info=logger.level == logging.DEBUG)
+        logger.error(f"Failed to run the Uvicorn server: {e}", exc_info=True)
         sys.exit(1)
 
 def main():

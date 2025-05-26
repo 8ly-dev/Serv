@@ -64,15 +64,6 @@ class Plugin:
         """
         self._stand_alone = stand_alone
 
-    @property
-    def __plugin_spec__(self) -> "pl.PluginSpec":
-        """Get the plugin spec object."""
-        module = sys.modules[self.__module__]
-        try:
-            return module.__plugin_spec__
-        except AttributeError:
-            return find_plugin_spec(Path(module.__file__))
-
     async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:
         """Receives event notifications.
 
