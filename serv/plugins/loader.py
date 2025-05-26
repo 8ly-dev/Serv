@@ -1,16 +1,16 @@
 import importlib.util
 import logging
-from typing import Any, Callable, AsyncIterator, NotRequired, TYPE_CHECKING, TypedDict
+from typing import Any, Callable, AsyncIterator, Literal, NotRequired, TYPE_CHECKING, TypedDict
 from pathlib import Path
 import yaml
 from bevy import get_container
 
 from serv.additional_context import ExceptionContext
-from serv.plugins.importer import Importer
 import serv.plugins as p
 
 if TYPE_CHECKING:
     from serv import App
+    from serv.plugins.importer import Importer
 
 logger = logging.getLogger(__name__)
 
@@ -69,18 +69,20 @@ def get_package_location(package_name: str) -> Path:
 class RouteConfig(TypedDict):
     path: str
     handler: str
-    config: dict[str, Any]
+    config: NotRequired[dict[str, Any]]
+    methods: NotRequired[list[Literal["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]]]
 
 
 class EntryPointConfig(TypedDict):
     entry: str
-    config: dict[str, Any]
+    config: NotRequired[dict[str, Any]]
 
 
 class RouterConfig(TypedDict):
     name: str
-    config: dict[str, Any]
     routes: list[RouteConfig]
+    mount: NotRequired[str]
+    config: NotRequired[dict[str, Any]]
 
 
 class PluginConfig(TypedDict):
@@ -96,7 +98,7 @@ class PluginConfig(TypedDict):
 
 
 class PluginSpec:
-    def __init__(self, config: PluginConfig, path: Path, override_settings: dict[str, Any]):
+    def __init__(self, config: PluginConfig, path: Path, override_settings: dict[str, Any], importer: "Importer"):
         self.name = config["name"]
         self.version = config["version"]
         self._config = config
@@ -105,6 +107,7 @@ class PluginSpec:
         self._override_settings = override_settings
         self._path = path
         self._routers = config.get("routers", [])
+        self._importer = importer
 
     @property
     def entry_points(self):
@@ -131,11 +134,15 @@ class PluginSpec:
         return self._config.get("settings", {}) | self._override_settings
 
     @property
+    def importer(self) -> "Importer":
+        return self._importer
+
+    @property
     def path(self) -> Path:
         return self._path
 
     @classmethod
-    def from_path(cls, path: Path, override_settings: dict[str, Any]) -> 'PluginSpec':
+    def from_path(cls, path: Path, override_settings: dict[str, Any], importer: "Importer") -> 'PluginSpec':
         plugin_config = path / "plugin.yaml"
         if not plugin_config.exists():
             raise FileNotFoundError(f"plugin.yaml not found in {path}")
@@ -153,13 +160,13 @@ class PluginSpec:
                 raw_config_data["entry_points"] = []
             raw_config_data["entry_points"].append(entry)
 
-        return cls(raw_config_data, path, override_settings)
+        return cls(raw_config_data, path, override_settings, importer)
 
 
 class PluginLoader:
     """Handles loading and management of plugins and middleware."""
 
-    def __init__(self, app: "App", plugin_loader: Importer):
+    def __init__(self, app: "App", plugin_loader: "pi.Importer"):
         """Initialize the PluginLoader.
 
         Args:
@@ -243,8 +250,19 @@ class PluginLoader:
         else:
             exceptions.extend(failed_middleware)
 
+        try:
+            self._setup_router_plugin(plugin_spec)
+        except Exception as e:
+            e.add_note(f" - Failed while setting up router plugin for {plugin_import}")
+            exceptions.append(e)
+
         logger.info(f"Loaded plugin {plugin_spec.name!r}")
         return plugin_spec, exceptions
+
+    def _setup_router_plugin(self, plugin_spec: PluginSpec):
+        from serv.plugins.router_plugin import RouterPlugin
+
+        self._app.add_plugin(RouterPlugin(plugin_spec=plugin_spec))
 
     def _load_plugin_entry_points(self, entry_points: list[str], plugin_import: str) -> tuple[int, list[Exception]]:
         succeeded = 0
@@ -312,7 +330,7 @@ class PluginLoader:
             return known_plugins[plugin_path]
 
         try:
-            plugin_spec = PluginSpec.from_path(plugin_path, app_plugin_settings)
+            plugin_spec = PluginSpec.from_path(plugin_path, app_plugin_settings, self._plugin_loader.using_sub_module(plugin_import))
         except Exception as e:
             e.add_note(f" - Failed while attempting to load plugin spec from {plugin_path}")
             raise

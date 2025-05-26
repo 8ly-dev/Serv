@@ -112,16 +112,22 @@ class Importer:
     given package directory without modifying sys.path.
     """
 
-    def __init__(self, directory: Path | str):
+    def __init__(self, directory: Path | str, dotpath: str | None = None):
         """
         Args:
             directory: Directory to search for packages
         """
         self.directory = Path(directory).resolve()
-        ImporterMetaPathFinder.inject(self.directory)
+        self._dotpath = dotpath
+        if not dotpath:
+            self._dotpath = self.directory.name
+            ImporterMetaPathFinder.inject(self.directory)
+
+    def using_sub_module(self, name):
+        return Importer(self.directory, f"{self._dotpath}.{name}")
 
     def load_module(self, module_path: DottedPath) -> ModuleType:
         """Imports a module from inside of the search directory package. This assumes that
         the dotted path directly correlates with the file structure and that the path is
         for a python file."""
-        return importlib.import_module(f"{self.directory.name}.{module_path}")
+        return importlib.import_module(f"{self._dotpath}.{module_path}")

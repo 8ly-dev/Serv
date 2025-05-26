@@ -114,11 +114,13 @@ class App:
         self._middleware.append(middleware)
 
     def add_plugin(self, plugin: Plugin):
-        module = sys.modules[plugin.__module__]
-        path = module.__plugin_spec__.path
-        if path not in self._plugins:
-            self._plugins[path] = []
-        self._plugins[path].append(plugin)
+        if plugin.__plugin_spec__:
+            spec = plugin.__plugin_spec__
+        else:
+            module = sys.modules[plugin.__module__]
+            spec = module.__plugin_spec__
+
+        self._plugins[spec.path].append(plugin)
 
     def get_plugin(self, path: Path) -> Plugin | None:
         return self._plugins.get(path, [None])[0]

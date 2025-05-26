@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}About - Declarative Routes Demo{% endblock %}
+
+{% block content %}
+    <!-- Page Header -->
+    <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold text-gray-900 mb-4">About Serv Framework</h1>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+            Learn about the modern Python web framework that makes building web applications simple, fast, and enjoyable.
+        </p>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+        <!-- Framework Overview -->
+        <div class="bg-white rounded-lg shadow-md p-8">
+            <div class="flex items-center mb-6">
+                <div class="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mr-4">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900">What is Serv?</h2>
+            </div>
+            <p class="text-gray-600 mb-4">
+                Serv is a modern Python web framework designed for developers who want to build web applications quickly and efficiently.
+                It combines the simplicity of Flask with the power of modern async programming.
+            </p>
+            <p class="text-gray-600">
+                With its declarative routing system, you can define your application's routes using simple YAML configuration files,
+                making your code more maintainable and easier to understand.
+            </p>
+        </div>
+
+        <!-- Key Features -->
+        <div class="bg-white rounded-lg shadow-md p-8">
+            <div class="flex items-center mb-6">
+                <div class="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900">Key Features</h2>
+            </div>
+            <ul class="space-y-3">
+                <li class="flex items-start">
+                    <svg class="w-5 h-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="text-gray-600">Declarative YAML-based routing configuration</span>
+                </li>
+                <li class="flex items-start">
+                    <svg class="w-5 h-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="text-gray-600">Async/await support for high performance</span>
+                </li>
+                <li class="flex items-start">
+                    <svg class="w-5 h-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="text-gray-600">Powerful plugin architecture for extensibility</span>
+                </li>
+                <li class="flex items-start">
+                    <svg class="w-5 h-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="text-gray-600">Built-in template engine support</span>
+                </li>
+                <li class="flex items-start">
+                    <svg class="w-5 h-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="text-gray-600">Developer-friendly CLI tools</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Demo Information -->
+    <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-8 mb-8">
+        <div class="text-center">
+            <h2 class="text-3xl font-bold text-gray-900 mb-4">About This Demo</h2>
+            <p class="text-lg text-gray-600 mb-6 max-w-4xl mx-auto">
+                This demonstration showcases the declarative routing capabilities of Serv.
+                All routes in this application are defined using a simple YAML configuration file,
+                demonstrating how easy it is to structure and maintain your web application's routing logic.
+            </p>
+
+            <div class="bg-white rounded-lg p-6 max-w-2xl mx-auto">
+                <h3 class="text-xl font-semibold text-gray-900 mb-4">Configuration Example</h3>
+                <div class="bg-gray-900 rounded-lg p-4 text-left">
+                    <pre class="text-green-400 text-sm"><code>routers:
+  - name: main_router
+    routes:
+      - path: /
+        handler: demo_app:HomeRoute
+      - path: /dashboard
+        handler: demo_app:DashboardRoute
+      - path: /about
+        handler: demo_app:AboutRoute</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call to Action -->
+    <div class="text-center">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Ready to Get Started?</h2>
+        <p class="text-gray-600 mb-6">
+            Explore the dashboard to see more interactive features, or visit our documentation to learn how to build your own Serv application.
+        </p>
+        <div class="flex justify-center space-x-4">
+            <a href="/dashboard" class="bg-blue-600 text-white hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition-colors duration-200 shadow-lg">
+                View Dashboard
+            </a>
+            <a href="/" class="bg-gray-200 text-gray-800 hover:bg-gray-300 px-6 py-3 rounded-lg font-semibold transition-colors duration-200">
+                Back to Home
+            </a>
+        </div>
+    </div>
+{% endblock %}

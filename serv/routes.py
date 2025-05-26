@@ -11,9 +11,9 @@ from bevy import dependency, inject
 from bevy.containers import Container
 
 import serv
+import serv.plugins.loader as pl
 from serv.exceptions import HTTPMethodNotAllowedException
-from serv.plugins.loader import find_plugin_spec, PluginSpec
-from serv.plugins import Plugin, search_for_plugin_directory
+from serv.plugins import Plugin
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
@@ -87,7 +87,7 @@ class Jinja2Response(Response):
         return template.generate_async(**self.context)
 
     @staticmethod
-    def _get_template_locations(plugin: PluginSpec):
+    def _get_template_locations(plugin: "pl.PluginSpec"):
         if not plugin:
             raise RuntimeError("Jinja2Response cannot be used outside of a plugin.")
 
@@ -315,7 +315,7 @@ class Route:
             return self._plugin
 
         try:
-            self._plugin = find_plugin_spec(Path(sys.modules[self.__module__].__file__))
+            self._plugin = pl.find_plugin_spec(Path(sys.modules[self.__module__].__file__))
         except Exception:
             type(self)._plugin = None
 

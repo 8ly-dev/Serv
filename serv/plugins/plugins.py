@@ -1,24 +1,17 @@
 """Defines a base type that can observe events happening in the Serv app. Handlers are defined as methods on the class
 with names following the format '[optional_]on_{event_name}'. This gives the author the ability to make readable 
 function names like 'set_role_on_user_create' or 'create_annotations_on_form_submit'."""
-
-
+import sys
 from collections import defaultdict
 from inspect import isawaitable
 from pathlib import Path
 import re
-import sys
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 from bevy import get_container
 from bevy.containers import Container
 
 import serv.plugins.loader as pl
-from serv.plugins.loader import find_plugin_spec
-
-# Avoid circular imports by only importing Router for type checking
-if TYPE_CHECKING:
-    pass
 
 
 type PluginMapping = dict[str, list[str]]
@@ -53,7 +46,7 @@ class Plugin:
             event_name = event.group(1)
             cls.__plugins__[event_name].append(name)
     
-    def __init__(self, *, stand_alone: bool = False):
+    def __init__(self, *, plugin_spec: "pl.PluginSpec | None" = None, stand_alone: bool = False):
         """Initialize the plugin.
         
         Loads plugin configuration and sets up any defined routers and routes
@@ -63,6 +56,16 @@ class Plugin:
             stand_alone: If True, don't attempt to load plugin.yaml
         """
         self._stand_alone = stand_alone
+        if plugin_spec:
+            self.__plugin_spec__ = plugin_spec
+        else:
+            module = sys.modules[self.__module__]
+            if not hasattr(module, "__plugin_spec__"):
+                raise Exception(
+                    f"Plugin {self.__class__.__name__} does not exist in a plugin package. No plugin.yaml found in "
+                    f"parent directories."
+                )
+            self.__plugin_spec__ = module.__plugin_spec__
 
     async def on(self, event_name: str, container: Container | None = None, *args: Any, **kwargs: Any) -> None:
         """Receives event notifications.

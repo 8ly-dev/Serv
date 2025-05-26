@@ -1,0 +1,12 @@
+name: Declarative Routers
+version: 0.1.0
+
+routers:
+  - name: main_router
+    routes:
+      - path: /
+        handler: demo_app:HomeRoute
+      - path: /dashboard
+        handler: demo_app:DashboardRoute
+      - path: /about
+        handler: demo_app:AboutRoute
