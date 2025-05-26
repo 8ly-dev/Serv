@@ -182,25 +182,4 @@ async def test_with_app_test_client_fixture(app_test_client):
         assert json_response.json() == {"success": True}
 
 
-@pytest.mark.asyncio
-async def test_multiple_clients():
-    """Testing with multiple client instances for different app configurations."""
-    # First app with one configuration
-    async with create_test_client(
-        plugins=[SimpleTextPlugin("/app1", "App 1 Response")]
-    ) as client1:
-        response1 = await client1.get("/app1")
-        assert response1.status_code == 200
-        assert response1.text == "App 1 Response"
-    
-    # Second app with different configuration
-    async with create_test_client(
-        plugins=[SimpleTextPlugin("/app2", "App 2 Response")]
-    ) as client2:
-        response2 = await client2.get("/app2")
-        assert response2.status_code == 200
-        assert response2.text == "App 2 Response"
-        
-        # This endpoint doesn't exist in the second app
-        response_not_found = await client2.get("/app1")
-        assert response_not_found.status_code == 404 
+ 

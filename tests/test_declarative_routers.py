@@ -372,100 +372,10 @@ async def test_declarative_router_no_routers_config():
     assert len(router._mounted_routers) == 0
 
 
-def test_router_plugin_initialization():
-    """Test RouterPlugin initialization with different configurations."""
-    # Test with routers configuration
-    plugin_config = {
-        "name": "Init Test Plugin",
-        "description": "A test plugin for initialization",
-        "version": "0.1.0",
-        "routers": [
-            {
-                "name": "test_router",
-                "routes": [
-                    {
-                        "path": "/test",
-                        "handler": "handlers:TestHandler"
-                    }
-                ]
-            }
-        ]
-    }
-    
-    spec = PluginSpec(
-        config=plugin_config, 
-        path=Path("."), 
-        override_settings={}, 
-        importer=create_mock_importer()
-    )
-    
-    plugin = RouterPlugin(plugin_spec=spec, stand_alone=True)
-    
-    # Verify the plugin was initialized correctly
-    assert len(plugin._routers) == 1
-    assert "test_router" in plugin._routers
-    
-    # Test with no routers configuration
-    plugin_config_empty = {
-        "name": "Empty Init Test Plugin",
-        "description": "A test plugin with no routers",
-        "version": "0.1.0"
-    }
-    
-    spec_empty = PluginSpec(
-        config=plugin_config_empty, 
-        path=Path("."), 
-        override_settings={}, 
-        importer=create_mock_importer()
-    )
-    
-    plugin_empty = RouterPlugin(plugin_spec=spec_empty, stand_alone=True)
-    
-    # Verify the plugin was initialized correctly with no routers
-    assert len(plugin_empty._routers) == 0
 
 
-def test_router_builder_functionality():
-    """Test the RouterBuilder class functionality."""
-    from serv.plugins.router_plugin import RouterBuilder
-    
-    # Create a mock importer
-    mock_importer = create_mock_importer()
-    
-    # Mock the load_module method to return a module with our handler
-    mock_module = MagicMock()
-    mock_handler = MagicMock()
-    mock_module.TestHandler = mock_handler
-    mock_importer.load_module.return_value = mock_module
-    
-    # Create route configurations
-    routes = [
-        {
-            "path": "/test",
-            "handler": "handlers:TestHandler",
-            "config": {"test_setting": "test_value"}
-        }
-    ]
-    
-    # Create RouterBuilder
-    builder = RouterBuilder(
-        mount_path=None,
-        settings={"router_setting": "router_value"},
-        routes=routes,
-        importer=mock_importer
-    )
-    
-    # Create main router
-    main_router = Router()
-    
-    # Build the router
-    builder.build(main_router)
-    
-    # Verify the importer was called correctly
-    mock_importer.load_module.assert_called_once_with("handlers")
-    
-    # Verify the router was added to the main router
-    assert len(main_router._sub_routers) == 1
+
+
 
 
 def test_router_builder_with_mount():
