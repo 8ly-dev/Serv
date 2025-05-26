@@ -12,6 +12,7 @@ import sys
 from inspect import isclass
 from pathlib import Path
 
+import jinja2
 import uvicorn
 import yaml
 
@@ -55,26 +56,24 @@ def handle_init_command(args_ns):
             or "A new website powered by Serv"
         )
 
-    # Load the config template
+    # Load and render the config template
     try:
-        template_path = (
+        template_dir = (
             Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
             / "scaffolding"
-            / "config_yaml.template"
         )
-        with open(template_path) as f_template:
-            config_template_content = f_template.read()
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
+        template = env.get_template("config_yaml.template")
+
+        config_context = {
+            "site_name": site_name,
+            "site_description": site_description,
+        }
+
+        config_content_str = template.render(**config_context)
     except Exception as e_template:
         logger.error(f"Error loading config_yaml.template: {e_template}")
         return
-
-    # Format the template with user inputs
-    config_context = {
-        "site_name": site_name,
-        "site_description": site_description,
-    }
-
-    config_content_str = config_template_content.format(**config_context)
 
     try:
         with open(config_path, "w") as f:
@@ -109,15 +108,14 @@ def handle_create_plugin_command(args_ns):
         plugin_version = prompt_user("Version", "0.1.0") or "0.1.0"
 
     class_name = to_pascal_case(plugin_name_human)
-    module_base_name = to_snake_case(plugin_name_human)
-    if not module_base_name:
+    plugin_dir_name = to_snake_case(plugin_name_human)
+    if not plugin_dir_name:
         logger.error(
             f"Could not derive a valid module name from '{plugin_name_human}'. Please use alphanumeric characters."
         )
         return
 
-    plugin_dir_name = module_base_name
-    python_file_name = "main.py"
+    python_file_name = f"{plugin_dir_name}.py"
 
     plugins_root_dir = Path.cwd() / "plugins"
     plugin_specific_dir = plugins_root_dir / plugin_dir_name
@@ -145,7 +143,7 @@ def handle_create_plugin_command(args_ns):
     )
 
     plugin_yaml_context = {
-        "plugin_name_human": plugin_name_human,
+        "plugin_name": plugin_name_human,
         "plugin_entry_path": plugin_entry_path,
         "plugin_version": plugin_version,
         "plugin_author": plugin_author,
@@ -153,18 +151,16 @@ def handle_create_plugin_command(args_ns):
     }
 
     try:
-        template_path = (
+        template_dir = (
             Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
             / "scaffolding"
-            / "plugin_yaml.template"
         )
-        with open(template_path) as f_template:
-            plugin_yaml_template_content = f_template.read()
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
+        template = env.get_template("plugin_yaml.template")
+        plugin_yaml_content_str = template.render(**plugin_yaml_context)
     except Exception as e_template:
         logger.error(f"Error loading plugin_yaml.template: {e_template}")
         return
-
-    plugin_yaml_content_str = plugin_yaml_template_content.format(**plugin_yaml_context)
 
     try:
         with open(plugin_yaml_path, "w") as f:
@@ -179,22 +175,20 @@ def handle_create_plugin_command(args_ns):
 
     plugin_py_context = {
         "class_name": class_name,
-        "module_base_name": module_base_name,
+        "plugin_name": plugin_name_human,
     }
 
     try:
-        template_path = (
+        template_dir = (
             Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
             / "scaffolding"
-            / "plugin_main_py.template"
         )
-        with open(template_path) as f_template:
-            plugin_py_template_content = f_template.read()
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
+        template = env.get_template("plugin_main_py.template")
+        plugin_py_content_str = template.render(**plugin_py_context)
     except Exception as e_template:
         logger.error(f"Error loading plugin_main_py.template: {e_template}")
         return
-
-    plugin_py_content_str = plugin_py_template_content.format(**plugin_py_context)
 
     try:
         with open(plugin_py_path, "w") as f:
@@ -510,27 +504,22 @@ def handle_create_middleware_command(args_ns):
         logger.error(f"Error creating middleware directory '{middleware_dir}': {e}")
         return
 
-    middleware_class_name = to_pascal_case(middleware_name)
     middleware_context = {
         "middleware_name": middleware_name,
-        "middleware_class_name": middleware_class_name,
-        "mw_name_human": middleware_name.replace("_", " ").title(),
-        "mw_description": f"A middleware for {middleware_name.replace('_', ' ')} functionality.",
+        "middleware_description": f"A middleware for {middleware_name.replace('_', ' ')} functionality.",
     }
 
     try:
-        template_path = (
+        template_dir = (
             Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
             / "scaffolding"
-            / "middleware_main_py.template"
         )
-        with open(template_path) as f_template:
-            middleware_template_content = f_template.read()
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
+        template = env.get_template("middleware_main_py.template")
+        middleware_content_str = template.render(**middleware_context)
     except Exception as e_template:
         logger.error(f"Error loading middleware_main_py.template: {e_template}")
         return
-
-    middleware_content_str = middleware_template_content.format(**middleware_context)
 
     try:
         with open(middleware_file, "w") as f:
