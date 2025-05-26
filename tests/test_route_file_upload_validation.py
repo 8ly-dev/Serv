@@ -13,29 +13,28 @@ from serv.responses import ResponseBuilder
 from serv.plugins import Plugin
 from serv.routing import Router
 from serv.plugins.loader import PluginSpec
+from tests.helpers import create_test_plugin_spec
 
 class FileUploadTestPlugin(Plugin):
     def __init__(self):
-        super().__init__()
-        self._stand_alone = True
-        self._plugin_spec = PluginSpec(
-            config={
-                "name": "FileUploadTestPlugin",
-                "description": "A test plugin for file uploads",
-                "version": "0.1.0",
-                "author": "Test Author"
-            },
-            path=Path(__file__).parent,
-            override_settings={}
+        # Set up the plugin spec on the module before calling super().__init__()
+        self._plugin_spec = create_test_plugin_spec(
+            name="FileUploadTestPlugin",
+            path=Path(__file__).parent
         )
         
-        # Patch the module's __plugin_spec__ for testing
+        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
         import sys
         module = sys.modules[self.__module__]
         module.__plugin_spec__ = self._plugin_spec
+        
+        super().__init__(stand_alone=True)
+        self.plugin_registered_route = False
+        self._stand_alone = True
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
-        router.add_route("/upload", self.handle_upload, methods=["POST"])
+        router.add_route("/upload", self.handle_upload)
+        self.plugin_registered_route = True
 
     async def handle_upload(
         self, 

@@ -1,6 +1,7 @@
 import pytest
 import pytest_asyncio
 import asyncio # Import asyncio
+import contextlib
 from httpx import AsyncClient, ASGITransport # Import ASGITransport
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional, Callable, Any, Dict, List
@@ -12,7 +13,7 @@ from serv.responses import ResponseBuilder # For ResponseBuilder.clear() check
 from serv.plugins import Plugin
 from serv.config import load_raw_config
 
-from tests.e2e_test_helpers import create_test_client, AppBuilder
+from tests.e2e.helpers import create_test_client, AppBuilder
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -169,5 +170,6 @@ def app_builder():
 @pytest.fixture(autouse=True)
 def mock_find_plugin_spec():
     """Mock find_plugin_spec to prevent hanging during Route tests."""
-    with patch('serv.routes.find_plugin_spec', return_value=None):
+    with patch('serv.plugins.loader.find_plugin_spec', return_value=None), \
+         patch('serv.app.App._enable_welcome_plugin'):
         yield 

@@ -405,25 +405,151 @@ class Router:
 
     def _match_path(self, request_path: str, path_pattern: str) -> dict[str, Any] | None:
         """Performs path matching. 
-        Currently supports exact matches and simple {param} captures.
+        Supports exact matches and path parameters with optional type hints.
+        Supported types: {param}, {param:int}, {param:path}
         Returns a dict of path parameters if matched, else None.
         """
-        # Basic exact match for now, can be expanded for path parameters
         pattern_parts = path_pattern.strip("/").split("/")
         request_parts = request_path.strip("/").split("/")
+
+        # Handle special case for path type parameters that can consume multiple segments
+        if any("{" in part and ":path}" in part for part in pattern_parts):
+            return self._match_path_with_path_type(request_path, path_pattern)
 
         if len(pattern_parts) != len(request_parts):
             return None
 
         params = {}
         for p_part, r_part in zip(pattern_parts, request_parts):
-            if p_part.startswith("{") and p_part.endswith("}"):
-                param_name = p_part[1:-1]
-                params[param_name] = r_part
+            if "{" in p_part and "}" in p_part:
+                # Handle parameters that might be embedded in text (like "v{version:int}")
+                result = self._match_segment_with_params(p_part, r_part)
+                if result is None:
+                    return None
+                params.update(result)
             elif p_part != r_part:
                 return None
         
         return params
+
+    def _match_segment_with_params(self, pattern_segment: str, request_segment: str) -> dict[str, Any] | None:
+        """Match a single path segment that may contain embedded parameters."""
+        import re
+        
+        # Find all parameters in the pattern segment
+        param_pattern = r'\{([^}]+)\}'
+        params = {}
+        
+        # Build a regex pattern by replacing parameter placeholders
+        regex_pattern = pattern_segment
+        param_matches = re.finditer(param_pattern, pattern_segment)
+        
+        for match in reversed(list(param_matches)):  # Reverse to maintain indices
+            param_spec = match.group(1)
+            if ":" in param_spec:
+                param_name, param_type = param_spec.split(":", 1)
+                if param_type == "int":
+                    # Replace with regex for integers
+                    regex_pattern = regex_pattern[:match.start()] + r'(\d+)' + regex_pattern[match.end():]
+                elif param_type == "path":
+                    # For path type in a segment, match everything
+                    regex_pattern = regex_pattern[:match.start()] + r'(.+)' + regex_pattern[match.end():]
+                else:
+                    # Default to matching non-slash characters
+                    regex_pattern = regex_pattern[:match.start()] + r'([^/]+)' + regex_pattern[match.end():]
+            else:
+                # Simple parameter, match non-slash characters
+                regex_pattern = regex_pattern[:match.start()] + r'([^/]+)' + regex_pattern[match.end():]
+        
+        # Escape any remaining regex special characters in the pattern
+        regex_pattern = regex_pattern.replace('.', r'\.')
+        regex_pattern = '^' + regex_pattern + '$'
+        
+        # Try to match the request segment
+        match = re.match(regex_pattern, request_segment)
+        if not match:
+            return None
+        
+        # Extract parameter values
+        param_matches = list(re.finditer(param_pattern, pattern_segment))
+        for i, param_match in enumerate(param_matches):
+            param_spec = param_match.group(1)
+            value = match.group(i + 1)
+            
+            if ":" in param_spec:
+                param_name, param_type = param_spec.split(":", 1)
+                try:
+                    if param_type == "int":
+                        params[param_name] = int(value)
+                    elif param_type == "path":
+                        params[param_name] = value
+                    else:
+                        params[param_name] = value
+                except ValueError:
+                    return None
+            else:
+                params[param_spec] = value
+        
+        return params
+
+    def _match_path_with_path_type(self, request_path: str, path_pattern: str) -> dict[str, Any] | None:
+        """Handle path patterns with path type parameters that can consume multiple segments."""
+        pattern_parts = path_pattern.strip("/").split("/")
+        request_parts = request_path.strip("/").split("/")
+        
+        params = {}
+        pattern_idx = 0
+        request_idx = 0
+        
+        while pattern_idx < len(pattern_parts) and request_idx < len(request_parts):
+            p_part = pattern_parts[pattern_idx]
+            
+            if p_part.startswith("{") and p_part.endswith("}"):
+                param_spec = p_part[1:-1]
+                if ":" in param_spec:
+                    param_name, param_type = param_spec.split(":", 1)
+                    if param_type == "path":
+                        # Path type consumes remaining segments
+                        remaining_pattern = len(pattern_parts) - pattern_idx - 1
+                        if remaining_pattern == 0:
+                            # This is the last part, consume all remaining request parts
+                            path_value = "/".join(request_parts[request_idx:])
+                            params[param_name] = path_value
+                            return params
+                        else:
+                            # Calculate how many segments to consume
+                            remaining_request = len(request_parts) - request_idx
+                            segments_to_consume = remaining_request - remaining_pattern
+                            if segments_to_consume < 1:
+                                return None
+                            path_value = "/".join(request_parts[request_idx:request_idx + segments_to_consume])
+                            params[param_name] = path_value
+                            request_idx += segments_to_consume
+                    elif param_type == "int":
+                        try:
+                            params[param_name] = int(request_parts[request_idx])
+                        except ValueError:
+                            return None
+                        request_idx += 1
+                    else:
+                        params[param_name] = request_parts[request_idx]
+                        request_idx += 1
+                else:
+                    params[param_spec] = request_parts[request_idx]
+                    request_idx += 1
+            else:
+                # Exact match required
+                if p_part != request_parts[request_idx]:
+                    return None
+                request_idx += 1
+            
+            pattern_idx += 1
+        
+        # Check if we consumed all parts
+        if pattern_idx == len(pattern_parts) and request_idx == len(request_parts):
+            return params
+        
+        return None
 
 
 @inject

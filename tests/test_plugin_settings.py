@@ -5,6 +5,8 @@ from unittest.mock import patch
 import yaml
 import asyncio
 from httpx import AsyncClient
+import sys
+import types
 
 from bevy import dependency
 from bevy.registries import Registry
@@ -13,6 +15,7 @@ from serv.routing import Router
 from serv.plugins.loader import PluginSpec
 from serv.responses import ResponseBuilder
 from serv.app import App
+from tests.helpers import create_test_plugin_spec, create_mock_importer
 
 
 def create_plugin_with_config(plugin_yaml_content):
@@ -24,39 +27,61 @@ def create_plugin_with_config(plugin_yaml_content):
     with open(plugin_dir / "plugin.yaml", "w") as f:
         yaml.dump(plugin_yaml_content, f)
 
-    # Create temporary plugin class
-    with patch('serv.plugins.search_for_plugin_directory') as mock_search:
-        mock_search.return_value = plugin_dir
-        
-        class TestPlugin(Plugin):
-            # Test handler method
-            async def handle_test(self, response: ResponseBuilder = dependency()):
-                response.content_type("text/plain")
-                response.body("test response")
-                
-            # Handler with dependency injection
-            async def handle_with_settings(self, response: ResponseBuilder = dependency(), test_setting: str = dependency()):
-                response.content_type("text/plain")
-                response.body(f"Setting value: {test_setting}")
+    # Create a dummy __init__.py to make it a package for potential handler imports
+    (plugin_dir / "__init__.py").touch()
+    sys.path.insert(0, str(temp_dir.name)) # Add temp_dir to path for imports
 
-            async def on_app_request_begin(self, router: Router = dependency()):
-                router.add_route("/test", self.handle_test, methods=["GET"], settings={"route_setting": "route_value"})
-                router.add_route("/test_with_settings", self.handle_with_settings, methods=["GET"], settings={"test_setting": "injected_value"})
-        
-        plugin = TestPlugin()
-        plugin._plugin_spec = PluginSpec(
-            config={
-                "name": plugin_yaml_content["name"],
-                "description": plugin_yaml_content["description"],
-                "version": plugin_yaml_content["version"],
-                "author": "Test Author"
-            },
-            path=plugin_dir,
-            override_settings={}
-        )
+    class TestPlugin(Plugin):
+        # Test handler method
+        async def handle_test(self, response: ResponseBuilder = dependency()):
+            response.content_type("text/plain")
+            response.body("test response")
+            
+        # Handler with dependency injection
+        async def handle_with_settings(self, response: ResponseBuilder = dependency(), test_setting: str = dependency()):
+            response.content_type("text/plain")
+            response.body(f"Setting value: {test_setting}")
+
+        async def on_app_request_begin(self, router: Router = dependency()):
+            # Use settings from self.__plugin_spec__ if available, otherwise default
+            route_settings_from_spec = getattr(self.__plugin_spec__, '_config', {}).get('router',{}).get('default_route_settings', {"route_setting": "route_value"})
+            test_setting_from_spec = getattr(self.__plugin_spec__, '_config', {}).get('router',{}).get('default_test_settings', {"test_setting": "injected_value"})
+
+            router.add_route("/test", self.handle_test, methods=["GET"], settings=route_settings_from_spec)
+            router.add_route("/test_with_settings", self.handle_with_settings, methods=["GET"], settings=test_setting_from_spec)
     
-    # Return the plugin and a reference to the temporary directory
-    # to keep it alive during the test
+    # Patch the module of TestPlugin before instantiation
+    test_plugin_module = sys.modules[TestPlugin.__module__]
+    original_spec = getattr(test_plugin_module, '__plugin_spec__', None)
+    
+    spec_config = {
+        "name": plugin_yaml_content.get("name", "Test Plugin Default Name"),
+        "description": plugin_yaml_content.get("description", "Test Plugin Default Desc"),
+        "version": plugin_yaml_content.get("version", "0.0.0"),
+        "author": "Test Author"
+    }
+    # Include router settings from plugin_yaml_content if they exist, for on_app_request_begin
+    if "router" in plugin_yaml_content:
+        spec_config["router"] = plugin_yaml_content["router"]
+        
+    current_spec = PluginSpec(
+        config=spec_config,
+        path=plugin_dir,
+        override_settings=plugin_yaml_content.get("override_settings", {}),
+        importer=create_mock_importer(plugin_dir)
+    )
+    test_plugin_module.__plugin_spec__ = current_spec
+    
+    plugin = TestPlugin(stand_alone=True)
+    plugin.__plugin_spec__ = current_spec # Also set on instance
+
+    # Clean up module patch and sys.path
+    if original_spec is not None:
+        test_plugin_module.__plugin_spec__ = original_spec
+    elif hasattr(test_plugin_module, '__plugin_spec__'):
+        del test_plugin_module.__plugin_spec__
+    sys.path.pop(0)
+    
     return plugin, temp_dir
 
 

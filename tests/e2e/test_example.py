@@ -16,31 +16,29 @@ from serv.routing import Router
 from serv.plugins.loader import PluginSpec
 
 from tests.e2e.helpers import create_test_client, AppBuilder
+from tests.helpers import create_test_plugin_spec
 
 
 class SimpleTextPlugin(Plugin):
     """Simple plugin that adds a route returning plain text."""
     
     def __init__(self, path: str, text: str):
-        super().__init__()
-        self.path = path
-        self.text = text
-        self._stand_alone = True
-        self._plugin_spec = PluginSpec(
-            config={
-                "name": "SimpleTextPlugin",
-                "description": "A simple plugin that returns plain text",
-                "version": "0.1.0",
-                "author": "Test Author"
-            },
-            path=Path(__file__).parent,
-            override_settings={}
+        # Set up the plugin spec on the module before calling super().__init__()
+        self._plugin_spec = create_test_plugin_spec(
+            name="SimpleTextPlugin",
+            version="0.1.0",
+            path=Path(__file__).parent
         )
         
-        # Patch the module's __plugin_spec__ for testing
+        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
         import sys
         module = sys.modules[self.__module__]
         module.__plugin_spec__ = self._plugin_spec
+        
+        super().__init__(stand_alone=True)
+        self.path = path
+        self.text = text
+        self._stand_alone = True
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
@@ -54,25 +52,22 @@ class JsonPlugin(Plugin):
     """Simple plugin that adds a route returning JSON data."""
     
     def __init__(self, path: str, data: dict):
-        super().__init__()
-        self.path = path
-        self.data = data
-        self._stand_alone = True
-        self._plugin_spec = PluginSpec(
-            config={
-                "name": "JsonPlugin",
-                "description": "A simple plugin that returns JSON data",
-                "version": "0.1.0",
-                "author": "Test Author"
-            },
-            path=Path(__file__).parent,
-            override_settings={}
+        # Set up the plugin spec on the module before calling super().__init__()
+        self._plugin_spec = create_test_plugin_spec(
+            name="JsonPlugin",
+            version="0.1.0",
+            path=Path(__file__).parent
         )
         
-        # Patch the module's __plugin_spec__ for testing
+        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
         import sys
         module = sys.modules[self.__module__]
         module.__plugin_spec__ = self._plugin_spec
+        
+        super().__init__(stand_alone=True)
+        self.path = path
+        self.data = data
+        self._stand_alone = True
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])

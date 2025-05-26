@@ -11,6 +11,7 @@ from serv.plugins import Plugin
 from serv.routing import Router # For type hinting if needed, actual router comes from event
 from serv.plugins.loader import PluginSpec
 from bevy import dependency
+from tests.helpers import create_test_plugin_spec
 
 # --- Test-specific Form and Route classes ---
 
@@ -90,27 +91,23 @@ class JinjaTupleReturnRoute(Route):
 
 class RouteTestPlugin(Plugin):
     def __init__(self, path: str, route_class: Type[Route]):
-        super().__init__()
+        # Set up the plugin spec on the module before calling super().__init__()
+        self._plugin_spec = create_test_plugin_spec(
+            name="RouteTestPlugin",
+            path=Path(__file__).parent
+        )
+        
+        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
+        import sys
+        module = sys.modules[self.__module__]
+        module.__plugin_spec__ = self._plugin_spec
+        
+        super().__init__(stand_alone=True)
         self.path = path
         self.route_class = route_class
         self.router_instance_id_at_registration = None
         self.plugin_registered_route = False
         self._stand_alone = True
-        self._plugin_spec = PluginSpec(
-            config={
-                "name": "RouteTestPlugin",
-                "description": "A test plugin for adding routes",
-                "version": "0.1.0",
-                "author": "Test Author"
-            },
-            path=Path(__file__).parent,
-            override_settings={}
-        )
-        
-        # Patch the module's __plugin_spec__ for testing
-        import sys
-        module = sys.modules[self.__module__]
-        module.__plugin_spec__ = self._plugin_spec
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         # Using app.request.begin as it seems to be a point where router_instance is available

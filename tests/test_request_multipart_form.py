@@ -61,26 +61,23 @@ class MultipartRoute(Route):
 
 class MultipartTestRoutePlugin(Plugin):
     def __init__(self, path: str, route_class: Type[Route]):
-        super().__init__()
+        # Set up the plugin spec on the module before calling super().__init__()
+        from tests.helpers import create_test_plugin_spec
+        self._plugin_spec = create_test_plugin_spec(
+            name="MultipartTestRoutePlugin",
+            path=Path(__file__).parent
+        )
+        
+        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
+        import sys
+        module = sys.modules[self.__module__]
+        module.__plugin_spec__ = self._plugin_spec
+        
+        super().__init__(stand_alone=True)
         self.path = path
         self.route_class = route_class
         self.plugin_registered_route = False
         self._stand_alone = True
-        self._plugin_spec = PluginSpec(
-            config={
-                "name": "MultipartTestRoutePlugin",
-                "description": "A test plugin for multipart form handling",
-                "version": "0.1.0",
-                "author": "Test Author"
-            },
-            path=Path(__file__).parent,
-            override_settings={}
-        )
-        
-        # Patch the module's __plugin_spec__ for testing
-        import sys
-        module = sys.modules[self.__module__]
-        module.__plugin_spec__ = self._plugin_spec
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self.route_class)

@@ -7,12 +7,15 @@ from typing import Any, Awaitable, Callable
 from pathlib import Path
 from bevy import dependency
 from bevy.containers import Container
+import pytest
+from unittest.mock import MagicMock
 
 from serv.plugins import Plugin
 from serv.routing import Router
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.plugins.loader import PluginSpec
+from serv.plugins.importer import Importer
 
 
 def patch_plugin_spec_on_module(plugin: Plugin):
@@ -28,13 +31,12 @@ def patch_plugin_spec_on_module(plugin: Plugin):
 
 class RouteAddingPlugin(Plugin):
     def __init__(self, path: str, handler: Callable[..., Awaitable[None]], methods: list[str] | None = None):
-        super().__init__()
         self.path = path
         self.handler = handler
         self.methods = methods
         self.was_called = 0
         self.received_kwargs = None
-        self._stand_alone = True
+        # Define _plugin_spec and patch module BEFORE super().__init__
         self._plugin_spec = PluginSpec(
             config={
                 "name": "RouteAddingPlugin",
@@ -43,9 +45,12 @@ class RouteAddingPlugin(Plugin):
                 "author": "Test Author"
             },
             path=Path(__file__).parent,
-            override_settings={}
+            override_settings={},
+            importer=create_mock_importer(Path(__file__).parent)
         )
         patch_plugin_spec_on_module(self)
+        super().__init__()
+        # self._stand_alone = True # No longer needed here for Plugin base class init
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler_wrapper, methods=self.methods)
@@ -61,22 +66,54 @@ class RouteAddingPlugin(Plugin):
         await container.call(self.handler, **path_params)
 
 
+def create_mock_importer(directory: Path = None) -> Importer:
+    """Create a mock importer for testing purposes."""
+    if directory is None:
+        directory = Path(".")
+    
+    mock_importer = MagicMock(spec=Importer)
+    mock_importer.directory = directory
+    mock_importer.load_module = MagicMock()
+    mock_importer.using_sub_module = MagicMock(return_value=mock_importer)
+    return mock_importer
+
+
+def create_test_plugin_spec(
+    name: str = "TestPlugin",
+    version: str = "0.1.0",
+    path: Path = None,
+    override_settings: dict[str, Any] = None,
+    importer: Importer = None
+) -> PluginSpec:
+    """Create a PluginSpec for testing purposes."""
+    if path is None:
+        path = Path(".")
+    if override_settings is None:
+        override_settings = {}
+    if importer is None:
+        importer = create_mock_importer(path)
+    
+    config = {
+        "name": name,
+        "version": version,
+        "description": "A test plugin",
+        "author": "Test Author"
+    }
+    
+    return PluginSpec(config=config, path=path, override_settings=override_settings, importer=importer)
+
+
 class EventWatcherPlugin(Plugin):
     def __init__(self):
-        super().__init__()
         self.events_seen = []
-        self._stand_alone = True
-        self._plugin_spec = PluginSpec(
-            config={
-                "name": "EventWatcherPlugin",
-                "description": "A test plugin that watches events",
-                "version": "0.1.0",
-                "author": "Test Author"
-            },
-            path=Path(__file__).parent,
-            override_settings={}
+        # Define _plugin_spec and patch module BEFORE super().__init__
+        self._plugin_spec = create_test_plugin_spec(
+            name="EventWatcherPlugin",
+            path=Path(__file__).parent
         )
         patch_plugin_spec_on_module(self)
+        super().__init__()
+        # self._stand_alone = True # No longer needed here for Plugin base class init
 
     async def on(self, event_name: str, **kwargs: Any) -> None:
         self.events_seen.append((event_name, kwargs))

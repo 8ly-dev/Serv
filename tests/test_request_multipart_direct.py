@@ -17,29 +17,28 @@ from serv.responses import ResponseBuilder
 # Plugin to add simple handlers
 class DirectHandlerPlugin(Plugin):
     def __init__(self, path: str, handler, methods: list[str]):
-        super().__init__()
-        self.path = path
-        self.handler = handler
-        self.methods = methods
-        self._stand_alone = True
-        self._plugin_spec = PluginSpec(
-            config={
-                "name": "DirectHandlerPlugin",
-                "description": "A plugin that adds direct handlers for multipart form data",
-                "version": "0.1.0",
-                "author": "Test Author"
-            },
-            path=Path(__file__).parent,
-            override_settings={}
+        # Set up the plugin spec on the module before calling super().__init__()
+        from tests.helpers import create_test_plugin_spec
+        self._plugin_spec = create_test_plugin_spec(
+            name="DirectHandlerPlugin",
+            path=Path(__file__).parent
         )
         
-        # Patch the module's __plugin_spec__ for testing
+        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
         import sys
         module = sys.modules[self.__module__]
         module.__plugin_spec__ = self._plugin_spec
+        
+        super().__init__(stand_alone=True)
+        self.path = path
+        self.handler = handler
+        self.methods = methods
+        self.plugin_registered_route = False
+        self._stand_alone = True
 
-    async def on_app_request_before_router(self, router_instance: Router = dependency(), **kwargs):
-        router_instance.add_route(self.path, self.handler, methods=self.methods)
+    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+        router.add_route(self.path, self.handler, self.methods)
+        self.plugin_registered_route = True
 
 # Test Handler 1: Single file and text fields
 async def handle_direct_single_file(request: Request = dependency(), response_builder: ResponseBuilder = dependency()):

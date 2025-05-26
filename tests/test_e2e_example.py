@@ -23,10 +23,8 @@ class SimpleTextPlugin(Plugin):
     """Simple plugin that adds a route returning plain text."""
     
     def __init__(self, path: str, text: str):
-        super().__init__()
-        self.path = path
-        self.text = text
-        self._stand_alone = True
+        # Set up the plugin spec on the module before calling super().__init__()
+        from tests.helpers import create_mock_importer
         self._plugin_spec = PluginSpec(
             config={
                 "name": "SimpleTextPlugin",
@@ -35,13 +33,19 @@ class SimpleTextPlugin(Plugin):
                 "author": "Test Author"
             },
             path=Path(__file__).parent,
-            override_settings={}
+            override_settings={},
+            importer=create_mock_importer(Path(__file__).parent)
         )
         
-        # Patch the module's __plugin_spec__ for testing
+        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
         import sys
         module = sys.modules[self.__module__]
         module.__plugin_spec__ = self._plugin_spec
+        
+        super().__init__(stand_alone=True)
+        self.path = path
+        self.text = text
+        self._stand_alone = True
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
@@ -55,10 +59,8 @@ class JsonPlugin(Plugin):
     """Simple plugin that adds a route returning JSON data."""
     
     def __init__(self, path: str, data: dict):
-        super().__init__()
-        self.path = path
-        self.data = data
-        self._stand_alone = True
+        # Set up the plugin spec on the module before calling super().__init__()
+        from tests.helpers import create_mock_importer
         self._plugin_spec = PluginSpec(
             config={
                 "name": "JsonPlugin",
@@ -67,13 +69,19 @@ class JsonPlugin(Plugin):
                 "author": "Test Author"
             },
             path=Path(__file__).parent,
-            override_settings={}
+            override_settings={},
+            importer=create_mock_importer(Path(__file__).parent)
         )
         
-        # Patch the module's __plugin_spec__ for testing
+        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
         import sys
         module = sys.modules[self.__module__]
         module.__plugin_spec__ = self._plugin_spec
+        
+        super().__init__(stand_alone=True)
+        self.path = path
+        self.data = data
+        self._stand_alone = True
         
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])

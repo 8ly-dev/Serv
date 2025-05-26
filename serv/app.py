@@ -550,9 +550,9 @@ class App:
                 
                 # Create a branch of the container with route settings
                 with container.branch() as route_container:
-                    # Add route settings to the container
-                    for setting_name, setting_value in route_settings.items():
-                        route_container.instances[setting_name] = setting_value
+                    # Add route settings to the container using RouteSettings
+                    from serv.routing import RouteSettings
+                    route_container.instances[RouteSettings] = RouteSettings(**route_settings)
                     
                     try:
                         await route_container.call(handler_callable, **path_params)

@@ -592,29 +592,28 @@ def handle_app_details_command(args_ns):
 
     try:
         # Instantiate App to load and process configuration
-        app_instance = App(
-            config=config_path_to_load_str, 
-            plugin_dir=plugin_dir_str, 
-            dev_mode=dev_mode_flag
-        )
+        # Use default config file if none specified
+        app_kwargs = {}
+        if config_path_to_load_str is not None:
+            app_kwargs['config'] = config_path_to_load_str
+        if plugin_dir_str is not None:
+            app_kwargs['plugin_dir'] = plugin_dir_str
+        if dev_mode_flag:
+            app_kwargs['dev_mode'] = dev_mode_flag
+            
+        app_instance = App(**app_kwargs)
 
-        effective_config_path = app_instance._raw_config.get("_config_file_path_") # Assuming App stores this
-        # If App doesn't store it, we might need to deduce it or have App expose it.
-        # For now, let's try to get it from where App loads it.
-        # A better way: app_instance.get_config_file_path() or app_instance.config_file_path
-        
-        # Fallback for config path if not directly available from app_instance._raw_config internal detail
-        if not effective_config_path:
-            if config_path_to_load_str:
-                effective_config_path = Path(config_path_to_load_str).resolve()
+        # Determine the effective config path
+        if config_path_to_load_str:
+            effective_config_path = Path(config_path_to_load_str).resolve()
+        else:
+            default_path = Path.cwd() / DEFAULT_CONFIG_FILE
+            if default_path.exists():
+                effective_config_path = default_path
             else:
-                default_path = Path.cwd() / DEFAULT_CONFIG_FILE
-                if default_path.exists():
-                    effective_config_path = default_path
-                else:
-                    effective_config_path = "(No config file loaded)" # Or some indicator
+                effective_config_path = "(No config file loaded)" # Or some indicator
         
-        raw_app_config = app_instance._raw_config
+        raw_app_config = app_instance._config
 
         if not raw_app_config.get("plugins") and not raw_app_config.get("middleware") and not raw_app_config.get("site_info"):
             if isinstance(effective_config_path, Path) and not effective_config_path.exists():
@@ -640,11 +639,11 @@ def handle_app_details_command(args_ns):
         print(f"Configuration source: {config_display_path}")
         if app_instance._dev_mode:
             print(f"Development mode: Enabled")
-        if app_instance._plugin_dirs:
-            print(f"Plugin directories: {[str(p) for p in app_instance._plugin_dirs]}")
+        if hasattr(app_instance, '_plugin_loader') and app_instance._plugin_loader:
+            print(f"Plugin directory: {app_instance._plugin_loader.directory}")
 
         print("\n[Site Information]")
-        site_info = app_instance.site_info # Access processed site_info
+        site_info = raw_app_config.get("site_info", {})
         if site_info:
             for key, value in site_info.items():
                 print(f"  {key}: {value}")
@@ -753,9 +752,9 @@ def _get_configured_app(app_module_str: str | None, args_ns) -> App:
     dev_mode_status = getattr(args_ns, 'dev', False)
     
     app_constructor_kwargs = {}
-    if config_path:
+    if config_path is not None:
         app_constructor_kwargs['config'] = config_path
-    if plugin_dir_path:
+    if plugin_dir_path is not None:
         app_constructor_kwargs['plugin_dir'] = plugin_dir_path
     if dev_mode_status:
         app_constructor_kwargs['dev_mode'] = dev_mode_status

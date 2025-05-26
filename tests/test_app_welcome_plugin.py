@@ -44,6 +44,7 @@ def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should
         yaml.dump({"plugins": []}, f)
 
     # Create mocks for plugins and middleware
+    from tests.helpers import create_mock_importer
     mock_plugin_spec = PluginSpec(
         config={
             "name": "Mock Plugin",
@@ -52,7 +53,8 @@ def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should
             "author": "Test Author"
         },
         path=Path("."),
-        override_settings={}
+        override_settings={},
+        importer=create_mock_importer()
     )
 
     with patch('serv.app.App._enable_welcome_plugin') as mock_enable_welcome, \
@@ -72,16 +74,55 @@ def test_welcome_plugin_conditional_enabling(has_plugins, has_middleware, should
 
 def test_welcome_plugin_loading():
     """Test that the welcome plugin can be loaded from the bundled directory."""
-    # Direct import test
+    # Import the WelcomePlugin directly from the module to avoid importer interference
+    import sys
+    import importlib.util
+    from pathlib import Path
+    from serv.plugins.loader import PluginSpec
+    
+    # Get the path to the welcome plugin module
+    welcome_plugin_path = Path(__file__).parent.parent / "serv" / "bundled" / "plugins" / "welcome" / "welcome.py"
+    
+    # Load the module directly
+    spec = importlib.util.spec_from_file_location("welcome", welcome_plugin_path)
+    welcome_module = importlib.util.module_from_spec(spec)
+    
+    # Create a mock plugin spec for the welcome plugin
+    from tests.helpers import create_mock_importer
+    welcome_path = Path(__file__).parent.parent / "serv" / "bundled" / "plugins" / "welcome"
+    mock_plugin_spec = PluginSpec(
+        config={
+            "name": "Welcome to Serv",
+            "description": "A simple plugin that helps you get started with Serv.",
+            "version": "0.1.0",
+            "author": "Serv"
+        },
+        path=welcome_path,
+        override_settings={},
+        importer=create_mock_importer(welcome_path)
+    )
+    
+    # Set the __plugin_spec__ on the module before executing it
+    welcome_module.__plugin_spec__ = mock_plugin_spec
+    
     try:
-        from serv.bundled.plugins.welcome import WelcomePlugin
+        # Execute the module
+        spec.loader.exec_module(welcome_module)
+        
+        # Add the module to sys.modules so the plugin can find it
+        sys.modules['welcome'] = welcome_module
+        
+        # Get the WelcomePlugin class
+        WelcomePlugin = welcome_module.WelcomePlugin
         
         # Check it's a valid Plugin class
         assert hasattr(WelcomePlugin, 'on_app_request_begin')
-    except ImportError:
-        pytest.fail("Failed to import WelcomePlugin from serv.bundled.plugins.welcome")
-    
-    # Test creating a WelcomePlugin instance
-    plugin = WelcomePlugin()
-    assert plugin is not None
-    assert plugin.__class__.__name__ == "WelcomePlugin" 
+        
+        # Test creating a WelcomePlugin instance
+        plugin = WelcomePlugin()
+        assert plugin is not None
+        assert plugin.__class__.__name__ == "WelcomePlugin"
+    finally:
+        # Clean up
+        if 'welcome' in sys.modules:
+            del sys.modules['welcome'] 

@@ -166,14 +166,15 @@ IMPORTED_VALUE = VALUE
         plugins_dir = setup_test_dirs["plugins_dir"]
         middleware_dir = setup_test_dirs["middleware_dir"]
         
-        # Create a new loader for middleware directory
+        # Load modules from the first loader first
+        plugins_module = setup_test_dirs["loader"].load_module("test_plugin.module1")
+        assert plugins_module.VALUE == 'plugin_module1_val'
+        
+        # Create a new loader for middleware directory after the first load is complete
         middleware_loader = Importer(directory=str(middleware_dir))
         
-        # Load modules from both loaders
-        plugins_module = setup_test_dirs["loader"].load_module("test_plugin.module1")
+        # Load modules from the middleware loader
         middleware_module = middleware_loader.load_module("test_mw_package.module1")
-        
-        assert plugins_module.VALUE == 'plugin_module1_val'
         assert middleware_module.VALUE == 'mw_module1_val'
         
     def test_loader_with_absolute_path(self, setup_test_dirs):

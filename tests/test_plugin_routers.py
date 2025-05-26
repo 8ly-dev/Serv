@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 import yaml
 import asyncio
 from httpx import AsyncClient
+import sys
+import types
 
 from bevy import dependency
 from bevy.registries import Registry
@@ -15,42 +17,103 @@ from serv.plugins.loader import PluginSpec
 from serv.app import App
 
 
-def create_plugin_with_config(plugin_yaml_content):
+def create_plugin_with_config(plugin_config):
     """Helper to create a plugin with specific configuration."""
     temp_dir = tempfile.TemporaryDirectory()
     plugin_dir = Path(temp_dir.name)
     
-    # Create plugin.yaml file
+    # Create a temporary plugin.yaml file
     with open(plugin_dir / "plugin.yaml", "w") as f:
-        yaml.dump(plugin_yaml_content, f)
+        yaml.dump(plugin_config, f)
 
-    # Create temporary plugin class
-    with patch('serv.plugins.search_for_plugin_directory') as mock_search:
-        mock_search.return_value = plugin_dir
-        
-        class TestPlugin(Plugin):
-            # Test handler method
-            async def handle_test(self, response: ResponseBuilder = dependency()):
-                response.content_type("text/plain")
-                response.body("test response")
+    # Create a dummy __init__.py to make it a package
+    (plugin_dir / "__init__.py").touch()
 
-            async def on_app_request_begin(self, router: Router = dependency()):
-                router.add_route("/test", self.handle_test, methods=["GET"])
-        
-        plugin = TestPlugin()
-        plugin._plugin_spec = PluginSpec(
-            config={
-                "name": plugin_yaml_content["name"],
-                "description": plugin_yaml_content["description"],
-                "version": plugin_yaml_content["version"],
-                "author": "Test Author"
-            },
-            path=plugin_dir,
-            override_settings={}
+    # Create a dummy handlers.py if plugin_config implies it needs one for its routes
+    router_config_from_plugin = plugin_config.get("router", {})
+    if isinstance(router_config_from_plugin, dict) and \
+       any(str(route.get("handler", "")).startswith("handlers.") for route in router_config_from_plugin.get("routes", [])):
+        handlers_file = plugin_dir / "handlers.py"
+        handlers_file.write_text(
+            """from serv.responses import ResponseBuilder
+async def sample_handler(response: ResponseBuilder):
+    response.body('Hello from plugin')
+"""
         )
+
+    # Temporarily add the parent of the temp_dir to sys.path
+    # so that the plugin can be imported
+    sys.path.insert(0, str(temp_dir))
+
+    class TestPlugin(Plugin):
+        async def on_app_request_begin(self, router: Router = dependency()):
+            # Setup routes from plugin_config if they exist
+            if not hasattr(self, '__plugin_spec__') or not self.__plugin_spec__:
+                return
+
+            router_config = self.__plugin_spec__._config.get("router", {})
+            if not isinstance(router_config, dict): # Check if router_config is a dict
+                return
+
+            routes = router_config.get("routes", [])
+            for route_def in routes:
+                path = route_def.get("path")
+                handler_str = route_def.get("handler")
+                methods = route_def.get("methods")
+                name = route_def.get("name")
+                settings = route_def.get("settings")
+
+                if not path or not handler_str:
+                    continue # Skip incomplete route definitions
+
+                # For these dynamically created test plugins, handlers are often
+                # simple functions or need to be mocked. A real plugin might import them.
+                # For now, let's assume a dummy handler if not found, or allow specific
+                # tests to mock/patch this part.
+                async def dummy_handler(response: ResponseBuilder = dependency()): 
+                    response.body(f"Handler for {path}")
+                
+                actual_handler = dummy_handler # Placeholder
+                
+                # Try to import handler if it's a string
+                if isinstance(handler_str, str) and ':' in handler_str:
+                    try:
+                        from serv.config import import_from_string
+                        actual_handler = import_from_string(handler_str)
+                    except ImportError as e:
+                        print(f"Warning: Could not import handler {handler_str}: {e}")
+                        # Fallback to dummy_handler if import fails
+                        pass # Keep actual_handler as dummy_handler
+                elif callable(handler_str): # if handler_str is already a callable
+                    actual_handler = handler_str
+
+                router.add_route(path, actual_handler, methods=methods, settings=settings)
+
+    # Get the actual module where TestPlugin is defined for patching
+    test_plugin_module = sys.modules[TestPlugin.__module__]
     
-    # Return the plugin and a reference to the temporary directory
-    # to keep it alive during the test
+    # Store original spec if it exists, to restore later
+    original_spec = getattr(test_plugin_module, '__plugin_spec__', None)
+    
+    # Patch the actual module with the plugin spec before instantiation
+    from tests.helpers import create_mock_importer
+    spec = PluginSpec(config=plugin_config, path=plugin_dir, override_settings={}, importer=create_mock_importer(plugin_dir))
+    test_plugin_module.__plugin_spec__ = spec
+    
+    # Instantiate the plugin. With the module patched, stand_alone=True is not strictly necessary
+    # for this specific problem, but harmless.
+    plugin = TestPlugin(stand_alone=True) 
+    plugin.__plugin_spec__ = spec # Also set on instance for tests that might look for it there.
+
+    # Clean up: restore original spec and remove temp module from sys.path
+    if original_spec is not None:
+        test_plugin_module.__plugin_spec__ = original_spec
+    elif hasattr(test_plugin_module, '__plugin_spec__'):
+        del test_plugin_module.__plugin_spec__
+        
+    sys.path.pop(0)
+    # No need to del sys.modules[plugin_module_name] as we are patching the existing module
+
     return plugin, temp_dir
 
 
@@ -60,7 +123,16 @@ async def test_plugin_router_config_basic():
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0"
+        "version": "0.1.0",
+        "router": { # Add a basic router configuration
+            "routes": [
+                {
+                    "path": "/test_basic",
+                    "handler": "handlers.sample_handler", # Ensure period for startswith check
+                    "methods": ["GET"]
+                }
+            ]
+        }
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
@@ -79,7 +151,7 @@ async def test_plugin_router_config_basic():
     
     # Check that the route was added correctly
     path, methods, handler, _ = router._routes[0]
-    assert path == "/test"
+    assert path == "/test_basic"
     assert "GET" in methods
     assert handler is not None
 
@@ -90,7 +162,16 @@ async def test_plugin_router_mounting():
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0"
+        "version": "0.1.0",
+        "router": { # Add a basic router configuration for the test
+            "routes": [
+                {
+                    "path": "/mounted_test",
+                    "handler": "handlers.sample_handler",
+                    "methods": ["GET"]
+                }
+            ]
+        }
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
@@ -127,7 +208,16 @@ async def test_plugin_on_app_startup():
     plugin_config = {
         "name": "Test Plugin",
         "description": "A test plugin",
-        "version": "0.1.0"
+        "version": "0.1.0",
+        "router": { # Add a basic router configuration for the test
+            "routes": [
+                {
+                    "path": "/startup_test",
+                    "handler": "handlers.sample_handler",
+                    "methods": ["GET"]
+                }
+            ]
+        }
     }
     
     plugin, temp_dir = create_plugin_with_config(plugin_config)
@@ -146,7 +236,7 @@ async def test_plugin_on_app_startup():
     
     # Check that the route was added correctly
     path, methods, handler, _ = router._routes[0]
-    assert path == "/test"
+    assert path == "/startup_test"
     assert "GET" in methods
     assert handler is not None
 
