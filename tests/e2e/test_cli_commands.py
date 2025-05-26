@@ -1147,3 +1147,272 @@ class TestPlugin(Plugin):
             assert "options:" in stdout.lower(), (
                 f"Config subcommand {cmd_args} should show options"
             )
+
+    def test_create_route_with_custom_path_and_router(self, clean_test_dir):
+        """Test the 'serv create route' command with custom path and router."""
+        # Set up a clean directory with config and a plugin
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a test plugin first
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create a route with custom path and router
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "route",
+                "--name",
+                "user_profile",
+                "--path",
+                "/users/{id}/profile",
+                "--router",
+                "api_router",
+                "--plugin",
+                "test_plugin",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Check that the route file was created
+        route_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "route_user_profile.py"
+        )
+        assert route_path.exists(), "Route file should have been created"
+
+        # Check that the plugin config was updated correctly
+        plugin_yaml_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        )
+        with open(plugin_yaml_path) as f:
+            plugin_config = yaml.safe_load(f)
+
+        assert "routers" in plugin_config, "Plugin config should have routers section"
+
+        # Find the api_router
+        api_router = None
+        for router in plugin_config["routers"]:
+            if router.get("name") == "api_router":
+                api_router = router
+                break
+
+        assert api_router is not None, "Should have created api_router"
+        assert "routes" in api_router, "Router should have routes"
+
+        # Check the route configuration
+        user_profile_route = None
+        for route in api_router["routes"]:
+            if "/users/{id}/profile" in route.get("path", ""):
+                user_profile_route = route
+                break
+
+        assert user_profile_route is not None, "Should have user profile route"
+        assert user_profile_route["path"] == "/users/{id}/profile", (
+            "Route should have correct path"
+        )
+        assert (
+            "test_plugin.route_user_profile:UserProfile"
+            in user_profile_route["handler"]
+        ), "Route should have correct handler"
+
+        # Verify success message
+        assert "Route 'user_profile' created successfully" in stdout
+        assert "at path '/users/{id}/profile'" in stdout
+        assert "Added route to router 'api_router'" in stdout
+
+    def test_create_multiple_routes_same_router(self, clean_test_dir):
+        """Test creating multiple routes in the same router."""
+        # Set up a clean directory with config and a plugin
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a test plugin first
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create first route
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "route",
+                "--name",
+                "user_profile",
+                "--path",
+                "/users/{id}/profile",
+                "--router",
+                "api_router",
+                "--plugin",
+                "test_plugin",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create second route in same router
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "route",
+                "--name",
+                "user_posts",
+                "--path",
+                "/users/{id}/posts",
+                "--router",
+                "api_router",
+                "--plugin",
+                "test_plugin",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Check that both route files were created
+        profile_route_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "route_user_profile.py"
+        )
+        posts_route_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "route_user_posts.py"
+        )
+        assert profile_route_path.exists(), "Profile route file should exist"
+        assert posts_route_path.exists(), "Posts route file should exist"
+
+        # Check plugin configuration
+        plugin_yaml_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        )
+        with open(plugin_yaml_path) as f:
+            plugin_config = yaml.safe_load(f)
+
+        # Should have one router with two routes
+        assert len(plugin_config["routers"]) == 1, "Should have exactly one router"
+        api_router = plugin_config["routers"][0]
+        assert api_router["name"] == "api_router", "Router should be named api_router"
+        assert len(api_router["routes"]) == 2, "Router should have two routes"
+
+        # Check both routes are present
+        paths = [route["path"] for route in api_router["routes"]]
+        assert "/users/{id}/profile" in paths, "Should have profile route"
+        assert "/users/{id}/posts" in paths, "Should have posts route"
+
+    def test_create_routes_different_routers(self, clean_test_dir):
+        """Test creating routes in different routers."""
+        # Set up a clean directory with config and a plugin
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a test plugin first
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "plugin",
+                "--name",
+                "Test Plugin",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create route in api_router
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "route",
+                "--name",
+                "user_profile",
+                "--path",
+                "/api/users/{id}/profile",
+                "--router",
+                "api_router",
+                "--plugin",
+                "test_plugin",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create route in admin_router
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "route",
+                "--name",
+                "admin_dashboard",
+                "--path",
+                "/admin/dashboard",
+                "--router",
+                "admin_router",
+                "--plugin",
+                "test_plugin",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Check plugin configuration
+        plugin_yaml_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        )
+        with open(plugin_yaml_path) as f:
+            plugin_config = yaml.safe_load(f)
+
+        # Should have two routers
+        assert len(plugin_config["routers"]) == 2, "Should have exactly two routers"
+
+        router_names = [router["name"] for router in plugin_config["routers"]]
+        assert "api_router" in router_names, "Should have api_router"
+        assert "admin_router" in router_names, "Should have admin_router"
+
+        # Check each router has the correct route
+        for router in plugin_config["routers"]:
+            if router["name"] == "api_router":
+                assert len(router["routes"]) == 1, "API router should have one route"
+                assert router["routes"][0]["path"] == "/api/users/{id}/profile"
+            elif router["name"] == "admin_router":
+                assert len(router["routes"]) == 1, "Admin router should have one route"
+                assert router["routes"][0]["path"] == "/admin/dashboard"

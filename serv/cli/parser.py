@@ -373,6 +373,10 @@ def create_parser():
     )
     create_route_parser.add_argument("--name", required=True, help="Name of the route")
     create_route_parser.add_argument(
+        "--path", help="URL path for the route (e.g., /users/{id}/profile)"
+    )
+    create_route_parser.add_argument("--router", help="Router name to add the route to")
+    create_route_parser.add_argument(
         "--plugin", help="Plugin to add the route to (auto-detected if not provided)"
     )
     create_route_parser.add_argument(

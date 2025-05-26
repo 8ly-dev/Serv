@@ -96,14 +96,38 @@ def _update_plugin_config(plugin_dir, component_type, component_name, entry_path
         config[component_type].append({"entry": entry_path})
     elif component_type == "routers":
         # For routes, we need to add to a router configuration
-        # For now, add to a default router or create one
-        if not config[component_type]:
-            config[component_type] = [{"name": "main_router", "routes": []}]
+        if isinstance(entry_path, dict):
+            # New format with router name and path
+            router_name = entry_path.get("router_name", "main_router")
+            route_path = entry_path.get("path", f"/{component_name}")
+            handler = entry_path.get("handler")
 
-        # Add route to the first router
-        config[component_type][0]["routes"].append(
-            {"path": f"/{component_name}", "handler": entry_path}
-        )
+            # Find existing router or create new one
+            target_router = None
+            for router in config[component_type]:
+                if router.get("name") == router_name:
+                    target_router = router
+                    break
+
+            if not target_router:
+                # Create new router
+                target_router = {"name": router_name, "routes": []}
+                config[component_type].append(target_router)
+
+            # Add route to the target router
+            if "routes" not in target_router:
+                target_router["routes"] = []
+
+            target_router["routes"].append({"path": route_path, "handler": handler})
+        else:
+            # Legacy format - add to first router or create default
+            if not config[component_type]:
+                config[component_type] = [{"name": "main_router", "routes": []}]
+
+            # Add route to the first router
+            config[component_type][0]["routes"].append(
+                {"path": f"/{component_name}", "handler": entry_path}
+            )
 
     try:
         with open(plugin_yaml_path, "w") as f:
@@ -1149,6 +1173,79 @@ def handle_create_route_command(args_ns):
                 logger.error("No plugin specified and none could be auto-detected.")
                 return
 
+    # Get route path
+    route_path = args_ns.path
+    if not route_path:
+        default_path = f"/{to_snake_case(component_name)}"
+        # Check if stdin is available for interactive input
+        try:
+            import sys
+
+            if not sys.stdin.isatty():
+                # Non-interactive environment (like tests), use default
+                route_path = default_path
+            else:
+                route_path = prompt_user("Route path", default_path) or default_path
+        except (EOFError, OSError):
+            # Fallback to default if input fails
+            route_path = default_path
+
+    # Ensure path starts with /
+    if not route_path.startswith("/"):
+        route_path = "/" + route_path
+
+    # Get router name
+    router_name = args_ns.router
+    if not router_name:
+        # Check existing routers in plugin config
+        plugin_yaml_path = plugin_dir / "plugin.yaml"
+        existing_routers = []
+
+        if plugin_yaml_path.exists():
+            try:
+                with open(plugin_yaml_path) as f:
+                    plugin_config = yaml.safe_load(f) or {}
+
+                routers = plugin_config.get("routers", [])
+                existing_routers = [
+                    router.get("name") for router in routers if router.get("name")
+                ]
+            except Exception:
+                pass
+
+        # Check if stdin is available for interactive input
+        try:
+            import sys
+
+            if not sys.stdin.isatty():
+                # Non-interactive environment (like tests), use default
+                router_name = "main_router"
+            elif existing_routers:
+                print("Existing routers:")
+                for i, router in enumerate(existing_routers, 1):
+                    print(f"  {i}. {router}")
+                print(f"  {len(existing_routers) + 1}. Create new router")
+
+                router_choice = prompt_user("Select router (name or number)", "1")
+                if router_choice and router_choice.isdigit():
+                    idx = int(router_choice) - 1
+                    if 0 <= idx < len(existing_routers):
+                        router_name = existing_routers[idx]
+                    elif idx == len(existing_routers):
+                        router_name = (
+                            prompt_user("New router name", "main_router")
+                            or "main_router"
+                        )
+                elif router_choice in existing_routers:
+                    router_name = router_choice
+                else:
+                    router_name = router_choice or "main_router"
+            else:
+                router_name = prompt_user("Router name", "main_router") or "main_router"
+        except (EOFError, OSError):
+            # Fallback to default if input fails
+            router_name = "main_router"
+
     class_name = to_pascal_case(component_name)
     file_name = f"route_{to_snake_case(component_name)}.py"
     file_path = plugin_dir / file_name
@@ -1161,6 +1258,7 @@ def handle_create_route_command(args_ns):
     context = {
         "class_name": class_name,
         "route_name": component_name,
+        "route_path": route_path,
     }
 
     try:
@@ -1177,13 +1275,20 @@ def handle_create_route_command(args_ns):
 
         print(f"Created '{file_path}'")
 
-        # Update plugin config
+        # Update plugin config with router name and path
         entry_path = f"{plugin_name}.{file_name[:-3]}:{class_name}"
-        if _update_plugin_config(plugin_dir, "routers", component_name, entry_path):
-            print("Added route to plugin configuration")
+        route_config = {
+            "path": route_path,
+            "handler": entry_path,
+            "router_name": router_name,
+            "component_name": component_name,
+        }
+
+        if _update_plugin_config(plugin_dir, "routers", component_name, route_config):
+            print(f"Added route to router '{router_name}' in plugin configuration")
 
         print(
-            f"Route '{component_name}' created successfully in plugin '{plugin_name}'."
+            f"Route '{component_name}' created successfully in plugin '{plugin_name}' at path '{route_path}'."
         )
 
     except Exception as e:
