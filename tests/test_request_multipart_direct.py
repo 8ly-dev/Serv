@@ -32,6 +32,11 @@ class DirectHandlerPlugin(Plugin):
             path=Path(__file__).parent,
             override_settings={}
         )
+        
+        # Patch the module's __plugin_spec__ for testing
+        import sys
+        module = sys.modules[self.__module__]
+        module.__plugin_spec__ = self._plugin_spec
 
     async def on_app_request_before_router(self, router_instance: Router = dependency(), **kwargs):
         router_instance.add_route(self.path, self.handler, methods=self.methods)

@@ -2,6 +2,7 @@
 Helper utilities for tests.
 """
 import asyncio
+import sys
 from typing import Any, Awaitable, Callable
 from pathlib import Path
 from bevy import dependency
@@ -12,6 +13,17 @@ from serv.routing import Router
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.plugins.loader import PluginSpec
+
+
+def patch_plugin_spec_on_module(plugin: Plugin):
+    """Patch the plugin's module with its __plugin_spec__ for testing.
+    
+    This is needed because test plugins are standalone and don't go through
+    the normal plugin loading system that sets module.__plugin_spec__.
+    """
+    if hasattr(plugin, '_plugin_spec'):
+        module = sys.modules[plugin.__module__]
+        module.__plugin_spec__ = plugin._plugin_spec
 
 
 class RouteAddingPlugin(Plugin):
@@ -33,6 +45,7 @@ class RouteAddingPlugin(Plugin):
             path=Path(__file__).parent,
             override_settings={}
         )
+        patch_plugin_spec_on_module(self)
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler_wrapper, methods=self.methods)
@@ -63,6 +76,7 @@ class EventWatcherPlugin(Plugin):
             path=Path(__file__).parent,
             override_settings={}
         )
+        patch_plugin_spec_on_module(self)
 
     async def on(self, event_name: str, **kwargs: Any) -> None:
         self.events_seen.append((event_name, kwargs))

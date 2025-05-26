@@ -28,6 +28,11 @@ class FileUploadTestPlugin(Plugin):
             path=Path(__file__).parent,
             override_settings={}
         )
+        
+        # Patch the module's __plugin_spec__ for testing
+        import sys
+        module = sys.modules[self.__module__]
+        module.__plugin_spec__ = self._plugin_spec
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route("/upload", self.handle_upload, methods=["POST"])
