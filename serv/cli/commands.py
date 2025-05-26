@@ -55,75 +55,30 @@ def handle_init_command(args_ns):
             or "A new website powered by Serv"
         )
 
-    config_content = {
-        "site_info": {
-            "name": site_name,
-            "description": site_description,
-        },
-        "plugins": [],
-        "middleware": [],
+    # Load the config template
+    try:
+        template_path = (
+            Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
+            / "scaffolding"
+            / "config_yaml.template"
+        )
+        with open(template_path) as f_template:
+            config_template_content = f_template.read()
+    except Exception as e_template:
+        logger.error(f"Error loading config_yaml.template: {e_template}")
+        return
+
+    # Format the template with user inputs
+    config_context = {
+        "site_name": site_name,
+        "site_description": site_description,
     }
 
-    yaml_header = f"""# Serv Configuration File
-# Created by 'serv init'
-
-# Site-wide information, accessible via app.site_info
-# name: {site_name}
-# description: {site_description}
-# You can add other custom key-value pairs under site_info.
-
-"""
-    yaml_plugins_comment = """
-# List of plugins to load.
-# Plugins extend Serv's functionality.
-# Use 'python -m serv create-plugin' to scaffold a new plugin.
-# Example:
-# plugins:
-#   - plugin: my_plugin  # Directory name in plugin_dir or dot notation (bundled.plugins.welcome)
-#     settings:  # Optional settings override for the plugin
-#       some_setting: "value"
-"""
-    yaml_middleware_comment = """
-# List of middleware to apply.
-# Middleware process requests and responses globally.
-# Example:
-# middleware:
-#   - entry: my_project.middleware:my_timing_middleware
-#     config: # Optional configuration for the middleware
-#       enabled: true
-"""
+    config_content_str = config_template_content.format(**config_context)
 
     try:
         with open(config_path, "w") as f:
-            f.write(yaml_header)
-            # Use a ServConfig structure for clarity, even if dumping parts
-            initial_site_info = config_content["site_info"]
-            initial_plugins: list = []
-            initial_middleware: list = []
-
-            yaml.dump(
-                {"site_info": initial_site_info},
-                f,
-                sort_keys=False,
-                indent=2,
-                default_flow_style=False,
-            )
-            f.write(yaml_plugins_comment)
-            yaml.dump(
-                {"plugins": initial_plugins},
-                f,
-                sort_keys=False,
-                indent=2,
-                default_flow_style=False,
-            )
-            f.write(yaml_middleware_comment)
-            yaml.dump(
-                {"middleware": initial_middleware},
-                f,
-                sort_keys=False,
-                indent=2,
-                default_flow_style=False,
-            )
+            f.write(config_content_str)
 
         print(f"Successfully created '{config_path}'.")
         print("You can now configure your plugins and middleware in this file.")
@@ -199,7 +154,7 @@ def handle_create_plugin_command(args_ns):
 
     try:
         template_path = (
-            Path(importlib.util.find_spec("serv").submodule_search_locations[0])
+            Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
             / "scaffolding"
             / "plugin_yaml.template"
         )
@@ -229,7 +184,7 @@ def handle_create_plugin_command(args_ns):
 
     try:
         template_path = (
-            Path(importlib.util.find_spec("serv").submodule_search_locations[0])
+            Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
             / "scaffolding"
             / "plugin_main_py.template"
         )
@@ -555,20 +510,24 @@ def handle_create_middleware_command(args_ns):
         logger.error(f"Error creating middleware directory '{middleware_dir}': {e}")
         return
 
+    middleware_class_name = to_pascal_case(middleware_name)
     middleware_context = {
         "middleware_name": middleware_name,
+        "middleware_class_name": middleware_class_name,
+        "mw_name_human": middleware_name.replace("_", " ").title(),
+        "mw_description": f"A middleware for {middleware_name.replace('_', ' ')} functionality.",
     }
 
     try:
         template_path = (
-            Path(importlib.util.find_spec("serv").submodule_search_locations[0])
+            Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
             / "scaffolding"
-            / "middleware_py.template"
+            / "middleware_main_py.template"
         )
         with open(template_path) as f_template:
             middleware_template_content = f_template.read()
     except Exception as e_template:
-        logger.error(f"Error loading middleware_py.template: {e_template}")
+        logger.error(f"Error loading middleware_main_py.template: {e_template}")
         return
 
     middleware_content_str = middleware_template_content.format(**middleware_context)

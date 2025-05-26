@@ -1,0 +1,30 @@
+# Serv Configuration File
+# Created by 'serv init'
+
+# Site-wide information, accessible via app.site_info
+# name: {site_name}
+# description: {site_description}
+# You can add other custom key-value pairs under site_info.
+
+site_info:
+  name: {site_name}
+  description: {site_description}
+
+# List of plugins to load.
+# Plugins extend Serv's functionality.
+# Use 'python -m serv create-plugin' to scaffold a new plugin.
+# Example:
+# plugins:
+#   - plugin: my_plugin  # Directory name in plugin_dir or dot notation (bundled.plugins.welcome)
+#     settings:  # Optional settings override for the plugin
+#       some_setting: "value"
+plugins: []
+
+# List of middleware to apply.
+# Middleware process requests and responses globally.
+# Example:
+# middleware:
+#   - entry: my_project.middleware:my_timing_middleware
+#     config: # Optional configuration for the middleware
+#       enabled: true
+middleware: [] 

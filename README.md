@@ -148,3 +148,4 @@ Contributions are welcome! Please feel free to open an issue or submit a pull re
 ## 📄 License
 
 Serv is licensed under the **MIT License**.
+# Test comment for pre-commit

@@ -38,7 +38,7 @@ async def {middleware_class_name}(handler):
         if scope["type"] == "http":
             path = scope.get("path", "")
             method = scope.get("method", "")
-            logger.info(f"{middleware_class_name}: {method} {path}")
+            logger.info(f"{middleware_class_name}: {{method}} {{path}}")
         
         # Call the next handler
         await handler(app, scope, receive, custom_send)
