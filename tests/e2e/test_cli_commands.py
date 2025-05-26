@@ -253,3 +253,292 @@ class TestPlugin(Plugin):
             response = await client.get("/")
             # We don't care about the status code as long as the request completes
             assert response.status_code is not None
+
+    def test_create_entrypoint_command(self, clean_test_dir):
+        """Test the 'serv create entrypoint' command."""
+        # Set up a clean directory with config and a plugin
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a test plugin first
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "plugin",
+                "create",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create an entrypoint in the test plugin
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "entrypoint",
+                "--name",
+                "admin_auth",
+                "--plugin",
+                "test_plugin",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Check that the entrypoint file was created
+        entrypoint_path = (
+            Path(clean_test_dir)
+            / "plugins"
+            / "test_plugin"
+            / "entrypoint_admin_auth.py"
+        )
+        assert entrypoint_path.exists(), "Entrypoint file should have been created"
+
+        # Check that the plugin config was updated
+        plugin_yaml_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        )
+        with open(plugin_yaml_path) as f:
+            plugin_config = yaml.safe_load(f)
+
+        assert "entry_points" in plugin_config, (
+            "Plugin config should have entry_points section"
+        )
+        assert any(
+            "entrypoint_admin_auth:AdminAuth" in ep
+            for ep in plugin_config["entry_points"]
+        ), "Entry point should be added to config"
+
+        # Verify the entrypoint file content
+        with open(entrypoint_path) as f:
+            content = f.read()
+
+        assert "class AdminAuth" in content, "Entrypoint should have correct class name"
+        assert "admin_auth" in content, "Entrypoint should reference the name"
+
+    def test_create_route_command(self, clean_test_dir):
+        """Test the 'serv create route' command."""
+        # Set up a clean directory with config and a plugin
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a test plugin first
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "plugin",
+                "create",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create a route in the test plugin
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "route",
+                "--name",
+                "user_profile",
+                "--plugin",
+                "test_plugin",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Check that the route file was created
+        route_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "route_user_profile.py"
+        )
+        assert route_path.exists(), "Route file should have been created"
+
+        # Check that the plugin config was updated
+        plugin_yaml_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        )
+        with open(plugin_yaml_path) as f:
+            plugin_config = yaml.safe_load(f)
+
+        assert "routers" in plugin_config, "Plugin config should have routers section"
+        assert len(plugin_config["routers"]) > 0, "Should have at least one router"
+        assert any(
+            "route_user_profile:UserProfile" in route["handler"]
+            for router in plugin_config["routers"]
+            for route in router.get("routes", [])
+        ), "Route should be added to config"
+
+        # Verify the route file content
+        with open(route_path) as f:
+            content = f.read()
+
+        assert "class UserProfile" in content, "Route should have correct class name"
+        assert "user_profile" in content, "Route should reference the name"
+
+    def test_create_middleware_command(self, clean_test_dir):
+        """Test the 'serv create middleware' command."""
+        # Set up a clean directory with config and a plugin
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a test plugin first
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "plugin",
+                "create",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create middleware in the test plugin
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "middleware",
+                "--name",
+                "auth_check",
+                "--plugin",
+                "test_plugin",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Check that the middleware file was created
+        middleware_path = (
+            Path(clean_test_dir)
+            / "plugins"
+            / "test_plugin"
+            / "middleware_auth_check.py"
+        )
+        assert middleware_path.exists(), "Middleware file should have been created"
+
+        # Check that the plugin config was updated
+        plugin_yaml_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        )
+        with open(plugin_yaml_path) as f:
+            plugin_config = yaml.safe_load(f)
+
+        assert "middleware" in plugin_config, (
+            "Plugin config should have middleware section"
+        )
+        assert any(
+            "middleware_auth_check:auth_check_middleware" in mw["entry"]
+            for mw in plugin_config["middleware"]
+        ), "Middleware should be added to config"
+
+        # Verify the middleware file content
+        with open(middleware_path) as f:
+            content = f.read()
+
+        assert "auth_check_middleware" in content, (
+            "Middleware should have correct function name"
+        )
+        assert "async def" in content, "Middleware should be an async function"
+
+    def test_create_entrypoint_auto_detect_plugin(self, clean_test_dir):
+        """Test that create entrypoint can auto-detect plugin when only one exists."""
+        # Set up a clean directory with config and a plugin
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a test plugin first
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "plugin",
+                "create",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        # Create an entrypoint without specifying plugin (should auto-detect)
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "create", "entrypoint", "--name", "auto_detect"],
+            cwd=clean_test_dir,
+        )
+
+        # Check that the entrypoint file was created in the auto-detected plugin
+        entrypoint_path = (
+            Path(clean_test_dir)
+            / "plugins"
+            / "test_plugin"
+            / "entrypoint_auto_detect.py"
+        )
+        assert entrypoint_path.exists(), (
+            "Entrypoint file should have been created in auto-detected plugin"
+        )
+
+    def test_create_entrypoint_from_plugin_directory(self, clean_test_dir):
+        """Test that create entrypoint works when run from within a plugin directory."""
+        # Set up a clean directory with config and a plugin
+        run_cli_command(
+            ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+            cwd=clean_test_dir,
+        )
+
+        # Create a test plugin first
+        run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "plugin",
+                "create",
+                "--force",
+                "--non-interactive",
+            ],
+            cwd=clean_test_dir,
+        )
+
+        plugin_dir = Path(clean_test_dir) / "plugins" / "test_plugin"
+
+        # Create an entrypoint from within the plugin directory
+        return_code, stdout, stderr = run_cli_command(
+            [
+                "python",
+                "-m",
+                "serv",
+                "create",
+                "entrypoint",
+                "--name",
+                "from_plugin_dir",
+            ],
+            cwd=str(plugin_dir),
+        )
+
+        # Check that the entrypoint file was created
+        entrypoint_path = plugin_dir / "entrypoint_from_plugin_dir.py"
+        assert entrypoint_path.exists(), (
+            "Entrypoint file should have been created when run from plugin directory"
+        )

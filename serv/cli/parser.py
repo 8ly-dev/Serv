@@ -10,7 +10,10 @@ from serv.config import DEFAULT_CONFIG_FILE
 
 from .commands import (
     handle_app_details_command,
+    handle_create_entrypoint_command,
+    handle_create_middleware_command,
     handle_create_plugin_command,
+    handle_create_route_command,
     handle_disable_plugin_command,
     handle_enable_plugin_command,
     handle_init_command,
@@ -169,5 +172,59 @@ def create_parser():
         "plugin_identifier", help="Plugin identifier (directory name or module path)"
     )
     plugin_disable_parser.set_defaults(func=handle_disable_plugin_command)
+
+    # Create commands
+    create_parser = subparsers.add_parser("create", help="Create plugin components")
+    create_subparsers = create_parser.add_subparsers(
+        title="create commands",
+        dest="create_command",
+        required=True,
+        help="Component to create",
+    )
+
+    # Create entrypoint command
+    create_entrypoint_parser = create_subparsers.add_parser(
+        "entrypoint", help="Create a new plugin entrypoint"
+    )
+    create_entrypoint_parser.add_argument(
+        "--name", required=True, help="Name of the entrypoint"
+    )
+    create_entrypoint_parser.add_argument(
+        "--plugin",
+        help="Plugin to add the entrypoint to (auto-detected if not provided)",
+    )
+    create_entrypoint_parser.add_argument(
+        "--force", action="store_true", help="Force overwrite of existing files"
+    )
+    create_entrypoint_parser.set_defaults(func=handle_create_entrypoint_command)
+
+    # Create route command
+    create_route_parser = create_subparsers.add_parser(
+        "route", help="Create a new plugin route"
+    )
+    create_route_parser.add_argument("--name", required=True, help="Name of the route")
+    create_route_parser.add_argument(
+        "--plugin", help="Plugin to add the route to (auto-detected if not provided)"
+    )
+    create_route_parser.add_argument(
+        "--force", action="store_true", help="Force overwrite of existing files"
+    )
+    create_route_parser.set_defaults(func=handle_create_route_command)
+
+    # Create middleware command
+    create_middleware_parser = create_subparsers.add_parser(
+        "middleware", help="Create a new plugin middleware"
+    )
+    create_middleware_parser.add_argument(
+        "--name", required=True, help="Name of the middleware"
+    )
+    create_middleware_parser.add_argument(
+        "--plugin",
+        help="Plugin to add the middleware to (auto-detected if not provided)",
+    )
+    create_middleware_parser.add_argument(
+        "--force", action="store_true", help="Force overwrite of existing files"
+    )
+    create_middleware_parser.set_defaults(func=handle_create_middleware_command)
 
     return parser, launch_parser

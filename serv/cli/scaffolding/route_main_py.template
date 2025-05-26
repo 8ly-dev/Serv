@@ -1,0 +1,12 @@
+from bevy import dependency
+from serv.requests import Request
+from serv.responses import ResponseBuilder
+from serv.routes import Route
+
+
+class {{ class_name }}(Route):
+    async def get(self, request: Request = dependency(), response: ResponseBuilder = dependency()):
+        response.body("Hello from {{ route_name }} route!")
+        
+    async def post(self, request: Request = dependency(), response: ResponseBuilder = dependency()):
+        response.body("POST request to {{ route_name }} route!")

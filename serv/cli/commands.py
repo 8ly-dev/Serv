@@ -29,6 +29,90 @@ from .utils import (
 logger = logging.getLogger("serv")
 
 
+def _detect_plugin_context(plugin_arg=None):
+    """Detect which plugin to operate on based on context and arguments.
+
+    Returns:
+        tuple: (plugin_name, plugin_dir_path) or (None, None) if not found
+    """
+    if plugin_arg:
+        # Plugin explicitly specified
+        plugins_dir = Path.cwd() / "plugins"
+        plugin_dir = plugins_dir / plugin_arg
+        if plugin_dir.exists() and (plugin_dir / "plugin.yaml").exists():
+            return plugin_arg, plugin_dir
+        else:
+            logger.error(f"Plugin '{plugin_arg}' not found in plugins directory")
+            return None, None
+
+    # Check if we're in a plugin directory (has plugin.yaml)
+    if (Path.cwd() / "plugin.yaml").exists():
+        return Path.cwd().name, Path.cwd()
+
+    # Check if there's only one plugin in the plugins directory
+    plugins_dir = Path.cwd() / "plugins"
+    if plugins_dir.exists():
+        plugin_dirs = [
+            d
+            for d in plugins_dir.iterdir()
+            if d.is_dir()
+            and (d / "plugin.yaml").exists()
+            and not d.name.startswith("_")
+        ]
+        if len(plugin_dirs) == 1:
+            plugin_dir = plugin_dirs[0]
+            return plugin_dir.name, plugin_dir
+
+    return None, None
+
+
+def _update_plugin_config(plugin_dir, component_type, component_name, entry_path):
+    """Update the plugin.yaml file to include the new component.
+
+    Args:
+        plugin_dir: Path to the plugin directory
+        component_type: Type of component ('entry_points', 'middleware', 'routers')
+        component_name: Name of the component
+        entry_path: Entry path for the component
+    """
+    plugin_yaml_path = plugin_dir / "plugin.yaml"
+
+    try:
+        with open(plugin_yaml_path) as f:
+            config = yaml.safe_load(f) or {}
+    except Exception as e:
+        logger.error(f"Error reading plugin config '{plugin_yaml_path}': {e}")
+        return False
+
+    # Initialize the component section if it doesn't exist
+    if component_type not in config:
+        config[component_type] = []
+
+    # Add the new component
+    if component_type == "entry_points":
+        config[component_type].append(entry_path)
+    elif component_type == "middleware":
+        config[component_type].append({"entry": entry_path})
+    elif component_type == "routers":
+        # For routes, we need to add to a router configuration
+        # For now, add to a default router or create one
+        if not config[component_type]:
+            config[component_type] = [{"name": "main_router", "routes": []}]
+
+        # Add route to the first router
+        config[component_type][0]["routes"].append(
+            {"path": f"/{component_name}", "handler": entry_path}
+        )
+
+    try:
+        with open(plugin_yaml_path, "w") as f:
+            yaml.dump(config, f, sort_keys=False, indent=2, default_flow_style=False)
+        return True
+    except Exception as e:
+        logger.error(f"Error writing plugin config '{plugin_yaml_path}': {e}")
+        return False
+
+
 def handle_init_command(args_ns):
     """Handles the 'init' command to create serv.config.yaml."""
     logger.debug("Init command started.")
@@ -488,6 +572,253 @@ def _get_configured_app(app_module_str: str | None, args_ns) -> App:
     except Exception as e:
         logger.error(f"Error creating app instance: {e}")
         raise
+
+
+def handle_create_entrypoint_command(args_ns):
+    """Handles the 'create entrypoint' command."""
+    logger.debug("Create entrypoint command started.")
+
+    component_name = args_ns.name
+    plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
+
+    if not plugin_name:
+        if args_ns.plugin:
+            logger.error(f"Plugin '{args_ns.plugin}' not found.")
+            return
+        else:
+            # Interactive prompt for plugin
+            plugins_dir = Path.cwd() / "plugins"
+            if plugins_dir.exists():
+                available_plugins = [
+                    d.name
+                    for d in plugins_dir.iterdir()
+                    if d.is_dir()
+                    and (d / "plugin.yaml").exists()
+                    and not d.name.startswith("_")
+                ]
+                if available_plugins:
+                    print("Available plugins:")
+                    for i, plugin in enumerate(available_plugins, 1):
+                        print(f"  {i}. {plugin}")
+                    plugin_choice = prompt_user("Select plugin (name or number)")
+                    if plugin_choice and plugin_choice.isdigit():
+                        idx = int(plugin_choice) - 1
+                        if 0 <= idx < len(available_plugins):
+                            plugin_name = available_plugins[idx]
+                            plugin_dir = plugins_dir / plugin_name
+                    elif plugin_choice in available_plugins:
+                        plugin_name = plugin_choice
+                        plugin_dir = plugins_dir / plugin_name
+
+            if not plugin_name:
+                logger.error("No plugin specified and none could be auto-detected.")
+                return
+
+    class_name = to_pascal_case(component_name)
+    file_name = f"entrypoint_{to_snake_case(component_name)}.py"
+    file_path = plugin_dir / file_name
+
+    if file_path.exists() and not args_ns.force:
+        print(f"Warning: File '{file_path}' already exists. Use --force to overwrite.")
+        return
+
+    # Create the entrypoint file
+    context = {
+        "class_name": class_name,
+        "entrypoint_name": component_name,
+        "route_path": to_snake_case(component_name),
+        "handler_name": f"handle_{to_snake_case(component_name)}",
+    }
+
+    try:
+        template_dir = (
+            Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
+            / "scaffolding"
+        )
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
+        template = env.get_template("entrypoint_main_py.template")
+        content = template.render(**context)
+
+        with open(file_path, "w") as f:
+            f.write(content)
+
+        print(f"Created '{file_path}'")
+
+        # Update plugin config
+        entry_path = f"{plugin_name}.{file_name[:-3]}:{class_name}"
+        if _update_plugin_config(
+            plugin_dir, "entry_points", component_name, entry_path
+        ):
+            print("Added entrypoint to plugin configuration")
+
+        print(
+            f"Entrypoint '{component_name}' created successfully in plugin '{plugin_name}'."
+        )
+
+    except Exception as e:
+        logger.error(f"Error creating entrypoint: {e}")
+
+
+def handle_create_route_command(args_ns):
+    """Handles the 'create route' command."""
+    logger.debug("Create route command started.")
+
+    component_name = args_ns.name
+    plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
+
+    if not plugin_name:
+        if args_ns.plugin:
+            logger.error(f"Plugin '{args_ns.plugin}' not found.")
+            return
+        else:
+            # Interactive prompt for plugin
+            plugins_dir = Path.cwd() / "plugins"
+            if plugins_dir.exists():
+                available_plugins = [
+                    d.name
+                    for d in plugins_dir.iterdir()
+                    if d.is_dir()
+                    and (d / "plugin.yaml").exists()
+                    and not d.name.startswith("_")
+                ]
+                if available_plugins:
+                    print("Available plugins:")
+                    for i, plugin in enumerate(available_plugins, 1):
+                        print(f"  {i}. {plugin}")
+                    plugin_choice = prompt_user("Select plugin (name or number)")
+                    if plugin_choice and plugin_choice.isdigit():
+                        idx = int(plugin_choice) - 1
+                        if 0 <= idx < len(available_plugins):
+                            plugin_name = available_plugins[idx]
+                            plugin_dir = plugins_dir / plugin_name
+                    elif plugin_choice in available_plugins:
+                        plugin_name = plugin_choice
+                        plugin_dir = plugins_dir / plugin_name
+
+            if not plugin_name:
+                logger.error("No plugin specified and none could be auto-detected.")
+                return
+
+    class_name = to_pascal_case(component_name)
+    file_name = f"route_{to_snake_case(component_name)}.py"
+    file_path = plugin_dir / file_name
+
+    if file_path.exists() and not args_ns.force:
+        print(f"Warning: File '{file_path}' already exists. Use --force to overwrite.")
+        return
+
+    # Create the route file
+    context = {
+        "class_name": class_name,
+        "route_name": component_name,
+    }
+
+    try:
+        template_dir = (
+            Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
+            / "scaffolding"
+        )
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
+        template = env.get_template("route_main_py.template")
+        content = template.render(**context)
+
+        with open(file_path, "w") as f:
+            f.write(content)
+
+        print(f"Created '{file_path}'")
+
+        # Update plugin config
+        entry_path = f"{plugin_name}.{file_name[:-3]}:{class_name}"
+        if _update_plugin_config(plugin_dir, "routers", component_name, entry_path):
+            print("Added route to plugin configuration")
+
+        print(
+            f"Route '{component_name}' created successfully in plugin '{plugin_name}'."
+        )
+
+    except Exception as e:
+        logger.error(f"Error creating route: {e}")
+
+
+def handle_create_middleware_command(args_ns):
+    """Handles the 'create middleware' command."""
+    logger.debug("Create middleware command started.")
+
+    component_name = args_ns.name
+    plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
+
+    if not plugin_name:
+        if args_ns.plugin:
+            logger.error(f"Plugin '{args_ns.plugin}' not found.")
+            return
+        else:
+            # Interactive prompt for plugin
+            plugins_dir = Path.cwd() / "plugins"
+            if plugins_dir.exists():
+                available_plugins = [
+                    d.name
+                    for d in plugins_dir.iterdir()
+                    if d.is_dir()
+                    and (d / "plugin.yaml").exists()
+                    and not d.name.startswith("_")
+                ]
+                if available_plugins:
+                    print("Available plugins:")
+                    for i, plugin in enumerate(available_plugins, 1):
+                        print(f"  {i}. {plugin}")
+                    plugin_choice = prompt_user("Select plugin (name or number)")
+                    if plugin_choice and plugin_choice.isdigit():
+                        idx = int(plugin_choice) - 1
+                        if 0 <= idx < len(available_plugins):
+                            plugin_name = available_plugins[idx]
+                            plugin_dir = plugins_dir / plugin_name
+                    elif plugin_choice in available_plugins:
+                        plugin_name = plugin_choice
+                        plugin_dir = plugins_dir / plugin_name
+
+            if not plugin_name:
+                logger.error("No plugin specified and none could be auto-detected.")
+                return
+
+    middleware_name = to_snake_case(component_name)
+    file_name = f"middleware_{middleware_name}.py"
+    file_path = plugin_dir / file_name
+
+    if file_path.exists() and not args_ns.force:
+        print(f"Warning: File '{file_path}' already exists. Use --force to overwrite.")
+        return
+
+    # Create the middleware file
+    context = {
+        "middleware_name": middleware_name,
+        "middleware_description": f"Middleware for {component_name.replace('_', ' ')} functionality.",
+    }
+
+    try:
+        template_dir = (
+            Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
+            / "scaffolding"
+        )
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
+        template = env.get_template("middleware_main_py.template")
+        content = template.render(**context)
+
+        with open(file_path, "w") as f:
+            f.write(content)
+
+        print(f"Created '{file_path}'")
+
+        # Update plugin config
+        entry_path = f"{plugin_name}.{file_name[:-3]}:{middleware_name}_middleware"
+        if _update_plugin_config(plugin_dir, "middleware", component_name, entry_path):
+            print("Added middleware to plugin configuration")
+
+        print(
+            f"Middleware '{component_name}' created successfully in plugin '{plugin_name}'."
+        )
+
+    except Exception as e:
+        logger.error(f"Error creating middleware: {e}")
 
 
 async def handle_launch_command(args_ns):

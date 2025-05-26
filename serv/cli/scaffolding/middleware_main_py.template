@@ -1,0 +1,15 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+async def {{ middleware_name }}_middleware(handler):
+    """{{ middleware_description }}"""
+    
+    async def middleware_handler(app, scope, receive, send):
+        if scope["type"] == "http":
+            logger.info(f"{{ middleware_name }}: {scope.get('method', '')} {scope.get('path', '')}")
+        
+        await handler(app, scope, receive, send)
+    
+    return middleware_handler
