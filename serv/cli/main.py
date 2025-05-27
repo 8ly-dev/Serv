@@ -71,9 +71,24 @@ def main():
         # Use async if the handler is async
         handler = current_args_to_use.func
         if asyncio.iscoroutinefunction(handler):
-            asyncio.run(handler(current_args_to_use))
+            try:
+                asyncio.run(handler(current_args_to_use))
+            except KeyboardInterrupt:
+                # Handle Ctrl+C gracefully
+                print("\n🛑 Server stopped by user")
+                sys.exit(0)
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+                sys.exit(1)
         else:
-            handler(current_args_to_use)
+            try:
+                handler(current_args_to_use)
+            except KeyboardInterrupt:
+                print("\n🛑 Operation stopped by user")
+                sys.exit(0)
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+                sys.exit(1)
     else:
         # No command found, show help
         parser.print_help()

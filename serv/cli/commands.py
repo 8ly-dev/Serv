@@ -1181,6 +1181,10 @@ async def handle_launch_command(args_ns):
         server = uvicorn.Server(uvicorn.Config(**uvicorn_config))
         await server.serve()
 
+    except KeyboardInterrupt:
+        # This should be handled by the main CLI, but just in case
+        logger.info("Server shutdown requested")
+        raise
     except Exception as e:
         logger.error(f"Error launching application: {e}")
         sys.exit(1)
@@ -1227,6 +1231,10 @@ async def handle_dev_command(args_ns):
         server = uvicorn.Server(uvicorn.Config(**uvicorn_config))
         await server.serve()
 
+    except KeyboardInterrupt:
+        # This should be handled by the main CLI, but just in case
+        logger.info("Development server shutdown requested")
+        raise
     except Exception as e:
         logger.error(f"Error starting development server: {e}")
         sys.exit(1)
