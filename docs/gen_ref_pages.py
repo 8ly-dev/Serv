@@ -13,6 +13,10 @@ for path in sorted(Path("serv").rglob("*.py")):
 
     parts = tuple(module_path.parts)
 
+    # Skip CLI package from API reference
+    if len(parts) >= 2 and parts[1] == "cli":
+        continue
+
     if parts[-1] == "__init__":
         parts = parts[:-1]
         doc_path = doc_path.with_name("index.md")
