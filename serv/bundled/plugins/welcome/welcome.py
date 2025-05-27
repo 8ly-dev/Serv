@@ -1,46 +1,92 @@
+"""Welcome Plugin - Default landing page for new Serv applications.
+
+This module provides the built-in welcome plugin that displays a friendly landing page
+for new Serv applications. The plugin is automatically enabled when no other plugins
+are configured, providing immediate feedback that the application is running correctly.
+
+The welcome plugin demonstrates several key Serv concepts:
+- Plugin architecture and lifecycle hooks
+- Route registration and handling
+- Template rendering with Jinja2
+- Conditional route registration to avoid conflicts
+
+Components:
+    WelcomeRoute: A simple route handler that renders the welcome template
+
+The plugin registers a GET route at the root path ("/") that displays a welcome page
+with information about Serv, links to documentation, and getting started guidance.
+It only registers the route if no other route is already handling the root path,
+ensuring it doesn't interfere with user-defined routes.
+
+Example:
+    The welcome plugin is automatically loaded when creating a new Serv app
+    with no other plugins configured:
+
+    ```python
+    from serv import App
+
+    # Creates app with welcome plugin automatically enabled
+    app = App()
+
+    # Visit http://localhost:8000/ to see the welcome page
+    ```
+
+    To disable the welcome plugin, simply configure other plugins:
+
+    ```python
+    # In serv.config.yaml:
+    plugins:
+      - name: "my_plugin"
+        entry: "plugins.my_plugin:MyPlugin"
+    ```
+
+Note:
+    This plugin is part of Serv's bundled plugins and is located in the
+    serv.bundled.plugins.welcome package. It serves as both a useful default
+    and an example of how to create Serv plugins.
+"""
+
 from typing import Annotated, Any  # Added Any for dict type hint
 
-from bevy import dependency
-
-from serv.plugins import Plugin
 from serv.routes import GetRequest, Jinja2Response, Route
-from serv.routing import Router  # For type hinting
 
 
 class WelcomeRoute(Route):
+    """Route handler for the welcome page.
+
+    This route serves the default welcome page at the root path ("/") for new
+    Serv applications. It renders a Jinja2 template that provides information
+    about Serv, getting started guidance, and links to documentation.
+
+    The route uses the Jinja2Response type annotation to automatically wrap
+    the returned template name and context in a proper HTML response.
+
+    Examples:
+        ```python
+        # Accessing the welcome page
+        # GET / -> Renders welcome.html template
+        ```
+
+        The route can also be used as a reference for creating other
+        template-based routes:
+
+        ```python
+        class MyRoute(Route):
+            async def handle_get(self, request: GetRequest) -> Annotated[tuple[str, dict], Jinja2Response]:
+                context = {"user": "John", "message": "Hello!"}
+                return ("my_template.html", context)
+        ```
+    """
+
     async def handle_get(
         self, _: GetRequest
     ) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
+        """Handle GET requests to display the welcome page.
+
+        Returns:
+            A tuple containing the template name and context dictionary
+            for rendering the welcome page.
+        """
         # The Jinja2Response expects (template_name, context_dict)
         # The context dict is currently empty as the template is static.
         return ("welcome.html", {})
-
-
-class WelcomePlugin(Plugin):
-    """
-    A simple plugin that registers the WelcomeRoute at the root path (/).
-    """
-
-    @dependency
-    def get_router(self) -> Router:
-        # This method is primarily for Bevy to satisfy the dependency in on_app_request_begin.
-        # It might not be strictly necessary if Router is always in the container by then.
-        # However, explicitly asking for it via a method can sometimes help Bevy's resolution.
-        # Alternatively, on_app_request_begin can directly ask for Router = dependency().
-        pass  # Bevy will provide this
-
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
-        """Registers the WelcomeRoute at '/' if no other route is already defined for it."""
-
-        # Basic check: see if any route is already registered for GET on "/"
-        # This is a simplification. A more robust router might offer a has_route(path, method) method.
-        path_already_handled = False
-        if hasattr(router, "_routes"):  # Basic check if router has _routes attribute
-            for path_pattern, methods, _ in router._routes:
-                if path_pattern == "/":
-                    if methods is None or "GET" in methods:  # None means all methods
-                        path_already_handled = True
-                        break
-
-        if not path_already_handled:
-            router.add_route("/", WelcomeRoute)

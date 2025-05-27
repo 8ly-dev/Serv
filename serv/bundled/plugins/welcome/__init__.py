@@ -1,3 +1,3 @@
-from .welcome import WelcomePlugin, WelcomeRoute
+from .welcome import WelcomeRoute
 
-__all__ = ["WelcomePlugin", "WelcomeRoute"]
+__all__ = ["WelcomeRoute"]
