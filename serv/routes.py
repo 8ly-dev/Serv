@@ -48,12 +48,6 @@ class Response:
         self.created_by = handler
 
 
-class RedirectResponse(Response):
-    def __init__(self, url: str, status_code: int = 302):
-        super().__init__(status_code)
-        self.headers["Location"] = url
-
-
 class JsonResponse(Response):
     def __init__(self, data: Any, status_code: int = 200):
         super().__init__(status_code)
@@ -87,6 +81,53 @@ class FileResponse(Response):
         self.body = file
         self.headers["Content-Type"] = content_type
         self.headers["Content-Disposition"] = f"attachment; filename={filename}"
+
+
+class StreamingResponse(Response):
+    def __init__(
+        self,
+        content: AsyncGenerator[str | bytes],
+        status_code: int = 200,
+        media_type: str = "text/plain",
+        headers: dict[str, str] | None = None,
+    ):
+        super().__init__(status_code, headers=headers)
+        self.content = content
+        self.headers["Content-Type"] = media_type
+
+    async def render(self) -> AsyncGenerator[bytes]:
+        async for chunk in self.content:
+            if isinstance(chunk, str):
+                yield chunk.encode("utf-8")
+            elif isinstance(chunk, bytes):
+                yield chunk
+            else:
+                yield str(chunk).encode("utf-8")
+
+
+class ServerSentEventsResponse(StreamingResponse):
+    def __init__(
+        self,
+        content: AsyncGenerator[str | bytes],
+        status_code: int = 200,
+        headers: dict[str, str] | None = None,
+    ):
+        sse_headers = {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+        if headers:
+            sse_headers.update(headers)
+
+        super().__init__(content, status_code, "text/event-stream", sse_headers)
+
+
+class RedirectResponse(Response):
+    def __init__(self, url: str, status_code: int = 302):
+        super().__init__(status_code)
+        self.headers["Location"] = url
+        self.body = f"Redirecting to {url}"
 
 
 class Jinja2Response(Response):
