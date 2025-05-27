@@ -30,7 +30,7 @@ from jinja2 import Environment, FileSystemLoader
 from serv.config import load_raw_config
 from serv.exceptions import HTTPMethodNotAllowedException, ServException
 from serv.injectors import inject_request_object
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from serv.plugins.importer import Importer
 from serv.plugins.loader import PluginLoader
 from serv.requests import Request
@@ -45,26 +45,26 @@ logger = logging.getLogger(__name__)
 class EventEmitter:
     """Event emission system for plugin communication.
 
-    The EventEmitter manages the broadcasting of events to all registered plugins
+    The EventEmitter manages the broadcasting of events to all registered listeners
     in the application. It provides both synchronous and asynchronous event emission
-    capabilities, allowing plugins to respond to application lifecycle events and
+    capabilities, allowing listeners to respond to application lifecycle events and
     custom events.
 
     Examples:
         Basic event emission:
 
         ```python
-        # Emit an event to all plugins
+        # Emit an event to all listeners
         await app.emit("user_created", user_id=123, email="user@example.com")
 
         # Emit from within a route handler
         task = app.emit("order_processed", order_id=456)
         ```
 
-        Plugin responding to events:
+        Listener responding to events:
 
         ```python
-        class NotificationPlugin(Plugin):
+        class NotificationListener(Listener):
             async def on_user_created(self, user_id: int, email: str):
                 await self.send_welcome_email(email)
 
@@ -73,10 +73,10 @@ class EventEmitter:
         ```
 
     Args:
-        plugins: Dictionary mapping plugin paths to lists of plugin instances.
+        plugins: Dictionary mapping plugin paths to lists of listener instances.
     """
 
-    def __init__(self, plugins: dict[Path, list[Plugin]]):
+    def __init__(self, plugins: dict[Path, list[Listener]]):
         self.plugins = plugins
 
     def emit_sync(
@@ -242,7 +242,7 @@ class App:
         self._middleware = []
 
         self._plugin_loader = Importer(plugin_dir)
-        self._plugins: dict[Path, list[Plugin]] = defaultdict(list)
+        self._plugins: dict[Path, list[Listener]] = defaultdict(list)
 
         # Initialize the plugin loader
         self._plugin_loader_instance = PluginLoader(self, self._plugin_loader)
@@ -441,16 +441,19 @@ class App:
         """
         self._middleware.append(middleware)
 
-    def add_plugin(self, plugin: Plugin):
+    def add_plugin(self, plugin: Listener):
         if plugin.__plugin_spec__:
             spec = plugin.__plugin_spec__
+        elif hasattr(plugin, "_stand_alone") and plugin._stand_alone:
+            # For stand-alone listeners, use a default path
+            spec = type("MockSpec", (), {"path": Path("__stand_alone__")})()
         else:
             module = sys.modules[plugin.__module__]
             spec = module.__plugin_spec__
 
         self._plugins[spec.path].append(plugin)
 
-    def get_plugin(self, path: Path) -> Plugin | None:
+    def get_plugin(self, path: Path) -> Listener | None:
         return self._plugins.get(path, [None])[0]
 
     def _load_plugins(self, plugins_config: list[dict[str, Any]]):
@@ -470,7 +473,7 @@ class App:
         return True
 
     # Backward compatibility methods
-    def _load_plugin_entry_point(self, entry_point_config: dict[str, Any]) -> Plugin:
+    def _load_plugin_entry_point(self, entry_point_config: dict[str, Any]) -> Listener:
         """Backward compatibility method that delegates to PluginLoader."""
         return self._plugin_loader_instance._load_plugin_entry_point(entry_point_config)
 
@@ -482,7 +485,7 @@ class App:
             middleware_config
         )
 
-    def _load_plugin_from_config(self, config: dict[str, Any]) -> Plugin:
+    def _load_plugin_from_config(self, config: dict[str, Any]) -> Listener:
         # This method is now primarily for backward compatibility if an old-style config is encountered.
         # The main loading path is via _load_plugins_from_config and PluginLoader.
         if not isinstance(config, dict):

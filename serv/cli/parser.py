@@ -13,7 +13,7 @@ from .commands import (
     handle_config_set_command,
     handle_config_show_command,
     handle_config_validate_command,
-    handle_create_entrypoint_command,
+    handle_create_listener_command,
     handle_create_middleware_command,
     handle_create_plugin_command,
     handle_create_route_command,
@@ -319,27 +319,27 @@ def create_parser():
     )
     create_plugin_parser.set_defaults(func=handle_create_plugin_command)
 
-    # Create entrypoint command
-    create_entrypoint_parser = create_subparsers.add_parser(
-        "entrypoint", help="Create a new plugin entrypoint"
+    # Create listener command
+    create_listener_parser = create_subparsers.add_parser(
+        "listener", help="Create a new plugin listener"
     )
-    create_entrypoint_parser.add_argument(
-        "--name", help="Name of the entrypoint (will be prompted if not provided)"
+    create_listener_parser.add_argument(
+        "--name", help="Name of the listener (will be prompted if not provided)"
     )
-    create_entrypoint_parser.add_argument(
+    create_listener_parser.add_argument(
         "--plugin",
-        help="Plugin to add the entrypoint to (auto-detected if not provided)",
+        help="Plugin to add the listener to (auto-detected if not provided)",
     )
-    create_entrypoint_parser.add_argument(
+    create_listener_parser.add_argument(
         "--force", action="store_true", help="Force overwrite of existing files"
     )
-    create_entrypoint_parser.add_argument(
+    create_listener_parser.add_argument(
         "--non-interactive",
         action="store_true",
         dest="non_interactive",
         help="Non-interactive mode with default values (for testing)",
     )
-    create_entrypoint_parser.set_defaults(func=handle_create_entrypoint_command)
+    create_listener_parser.set_defaults(func=handle_create_listener_command)
 
     # Create route command
     create_route_parser = create_subparsers.add_parser(

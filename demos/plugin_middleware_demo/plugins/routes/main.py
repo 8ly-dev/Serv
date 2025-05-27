@@ -6,13 +6,13 @@ from bevy import dependency
 
 # Import from the main module of the utils plugin
 from plugins.utils.main import Utils
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routing import Router
 
 
-class Routes(Plugin):
+class Routes(Listener):
     """
     Plugin that sets up the routes for the demo application
     """

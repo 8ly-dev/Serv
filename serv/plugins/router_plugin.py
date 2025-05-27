@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 from bevy import dependency
 
 import serv.routing as r
-from serv.plugins import Plugin
+from serv.plugins import Listener
 
 if TYPE_CHECKING:
     from serv.plugins.importer import Importer
@@ -45,7 +45,7 @@ class RouterBuilder:
         return getattr(module, handler)
 
 
-class RouterPlugin(Plugin):
+class RouterPlugin(Listener):
     def __init__(self, *, plugin_spec: "PluginSpec", stand_alone: bool = False):
         super().__init__(plugin_spec=plugin_spec, stand_alone=stand_alone)
         self._routers: dict[str, RouterBuilder] = dict(

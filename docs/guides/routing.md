@@ -493,7 +493,7 @@ async def NotFoundHandler(response: ResponseBuilder = dependency()):
     response.body("<h1>Page Not Found</h1>")
 
 # Register in your plugin's event handler
-class MyPlugin(Plugin):
+class MyListener(Listener):
     async def on_app_startup(self, app = dependency()):
         app.add_error_handler(HTTPNotFoundException, NotFoundHandler)
 ```

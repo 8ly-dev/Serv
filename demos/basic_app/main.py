@@ -3,7 +3,7 @@ import asyncio
 from bevy import dependency
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from serv.responses import ResponseBuilder
 from serv.routing import Router
 
@@ -23,7 +23,7 @@ async def about_page(response: ResponseBuilder = dependency()):
     )
 
 
-class BasicAppPlugin(Plugin):
+class BasicAppPlugin(Listener):
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route("/", homepage)
         router.add_route("/about", about_page)

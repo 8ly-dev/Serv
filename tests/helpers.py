@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 from bevy import dependency
 from bevy.containers import Container
 
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from serv.plugins.importer import Importer
 from serv.plugins.loader import PluginSpec
 from serv.requests import Request
@@ -19,7 +19,7 @@ from serv.responses import ResponseBuilder
 from serv.routing import Router
 
 
-def patch_plugin_spec_on_module(plugin: Plugin):
+def patch_plugin_spec_on_module(plugin: Listener):
     """Patch the plugin's module with its __plugin_spec__ for testing.
 
     This is needed because test plugins are standalone and don't go through
@@ -30,7 +30,7 @@ def patch_plugin_spec_on_module(plugin: Plugin):
         module.__plugin_spec__ = plugin._plugin_spec
 
 
-class RouteAddingPlugin(Plugin):
+class RouteAddingPlugin(Listener):
     def __init__(
         self,
         path: str,
@@ -120,7 +120,7 @@ def create_test_plugin_spec(
     )
 
 
-class EventWatcherPlugin(Plugin):
+class EventWatcherPlugin(Listener):
     def __init__(self):
         self.events_seen = []
         # Define _plugin_spec and patch module BEFORE super().__init__

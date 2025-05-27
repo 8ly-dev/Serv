@@ -4,10 +4,10 @@ Utility plugin for Serv demo
 
 import time
 
-from serv.plugins import Plugin
+from serv.plugins import Listener
 
 
-class Utils(Plugin):
+class Utils(Listener):
     """
     A utility plugin that provides shared functionality for other plugins
     """

@@ -83,7 +83,7 @@ class RouteConfig(TypedDict):
     ]
 
 
-class EntryPointConfig(TypedDict):
+class ListenerConfig(TypedDict):
     entry: str
     config: NotRequired[dict[str, Any]]
 
@@ -99,7 +99,9 @@ class PluginConfig(TypedDict):
     name: str
     version: str
     entry: NotRequired[str]
-    entry_points: NotRequired[list[str | EntryPointConfig]]
+    listeners: NotRequired[list[str | ListenerConfig]]
+    # Backward compatibility
+    entry_points: NotRequired[list[str | ListenerConfig]]
     description: NotRequired[str]
     author: NotRequired[str]
     settings: NotRequired[dict[str, Any]]
@@ -118,7 +120,8 @@ class PluginSpec:
         self.name = config["name"]
         self.version = config["version"]
         self._config = config
-        self._entry_points = config.get("entry_points", [])
+        # Support both new 'listeners' and legacy 'entry_points' keys
+        self._listeners = config.get("listeners", config.get("entry_points", []))
         self._middleware = config.get("middleware", [])
         self._override_settings = override_settings
         self._path = path
@@ -126,8 +129,13 @@ class PluginSpec:
         self._importer = importer
 
     @property
+    def listeners(self):
+        return self._listeners
+
+    @property
     def entry_points(self):
-        return self._entry_points
+        """Backward compatibility property."""
+        return self._listeners
 
     @property
     def description(self) -> str | None:
@@ -171,12 +179,21 @@ class PluginSpec:
         # Convert settings to plugin_settings
         raw_config_data["plugin_settings"] = raw_config_data.pop("settings", {})
 
-        # Handle single 'entry' field by converting it to 'entry_points' list
+        # Handle single 'entry' field by converting it to 'listeners' list
         if "entry" in raw_config_data:
             entry = raw_config_data.pop("entry")
-            if "entry_points" not in raw_config_data:
-                raw_config_data["entry_points"] = []
-            raw_config_data["entry_points"].append(entry)
+            if (
+                "listeners" not in raw_config_data
+                and "entry_points" not in raw_config_data
+            ):
+                raw_config_data["listeners"] = []
+            # Add to listeners if it exists, otherwise to entry_points for backward compatibility
+            if "listeners" in raw_config_data:
+                raw_config_data["listeners"].append(entry)
+            else:
+                if "entry_points" not in raw_config_data:
+                    raw_config_data["entry_points"] = []
+                raw_config_data["entry_points"].append(entry)
 
         return cls(raw_config_data, path, override_settings, importer)
 
@@ -195,7 +212,7 @@ class PluginLoader:
 
     def load_plugins(
         self, plugins_config: list[dict[str, Any]]
-    ) -> "tuple[list[p.Plugin], list[Callable[[], AsyncIterator[None]]]]":
+    ) -> "tuple[list[p.Listener], list[Callable[[], AsyncIterator[None]]]]":
         """Load plugins from a list of plugin configs.
 
         Args:
@@ -264,14 +281,14 @@ class PluginLoader:
             return None, exceptions
 
         try:
-            _, failed_entry_points = self._load_plugin_entry_points(
-                plugin_spec.entry_points, plugin_import
+            _, failed_listeners = self._load_plugin_listeners(
+                plugin_spec.listeners, plugin_import
             )
         except Exception as e:
-            e.add_note(f" - Failed while loading entry points for {plugin_import}")
+            e.add_note(f" - Failed while loading listeners for {plugin_import}")
             exceptions.append(e)
         else:
-            exceptions.extend(failed_entry_points)
+            exceptions.extend(failed_listeners)
 
         try:
             _, failed_middleware = self._load_plugin_middleware(
@@ -297,16 +314,16 @@ class PluginLoader:
 
         self._app.add_plugin(RouterPlugin(plugin_spec=plugin_spec))
 
-    def _load_plugin_entry_points(
-        self, entry_points: list[str], plugin_import: str
+    def _load_plugin_listeners(
+        self, listeners: list[str], plugin_import: str
     ) -> tuple[int, list[Exception]]:
         succeeded = 0
         failed = []
-        for entry_point in entry_points:
-            module_path, class_name = entry_point.split(":")
+        for listener in listeners:
+            module_path, class_name = listener.split(":")
             with (
                 ExceptionContext()
-                .apply_note(f" - Attempting to load entry point {entry_point}")
+                .apply_note(f" - Attempting to load listener {listener}")
                 .capture(failed.append)
             ):
                 with ExceptionContext().apply_note(
@@ -324,14 +341,14 @@ class PluginLoader:
                             f"{plugin_import}.{module_path}"
                         )
 
-                entry_point_class = getattr(module, class_name)
+                listener_class = getattr(module, class_name)
 
-                if not issubclass(entry_point_class, p.Plugin):
+                if not issubclass(listener_class, p.Listener):
                     raise ValueError(
-                        f"Entry point {entry_point} from {plugin_import}.{module_path} is not a subclass of Plugin"
+                        f"Listener {listener} from {plugin_import}.{module_path} is not a subclass of Listener"
                     )
 
-                self._app.add_plugin(get_container().call(entry_point_class))
+                self._app.add_plugin(get_container().call(listener_class))
                 succeeded += 1
 
         return succeeded, failed

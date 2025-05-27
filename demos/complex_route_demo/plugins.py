@@ -4,11 +4,11 @@ from demo import (  # Assuming HomeRoute and SubmitRoute are in demo.py
     SubmitRoute,
 )
 
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from serv.routing import Router
 
 
-class DemoRoutesPlugin(Plugin):
+class DemoRoutesPlugin(Listener):
     def on_app_request_begin(self, router: Router = dependency()):
         """This method will be called by Bevy/Serv, injecting the Router.
         Alternatively, this could be an event handler if Serv uses an event system

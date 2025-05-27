@@ -21,7 +21,7 @@ from bevy.containers import Container
 import serv
 import serv.plugins.loader as pl
 from serv.exceptions import HTTPMethodNotAllowedException
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
@@ -440,7 +440,7 @@ class Route:
     __form_handlers__: dict[str, dict[type[Form], list[str]]]
     __annotated_response_wrappers__: dict[str, type[Response]]
 
-    _plugin: "Plugin | None"
+    _plugin: "Listener | None"
 
     def __init_subclass__(cls) -> None:
         cls.__method_handlers__ = {}
@@ -530,7 +530,7 @@ class Route:
 
     @property
     @inject
-    def plugin(self, app: "serv.App" = dependency()) -> Plugin | None:
+    def plugin(self, app: "serv.App" = dependency()) -> Listener | None:
         if hasattr(self, "_plugin"):
             return self._plugin
 

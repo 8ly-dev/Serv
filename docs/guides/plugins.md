@@ -6,7 +6,7 @@ Plugins are the foundation of Serv's modular architecture. They provide a clean 
 
 In Serv, plugins are:
 
-1. **Event-driven components** that respond to application lifecycle events
+1. **Event-driven components** that contain Listener classes responding to application lifecycle events
 2. **Configuration containers** that define routes, middleware, and settings declaratively
 3. **Modular packages** that can be easily shared and reused
 4. **CLI-managed entities** that are created and maintained using Serv's command-line tools
@@ -18,7 +18,7 @@ In Serv, plugins are:
 Serv plugins follow these key principles:
 
 - **Declarative Configuration**: Routes and middleware are defined in `plugin.yaml` files
-- **Event-Only Code**: Plugin classes only handle events, not route definitions
+- **Event-Only Code**: Listener classes only handle events, not route definitions
 - **CLI-First Development**: Use CLI commands to create and manage plugins
 - **Automatic Wiring**: Serv automatically connects configuration to functionality
 
@@ -31,7 +31,7 @@ plugins/
 └── my_plugin/
     ├── __init__.py
     ├── plugin.yaml          # Plugin configuration and metadata
-    ├── my_plugin.py         # Main plugin class (event handlers only)
+    ├── my_plugin.py         # Main listener class (event handlers only)
     ├── route_*.py           # Route handler files
     ├── middleware_*.py      # Middleware files
     └── templates/           # Optional: Jinja2 templates
@@ -71,16 +71,16 @@ routers: []
 # Middleware will be added here when you create them
 middleware: []
 
-# Entry points for additional plugin classes
+# Entry points for additional listener classes
 entry_points: []
 ```
 
 **plugins/user_management/user_management.py:**
 ```python
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from bevy import dependency
 
-class UserManagement(Plugin):
+class UserManagement(Listener):
     async def on_app_startup(self):
         """Called when the application starts up"""
         print("User Management plugin starting up")
@@ -160,15 +160,15 @@ async def UserDetail(user_id: str, response: ResponseBuilder = dependency()):
 
 ## Plugin Events
 
-Plugin classes are used exclusively for handling application events. Here are the key events:
+Listener classes are used exclusively for handling application events. Here are the key events:
 
 ### Lifecycle Events
 
 ```python
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from bevy import dependency
 
-class MyPlugin(Plugin):
+class MyListener(Listener):
     async def on_app_startup(self):
         """Called when the application starts"""
         print("Application is starting up")
@@ -186,7 +186,7 @@ class MyPlugin(Plugin):
 ### Request Events
 
 ```python
-class RequestLoggingPlugin(Plugin):
+class RequestLoggingListener(Listener):
     async def on_app_request_begin(self, request = dependency()):
         """Called at the beginning of each request"""
         print(f"Request started: {request.method} {request.path}")
@@ -213,7 +213,7 @@ class RequestLoggingPlugin(Plugin):
 You can emit and handle custom events:
 
 ```python
-class UserPlugin(Plugin):
+class UserListener(Listener):
     async def on_user_created(self, user_id: int, email: str):
         """Handle custom user_created event"""
         print(f"User {user_id} created with email {email}")
@@ -318,7 +318,7 @@ middleware:
 ### Accessing Configuration in Plugin Code
 
 ```python
-class UserManagementPlugin(Plugin):
+class UserManagementListener(Listener):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Access plugin configuration
@@ -360,9 +360,9 @@ plugins:
 
 ```python
 import asyncpg
-from serv.plugins import Plugin
+from serv.plugins import Listener
 
-class DatabasePlugin(Plugin):
+class DatabaseListener(Listener):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         config = self.__plugin_spec__.config
@@ -390,9 +390,9 @@ class DatabasePlugin(Plugin):
 
 ```python
 import httpx
-from serv.plugins import Plugin
+from serv.plugins import Listener
 
-class EmailPlugin(Plugin):
+class EmailListener(Listener):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         config = self.__plugin_spec__.config
@@ -427,9 +427,9 @@ class EmailPlugin(Plugin):
 
 ```python
 import asyncio
-from serv.plugins import Plugin
+from serv.plugins import Listener
 
-class SchedulerPlugin(Plugin):
+class SchedulerListener(Listener):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.tasks = []

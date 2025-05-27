@@ -6,7 +6,7 @@ import yaml
 from bevy.registries import Registry
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from serv.plugins.loader import PluginSpec
 from tests.helpers import create_mock_importer
 
@@ -118,7 +118,7 @@ def test_real_plugin_loading_with_middleware(monkeypatch, tmp_path, create_plugi
 def test_plugin_event_registration():
     """Test that plugin events are correctly registered via __init_subclass__."""
 
-    class TestEventPlugin(Plugin):
+    class TestEventListener(Listener):
         def on_startup(self):
             pass
 
@@ -134,23 +134,25 @@ def test_plugin_event_registration():
         non_callable_on_event = "not a method"
 
     # Check that events were registered correctly
-    assert "startup" in TestEventPlugin.__plugins__
-    assert "shutdown" in TestEventPlugin.__plugins__
-    assert "event" in TestEventPlugin.__plugins__
+    assert "startup" in TestEventListener.__listeners__
+    assert "shutdown" in TestEventListener.__listeners__
+    assert "event" in TestEventListener.__listeners__
 
     # Check that non-event methods were not registered
     assert "not_an_event" not in {
-        event for events in TestEventPlugin.__plugins__.values() for event in events
+        event for events in TestEventListener.__listeners__.values() for event in events
     }
 
     # Check that the correct method names were registered for each event
-    assert "on_startup" in TestEventPlugin.__plugins__["startup"]
-    assert "on_shutdown" in TestEventPlugin.__plugins__["shutdown"]
-    assert "custom_on_event" in TestEventPlugin.__plugins__["event"]
+    assert "on_startup" in TestEventListener.__listeners__["startup"]
+    assert "on_shutdown" in TestEventListener.__listeners__["shutdown"]
+    assert "custom_on_event" in TestEventListener.__listeners__["event"]
 
     # Check that non-callable attributes were not registered
     assert "non_callable_on_event" not in {
-        method for methods in TestEventPlugin.__plugins__.values() for method in methods
+        method
+        for methods in TestEventListener.__listeners__.values()
+        for method in methods
     }
 
 

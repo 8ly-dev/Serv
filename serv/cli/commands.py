@@ -104,7 +104,7 @@ def _update_plugin_config(plugin_dir, component_type, component_name, entry_path
 
     Args:
         plugin_dir: Path to the plugin directory
-        component_type: Type of component ('entry_points', 'middleware', 'routers')
+        component_type: Type of component ('listeners', 'middleware', 'routers')
         component_name: Name of the component
         entry_path: Entry path for the component
     """
@@ -122,7 +122,7 @@ def _update_plugin_config(plugin_dir, component_type, component_name, entry_path
         config[component_type] = []
 
     # Add the new component
-    if component_type == "entry_points":
+    if component_type == "listeners":
         config[component_type].append(entry_path)
     elif component_type == "middleware":
         config[component_type].append({"entry": entry_path})
@@ -280,7 +280,7 @@ def handle_create_plugin_command(args_ns):
         )
         return
 
-    # Create plugin.yaml (without entry point - those will be added by create entrypoint)
+    # Create plugin.yaml (without listeners - those will be added by create listener)
     plugin_yaml_path = plugin_specific_dir / "plugin.yaml"
 
     plugin_yaml_context = {
@@ -309,9 +309,9 @@ def handle_create_plugin_command(args_ns):
         print(
             f"Plugin '{plugin_name_human}' created successfully in '{plugin_specific_dir}'."
         )
-        print("To add functionality, create entry points with:")
+        print("To add functionality, create listeners with:")
         print(
-            f"  serv create entrypoint --name <entrypoint_name> --plugin {plugin_dir_name}"
+            f"  serv create listener --name <listener_name> --plugin {plugin_dir_name}"
         )
         print("To enable the plugin, run:")
         print(f"  serv plugin enable {plugin_dir_name}")
@@ -776,20 +776,20 @@ def _get_configured_app(app_module_str: str | None, args_ns) -> App:
         raise
 
 
-def handle_create_entrypoint_command(args_ns):
-    """Handles the 'create entrypoint' command."""
-    logger.debug("Create entrypoint command started.")
+def handle_create_listener_command(args_ns):
+    """Handles the 'create listener' command."""
+    logger.debug("Create listener command started.")
 
-    # Get entrypoint name from args or prompt for it
+    # Get listener name from args or prompt for it
     component_name = args_ns.name
     if not component_name:
         if _should_prompt_interactively(args_ns):
-            component_name = prompt_user("Entrypoint name")
+            component_name = prompt_user("Listener name")
             if not component_name:
-                logger.error("Entrypoint name is required.")
+                logger.error("Listener name is required.")
                 return
         else:
-            logger.error("Entrypoint name is required. Use --name to specify it.")
+            logger.error("Listener name is required. Use --name to specify it.")
             return
     plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
 
@@ -830,17 +830,17 @@ def handle_create_entrypoint_command(args_ns):
             return
 
     class_name = to_pascal_case(component_name)
-    file_name = f"entrypoint_{to_snake_case(component_name)}.py"
+    file_name = f"listener_{to_snake_case(component_name)}.py"
     file_path = plugin_dir / file_name
 
     if file_path.exists() and not args_ns.force:
         print(f"Warning: File '{file_path}' already exists. Use --force to overwrite.")
         return
 
-    # Create the entrypoint file
+    # Create the listener file
     context = {
         "class_name": class_name,
-        "entrypoint_name": component_name,
+        "listener_name": component_name,
         "route_path": to_snake_case(component_name),
         "handler_name": f"handle_{to_snake_case(component_name)}",
     }
@@ -851,7 +851,7 @@ def handle_create_entrypoint_command(args_ns):
             / "scaffolding"
         )
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
-        template = env.get_template("entrypoint_main_py.template")
+        template = env.get_template("listener_main_py.template")
         content = template.render(**context)
 
         with open(file_path, "w") as f:
@@ -861,17 +861,15 @@ def handle_create_entrypoint_command(args_ns):
 
         # Update plugin config
         entry_path = f"{file_name[:-3]}:{class_name}"
-        if _update_plugin_config(
-            plugin_dir, "entry_points", component_name, entry_path
-        ):
-            print("Added entrypoint to plugin configuration")
+        if _update_plugin_config(plugin_dir, "listeners", component_name, entry_path):
+            print("Added listener to plugin configuration")
 
         print(
-            f"Entrypoint '{component_name}' created successfully in plugin '{plugin_name}'."
+            f"Listener '{component_name}' created successfully in plugin '{plugin_name}'."
         )
 
     except Exception as e:
-        logger.error(f"Error creating entrypoint: {e}")
+        logger.error(f"Error creating listener: {e}")
 
 
 def handle_create_route_command(args_ns):

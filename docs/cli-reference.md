@@ -593,23 +593,26 @@ routers:
     handler: route_user_profile:UserProfile
 ```
 
-### `serv create entrypoint`
+### `serv create listener`
 
-Create a new plugin entrypoint.
+Create a new plugin listener class.
 
 **Usage:**
 ```bash
-serv create entrypoint --name NAME [--plugin PLUGIN] [--force]
+serv create listener --name NAME [--plugin PLUGIN] [--force]
 ```
 
 **Examples:**
 
 ```bash
-# Create entrypoint
-serv create entrypoint --name admin_auth --plugin user_management
+# Create listener
+serv create listener --name admin_auth --plugin user_management
 
 # Auto-detect plugin
-serv create entrypoint --name email_sender
+serv create listener --name email_sender
+
+# Force overwrite existing
+serv create listener --name event_handler --force
 ```
 
 ### `serv create middleware`
@@ -665,22 +668,25 @@ serv create app
 # 2. Create plugin
 serv create plugin --name "My Feature"
 
-# 3. Add routes
+# 3. Add listeners
+serv create listener --name feature_handler
+
+# 4. Add routes
 serv create route --name feature_api --path "/api/feature" --router api_router
 
-# 4. Add middleware
+# 5. Add middleware
 serv create middleware --name feature_auth
 
-# 5. Validate plugin
+# 6. Validate plugin
 serv plugin validate my_feature
 
-# 6. Enable plugin
+# 7. Enable plugin
 serv plugin enable my_feature
 
-# 7. Test
+# 8. Test
 serv test --plugins
 
-# 8. Start development server
+# 9. Start development server
 serv dev
 ```
 

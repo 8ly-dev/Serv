@@ -6,12 +6,12 @@ from typing import Any
 
 from bevy import dependency
 
-from serv.plugins import Plugin
+from serv.plugins import Listener
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
 
-class Auth(Plugin):
+class Auth(Listener):
     """
     A basic authentication plugin for Serv.
     """

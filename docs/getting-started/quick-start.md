@@ -375,7 +375,7 @@ serv plugin validate <plugin>                 # Validate plugin
 ```bash
 serv create route --name "name" --path "/path" --plugin "plugin"
 serv create middleware --name "name" --plugin "plugin"
-serv create entrypoint --name "name" --plugin "plugin"
+serv create listener --name "name" --plugin "plugin"
 ```
 
 ### Development

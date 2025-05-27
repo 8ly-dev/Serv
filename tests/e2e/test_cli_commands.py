@@ -278,16 +278,19 @@ class TestPlugin(Plugin):
             "Version should match expected value"
         )
 
-        # Plugin should not have entry points initially (those are added by create entrypoint)
+        # Plugin should not have listeners initially (those are added by create listener)
         assert "entry" not in loaded_plugin_config, (
             "Plugin should not have entry field initially"
+        )
+        assert "listeners" not in loaded_plugin_config, (
+            "Plugin should not have listeners initially"
         )
         assert "entry_points" not in loaded_plugin_config, (
             "Plugin should not have entry_points initially"
         )
 
-    def test_create_entrypoint_command(self, clean_test_dir):
-        """Test the 'serv create entrypoint' command."""
+    def test_create_listener_command(self, clean_test_dir):
+        """Test the 'serv create listener' command."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
             ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
@@ -310,14 +313,14 @@ class TestPlugin(Plugin):
             cwd=clean_test_dir,
         )
 
-        # Create an entrypoint in the test plugin
+        # Create a listener in the test plugin
         return_code, stdout, stderr = run_cli_command(
             [
                 "python",
                 "-m",
                 "serv",
                 "create",
-                "entrypoint",
+                "listener",
                 "--name",
                 "admin_auth",
                 "--plugin",
@@ -326,14 +329,11 @@ class TestPlugin(Plugin):
             cwd=clean_test_dir,
         )
 
-        # Check that the entrypoint file was created
-        entrypoint_path = (
-            Path(clean_test_dir)
-            / "plugins"
-            / "test_plugin"
-            / "entrypoint_admin_auth.py"
+        # Check that the listener file was created
+        listener_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "listener_admin_auth.py"
         )
-        assert entrypoint_path.exists(), "Entrypoint file should have been created"
+        assert listener_path.exists(), "Listener file should have been created"
 
         # Check that the plugin config was updated
         plugin_yaml_path = (
@@ -342,20 +342,20 @@ class TestPlugin(Plugin):
         with open(plugin_yaml_path) as f:
             plugin_config = yaml.safe_load(f)
 
-        assert "entry_points" in plugin_config, (
-            "Plugin config should have entry_points section"
+        assert "listeners" in plugin_config, (
+            "Plugin config should have listeners section"
         )
         assert any(
-            "entrypoint_admin_auth:AdminAuth" in ep
-            for ep in plugin_config["entry_points"]
-        ), "Entry point should be added to config"
+            "listener_admin_auth:AdminAuth" in listener
+            for listener in plugin_config["listeners"]
+        ), "Listener should be added to config"
 
-        # Verify the entrypoint file content
-        with open(entrypoint_path) as f:
+        # Verify the listener file content
+        with open(listener_path) as f:
             content = f.read()
 
-        assert "class AdminAuth" in content, "Entrypoint should have correct class name"
-        assert "admin_auth" in content, "Entrypoint should reference the name"
+        assert "class AdminAuth" in content, "Listener should have correct class name"
+        assert "admin_auth" in content, "Listener should reference the name"
 
     def test_create_route_command(self, clean_test_dir):
         """Test the 'serv create route' command."""
@@ -500,8 +500,8 @@ class TestPlugin(Plugin):
         )
         assert "async def" in content, "Middleware should be an async function"
 
-    def test_create_entrypoint_auto_detect_plugin(self, clean_test_dir):
-        """Test that create entrypoint can auto-detect plugin when only one exists."""
+    def test_create_listener_auto_detect_plugin(self, clean_test_dir):
+        """Test that create listener can auto-detect plugin when only one exists."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
             ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
@@ -524,14 +524,14 @@ class TestPlugin(Plugin):
             cwd=clean_test_dir,
         )
 
-        # Create an entrypoint without specifying plugin (should auto-detect)
+        # Create a listener without specifying plugin (should auto-detect)
         return_code, stdout, stderr = run_cli_command(
             [
                 "python",
                 "-m",
                 "serv",
                 "create",
-                "entrypoint",
+                "listener",
                 "--name",
                 "auto_detect",
                 "--non-interactive",
@@ -539,19 +539,16 @@ class TestPlugin(Plugin):
             cwd=clean_test_dir,
         )
 
-        # Check that the entrypoint file was created in the auto-detected plugin
-        entrypoint_path = (
-            Path(clean_test_dir)
-            / "plugins"
-            / "test_plugin"
-            / "entrypoint_auto_detect.py"
+        # Check that the listener file was created in the auto-detected plugin
+        listener_path = (
+            Path(clean_test_dir) / "plugins" / "test_plugin" / "listener_auto_detect.py"
         )
-        assert entrypoint_path.exists(), (
-            "Entrypoint file should have been created in auto-detected plugin"
+        assert listener_path.exists(), (
+            "Listener file should have been created in auto-detected plugin"
         )
 
-    def test_create_entrypoint_from_plugin_directory(self, clean_test_dir):
-        """Test that create entrypoint works when run from within a plugin directory."""
+    def test_create_listener_from_plugin_directory(self, clean_test_dir):
+        """Test that create listener works when run from within a plugin directory."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
             ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
@@ -576,14 +573,14 @@ class TestPlugin(Plugin):
 
         plugin_dir = Path(clean_test_dir) / "plugins" / "test_plugin"
 
-        # Create an entrypoint from within the plugin directory
+        # Create a listener from within the plugin directory
         return_code, stdout, stderr = run_cli_command(
             [
                 "python",
                 "-m",
                 "serv",
                 "create",
-                "entrypoint",
+                "listener",
                 "--name",
                 "from_plugin_dir",
                 "--non-interactive",
@@ -591,10 +588,10 @@ class TestPlugin(Plugin):
             cwd=str(plugin_dir),
         )
 
-        # Check that the entrypoint file was created
-        entrypoint_path = plugin_dir / "entrypoint_from_plugin_dir.py"
-        assert entrypoint_path.exists(), (
-            "Entrypoint file should have been created when run from plugin directory"
+        # Check that the listener file was created
+        listener_path = plugin_dir / "listener_from_plugin_dir.py"
+        assert listener_path.exists(), (
+            "Listener file should have been created when run from plugin directory"
         )
 
     def test_plugin_list_command(self, clean_test_dir):

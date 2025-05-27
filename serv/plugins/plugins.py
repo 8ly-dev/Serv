@@ -14,7 +14,7 @@ from bevy.containers import Container
 
 import serv.plugins.loader as pl
 
-type PluginMapping = dict[str, list[str]]
+type ListenerMapping = dict[str, list[str]]
 
 
 def search_for_plugin_directory(path: Path) -> Path | None:
@@ -27,14 +27,14 @@ def search_for_plugin_directory(path: Path) -> Path | None:
     raise Exception("Plugin directory not found")
 
 
-class Plugin:
-    """Base class for creating Serv plugins.
+class Listener:
+    """Base class for creating Serv event listeners.
 
-    Plugins extend the functionality of Serv applications by responding to events
-    that occur during the application lifecycle. They can add routes, middleware,
+    Listeners extend the functionality of Serv applications by responding to events
+    that occur during the application lifecycle. They can handle application events,
     modify requests/responses, and integrate with external services.
 
-    Plugin classes automatically register event handlers based on method names
+    Listener classes automatically register event handlers based on method names
     following the pattern `on_{event_name}` or `{prefix}_on_{event_name}`. This
     allows for readable method names and automatic event subscription.
 
@@ -47,14 +47,14 @@ class Plugin:
     - Custom events emitted by your application
 
     Examples:
-        Basic plugin with event handlers:
+        Basic listener with event handlers:
 
         ```python
-        from serv.plugins import Plugin
+        from serv.plugins import Listener
         from serv.routing import Router
         from bevy import dependency
 
-        class MyPlugin(Plugin):
+        class MyListener(Listener):
             async def on_app_startup(self):
                 print("Application is starting!")
 
@@ -63,16 +63,16 @@ class Plugin:
                 router.add_route("/hello", self.hello_handler, ["GET"])
 
             async def hello_handler(self, response: ResponseBuilder = dependency()):
-                response.body("Hello from my plugin!")
+                response.body("Hello from my listener!")
 
             async def on_app_shutdown(self):
                 print("Application is shutting down!")
         ```
 
-        Plugin with custom event handlers:
+        Listener with custom event handlers:
 
         ```python
-        class UserPlugin(Plugin):
+        class UserListener(Listener):
             async def on_user_created(self, user_id: int):
                 print(f"User {user_id} was created!")
 
@@ -85,13 +85,13 @@ class Plugin:
                 await self.cleanup_user_data(user_id)
         ```
 
-        Plugin with dependency injection:
+        Listener with dependency injection:
 
         ```python
         from serv.requests import Request
         from serv.responses import ResponseBuilder
 
-        class AuthPlugin(Plugin):
+        class AuthListener(Listener):
             async def on_app_request_begin(
                 self,
                 request: Request = dependency(),
@@ -106,10 +106,10 @@ class Plugin:
                         return
         ```
 
-        Plugin configuration:
+        Listener configuration:
 
         ```python
-        class DatabasePlugin(Plugin):
+        class DatabaseListener(Listener):
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)
                 # Access plugin configuration from plugin.yaml
@@ -123,13 +123,13 @@ class Plugin:
         ```
 
     Note:
-        Plugin methods that handle events can use dependency injection to access
+        Listener methods that handle events can use dependency injection to access
         request/response objects, the router, and other services. The plugin system
         automatically manages the lifecycle and ensures proper cleanup.
     """
 
     def __init_subclass__(cls, **kwargs) -> None:
-        cls.__plugins__ = defaultdict(list)
+        cls.__listeners__ = defaultdict(list)
 
         for name in dir(cls):
             if name.startswith("_"):
@@ -144,12 +144,12 @@ class Plugin:
                 continue
 
             event_name = event.group(1)
-            cls.__plugins__[event_name].append(name)
+            cls.__listeners__[event_name].append(name)
 
     def __init__(
         self, *, plugin_spec: "pl.PluginSpec | None" = None, stand_alone: bool = False
     ):
-        """Initialize the plugin.
+        """Initialize the listener.
 
         Loads plugin configuration and sets up any defined routers and routes
         if they are configured in the plugin.yaml file.
@@ -160,14 +160,17 @@ class Plugin:
         self._stand_alone = stand_alone
         if plugin_spec:
             self.__plugin_spec__ = plugin_spec
-        else:
+        elif not stand_alone:
             module = sys.modules[self.__module__]
             if not hasattr(module, "__plugin_spec__"):
                 raise Exception(
-                    f"Plugin {self.__class__.__name__} does not exist in a plugin package. No plugin.yaml found in "
+                    f"Listener {self.__class__.__name__} does not exist in a plugin package. No plugin.yaml found in "
                     f"parent directories."
                 )
             self.__plugin_spec__ = module.__plugin_spec__
+        else:
+            # Stand-alone mode - no plugin spec required
+            self.__plugin_spec__ = None
 
     async def on(
         self,
@@ -178,7 +181,7 @@ class Plugin:
     ) -> None:
         """Receives event notifications.
 
-        This method will be called by the application when an event this plugin
+        This method will be called by the application when an event this listener
         is registered for occurs. Subclasses should implement this method to handle
         specific events.
 
@@ -187,8 +190,12 @@ class Plugin:
             **kwargs: Arbitrary keyword arguments associated with the event.
         """
         event_name = re.sub(r"[^a-z0-9]+", "_", event_name.lower())
-        for plugin_handler_name in self.__plugins__[event_name]:
-            callback = getattr(self, plugin_handler_name)
+        for listener_handler_name in self.__listeners__[event_name]:
+            callback = getattr(self, listener_handler_name)
             result = get_container(container).call(callback, *args, **kwargs)
             if isawaitable(result):
                 await result
+
+
+# Backward compatibility alias
+Plugin = Listener
