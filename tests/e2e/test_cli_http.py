@@ -69,7 +69,15 @@ class TestCliHttpBehavior:
         try:
             # Initialize the Serv project
             run_cli_command(
-                ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+                [
+                    "python",
+                    "-m",
+                    "serv",
+                    "create",
+                    "app",
+                    "--force",
+                    "--non-interactive",
+                ],
                 cwd=test_dir,
             )
 

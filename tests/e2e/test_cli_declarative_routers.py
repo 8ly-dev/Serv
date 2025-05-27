@@ -71,7 +71,15 @@ class TestCLIDeclarativeRouters:
         try:
             # Initialize the Serv project using CLI
             run_cli_command(
-                ["python", "-m", "serv", "app", "init", "--force", "--non-interactive"],
+                [
+                    "python",
+                    "-m",
+                    "serv",
+                    "create",
+                    "app",
+                    "--force",
+                    "--non-interactive",
+                ],
                 cwd=test_dir,
             )
 
@@ -368,8 +376,8 @@ from bevy import dependency
             assert "VersionHandler" in response.text
 
     @pytest.mark.asyncio
-    async def test_cli_app_details_with_declarative_routers(self, cli_project_dir):
-        """Test that app details command works with declarative router plugins."""
+    async def test_cli_plugin_list_with_declarative_routers(self, cli_project_dir):
+        """Test that plugin list command works with declarative router plugins."""
         # Create a declarative router plugin
         plugin_config = {
             "name": "Details Test Plugin",
@@ -395,9 +403,9 @@ from bevy import dependency
             cwd=cli_project_dir,
         )
 
-        # Run app details command
+        # Run plugin list command
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "app", "details"],
+            ["python", "-m", "serv", "plugin", "list"],
             cwd=cli_project_dir,
             check=False,  # Don't fail on error, we'll verify some basic output
         )

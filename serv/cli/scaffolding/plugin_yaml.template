@@ -1,5 +1,4 @@
 name: {{ plugin_name }}
 description: {{ plugin_description }}
 version: {{ plugin_version }}
-author: {{ plugin_author }}
-entry: {{ plugin_entry_path }} 
+author: {{ plugin_author }} 

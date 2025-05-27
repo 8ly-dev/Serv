@@ -254,15 +254,12 @@ def handle_create_plugin_command(args_ns):
         )
         plugin_version = prompt_user("Version", "0.1.0") or "0.1.0"
 
-    class_name = to_pascal_case(plugin_name_human)
     plugin_dir_name = to_snake_case(plugin_name_human)
     if not plugin_dir_name:
         logger.error(
             f"Could not derive a valid module name from '{plugin_name_human}'. Please use alphanumeric characters."
         )
         return
-
-    python_file_name = f"{plugin_dir_name}.py"
 
     plugins_root_dir = Path.cwd() / "plugins"
     plugin_specific_dir = plugins_root_dir / plugin_dir_name
@@ -283,13 +280,11 @@ def handle_create_plugin_command(args_ns):
         )
         return
 
-    # Create plugin.yaml
+    # Create plugin.yaml (without entry point - those will be added by create entrypoint)
     plugin_yaml_path = plugin_specific_dir / "plugin.yaml"
-    plugin_entry_path = f"{python_file_name.replace('.py', '')}:{class_name}"
 
     plugin_yaml_context = {
         "plugin_name": plugin_name_human,
-        "plugin_entry_path": plugin_entry_path,
         "plugin_version": plugin_version,
         "plugin_author": plugin_author,
         "plugin_description": plugin_description,
@@ -311,43 +306,19 @@ def handle_create_plugin_command(args_ns):
         with open(plugin_yaml_path, "w") as f:
             f.write(plugin_yaml_content_str)
         print(f"Created '{plugin_yaml_path}'")
-    except OSError as e:
-        logger.error(f"Error writing '{plugin_yaml_path}': {e}")
-        return
-
-    # Create main.py (plugin Python file)
-    plugin_py_path = plugin_specific_dir / python_file_name
-
-    plugin_py_context = {
-        "class_name": class_name,
-        "plugin_name": plugin_name_human,
-    }
-
-    try:
-        template_dir = (
-            Path(importlib.util.find_spec("serv.cli").submodule_search_locations[0])
-            / "scaffolding"
-        )
-        env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
-        template = env.get_template("plugin_main_py.template")
-        plugin_py_content_str = template.render(**plugin_py_context)
-    except Exception as e_template:
-        logger.error(f"Error loading plugin_main_py.template: {e_template}")
-        return
-
-    try:
-        with open(plugin_py_path, "w") as f:
-            f.write(plugin_py_content_str)
-        print(f"Created '{plugin_py_path}'")
         print(
             f"Plugin '{plugin_name_human}' created successfully in '{plugin_specific_dir}'."
         )
-        print(f"To use it, add its entry path to your '{DEFAULT_CONFIG_FILE}':")
-        print(f"  - plugin: {plugin_dir_name}")
-        print("    config: {} # Optional config")
+        print("To add functionality, create entry points with:")
+        print(
+            f"  serv create entrypoint --name <entrypoint_name> --plugin {plugin_dir_name}"
+        )
+        print("To enable the plugin, run:")
+        print(f"  serv plugin enable {plugin_dir_name}")
 
     except OSError as e:
-        logger.error(f"Error writing '{plugin_py_path}': {e}")
+        logger.error(f"Error writing '{plugin_yaml_path}': {e}")
+        return
 
 
 def handle_enable_plugin_command(args_ns):

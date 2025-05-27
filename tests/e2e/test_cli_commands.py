@@ -267,10 +267,6 @@ class TestPlugin(Plugin):
         plugin_yaml_path = plugin_dir / "plugin.yaml"
         assert plugin_yaml_path.exists(), "plugin.yaml should exist"
 
-        # Check for main plugin file
-        plugin_main = plugin_dir / "my_awesome_plugin.py"
-        assert plugin_main.exists(), "Plugin Python file should exist"
-
         # Verify plugin.yaml content
         with open(plugin_yaml_path) as f:
             loaded_plugin_config = yaml.safe_load(f)
@@ -280,6 +276,14 @@ class TestPlugin(Plugin):
         )
         assert loaded_plugin_config["version"] == "1.0.0", (
             "Version should match expected value"
+        )
+
+        # Plugin should not have entry points initially (those are added by create entrypoint)
+        assert "entry" not in loaded_plugin_config, (
+            "Plugin should not have entry field initially"
+        )
+        assert "entry_points" not in loaded_plugin_config, (
+            "Plugin should not have entry_points initially"
         )
 
     def test_create_entrypoint_command(self, clean_test_dir):
