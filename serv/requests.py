@@ -28,6 +28,115 @@ class FileUpload:
 
 
 class Request:
+    """HTTP request object providing access to request data and parsing utilities.
+
+    The Request class encapsulates all information about an incoming HTTP request,
+    including headers, body, query parameters, cookies, and provides methods for
+    parsing different content types like JSON, form data, and file uploads.
+
+    This class is automatically injected into route handlers through the dependency
+    injection system, so you typically don't need to instantiate it directly.
+
+    Examples:
+        Basic request handling:
+
+        ```python
+        from serv.routes import Route, GetRequest, PostRequest
+        from serv.responses import JsonResponse
+        from typing import Annotated
+
+        class ApiRoute(Route):
+            async def handle_get(self, request: GetRequest) -> Annotated[dict, JsonResponse]:
+                # Access query parameters
+                user_id = request.query_params.get("user_id")
+                page = int(request.query_params.get("page", "1"))
+
+                # Access headers
+                auth_token = request.headers.get("authorization")
+
+                return {"user_id": user_id, "page": page}
+
+            async def handle_post(self, request: PostRequest) -> Annotated[dict, JsonResponse]:
+                # Parse JSON body
+                data = await request.json()
+
+                # Access cookies
+                session_id = request.cookies.get("session_id")
+
+                return {"received": data, "session": session_id}
+        ```
+
+        Form data handling:
+
+        ```python
+        from serv.routes import Form
+
+        class UserForm(Form):
+            name: str
+            email: str
+            age: int
+
+        class UserRoute(Route):
+            async def handle_post(self, request: PostRequest):
+                # Parse form data into a model
+                form_data = await request.form(UserForm)
+
+                # Access typed form fields
+                print(f"Name: {form_data.name}, Age: {form_data.age}")
+
+                return {"status": "success"}
+        ```
+
+        File upload handling:
+
+        ```python
+        class UploadRoute(Route):
+            async def handle_post(self, request: PostRequest):
+                # Parse multipart form data
+                form_data = await request.form()
+
+                # Access uploaded files
+                if "avatar" in form_data:
+                    file_upload = form_data["avatar"]
+                    filename = file_upload.filename
+                    content = await file_upload.read()
+
+                    # Save file or process content
+                    with open(f"uploads/{filename}", "wb") as f:
+                        f.write(content)
+
+                return {"status": "uploaded"}
+        ```
+
+        Raw body access:
+
+        ```python
+        class WebhookRoute(Route):
+            async def handle_post(self, request: PostRequest):
+                # Get raw body bytes
+                raw_body = await request.body()
+
+                # Or stream large bodies
+                chunks = []
+                async for chunk in request.read(max_size=1024*1024):  # 1MB chunks
+                    chunks.append(chunk)
+
+                return {"received_bytes": len(raw_body)}
+        ```
+
+    Attributes:
+        method: HTTP method (GET, POST, etc.)
+        path: Request path without query string
+        query_string: Raw query string
+        query_params: Parsed query parameters as dict
+        headers: Request headers as dict (lowercase keys)
+        cookies: Parsed cookies as dict
+        scheme: URL scheme (http, https)
+        client: Client address information
+        server: Server address information
+        http_version: HTTP version string
+    """
+
     def __init__(self, scope, receive):
         if scope["type"] != "http":
             raise RuntimeError("Request only supports HTTP scope")

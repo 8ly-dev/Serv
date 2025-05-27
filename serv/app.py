@@ -43,6 +43,39 @@ logger = logging.getLogger(__name__)
 
 
 class EventEmitter:
+    """Event emission system for plugin communication.
+
+    The EventEmitter manages the broadcasting of events to all registered plugins
+    in the application. It provides both synchronous and asynchronous event emission
+    capabilities, allowing plugins to respond to application lifecycle events and
+    custom events.
+
+    Examples:
+        Basic event emission:
+
+        ```python
+        # Emit an event to all plugins
+        await app.emit("user_created", user_id=123, email="user@example.com")
+
+        # Emit from within a route handler
+        task = app.emit("order_processed", order_id=456)
+        ```
+
+        Plugin responding to events:
+
+        ```python
+        class NotificationPlugin(Plugin):
+            async def on_user_created(self, user_id: int, email: str):
+                await self.send_welcome_email(email)
+
+            async def on_order_processed(self, order_id: int):
+                await self.update_inventory(order_id)
+        ```
+
+    Args:
+        plugins: Dictionary mapping plugin paths to lists of plugin instances.
+    """
+
     def __init__(self, plugins: dict[Path, list[Plugin]]):
         self.plugins = plugins
 
@@ -60,9 +93,72 @@ class EventEmitter:
 
 
 class App:
-    """This is the main class for an ASGI application.
+    """The main ASGI application class for Serv web framework.
 
-    It is responsible for handling the incoming requests and delegating them to the appropriate routes.
+    This class serves as the central orchestrator for your web application, handling
+    incoming HTTP requests, managing plugins, middleware, routing, and dependency injection.
+    It implements the ASGI (Asynchronous Server Gateway Interface) specification.
+
+    The App class provides:
+    - Plugin system for extensible functionality
+    - Middleware stack for request/response processing
+    - Dependency injection container
+    - Error handling and custom error pages
+    - Template rendering capabilities
+    - Event emission system for plugin communication
+
+    Examples:
+        Basic application setup:
+
+        ```python
+        from serv import App
+
+        # Create a basic app
+        app = App()
+
+        # Create app with custom config
+        app = App(config="./config/production.yaml")
+
+        # Create app with custom plugin directory
+        app = App(plugin_dir="./my_plugins")
+
+        # Development mode with enhanced debugging
+        app = App(dev_mode=True)
+        ```
+
+        Using with ASGI servers:
+
+        ```python
+        # For uvicorn
+        # uvicorn main:app --reload
+
+        # For gunicorn
+        # gunicorn main:app -k uvicorn.workers.UvicornWorker
+        ```
+
+        Advanced configuration:
+
+        ```python
+        app = App(
+            config="./config/production.yaml",
+            plugin_dir="./plugins",
+            dev_mode=False
+        )
+
+        # Add custom error handler
+        async def custom_404_handler(error):
+            # Handle 404 errors
+            pass
+
+        app.add_error_handler(HTTPNotFoundException, custom_404_handler)
+
+        # Add middleware
+        async def logging_middleware():
+            # Middleware logic
+            yield
+
+        app.add_middleware(logging_middleware)
+        ```
     """
 
     def __init__(
@@ -72,12 +168,68 @@ class App:
         plugin_dir: str = "./plugins",
         dev_mode: bool = False,
     ):
-        """Initialize a new Serv application.
+        """Initialize a new Serv application instance.
+
+        Creates and configures a new ASGI application with the specified settings.
+        This includes setting up the dependency injection container, loading plugins,
+        configuring middleware, and preparing the routing system.
 
         Args:
-            config: configuration dictionary (usually from serv.config.yaml)
-            plugin_dir: directory to search for plugins (default: './plugins')
-            dev_mode: whether to run in development mode (default: False)
+            config: Path to the YAML configuration file. The config file defines
+                site information, enabled plugins, middleware stack, and other
+                application settings. Defaults to "./serv.config.yaml".
+            plugin_dir: Directory path where plugins are located. Plugins in this
+                directory will be available for loading. Defaults to "./plugins".
+            dev_mode: Enable development mode features including enhanced error
+                reporting, debug logging, and development-specific behaviors.
+                Should be False in production. Defaults to False.
+
+        Raises:
+            ServConfigError: If the configuration file cannot be loaded or contains
+                invalid YAML/configuration structure.
+            ImportError: If required dependencies for plugins cannot be imported.
+            ValueError: If plugin_dir path is invalid or inaccessible.
+
+        Examples:
+            Basic initialization:
+
+            ```python
+            # Use default settings
+            app = App()
+
+            # Custom config file
+            app = App(config="config/production.yaml")
+
+            # Custom plugin directory
+            app = App(plugin_dir="src/plugins")
+
+            # Development mode
+            app = App(dev_mode=True)
+            ```
+
+            Production setup:
+
+            ```python
+            app = App(
+                config="/etc/myapp/config.yaml",
+                plugin_dir="/opt/myapp/plugins",
+                dev_mode=False
+            )
+            ```
+
+            Development setup:
+
+            ```python
+            app = App(
+                config="dev.config.yaml",
+                plugin_dir="./dev_plugins",
+                dev_mode=True
+            )
+            ```
+
+        Note:
+            The application will automatically load the welcome plugin if no other
+            plugins are configured, providing a default landing page for new projects.
         """
         self._config = self._load_config(config)
         self._dev_mode = dev_mode
@@ -129,9 +281,164 @@ class App:
         error_type: type[Exception],
         handler: Callable[[Exception], Awaitable[None]],
     ):
+        """Register a custom error handler for specific exception types.
+
+        Error handlers allow you to customize how your application responds to
+        different types of errors, providing custom error pages, logging, or
+        recovery mechanisms.
+
+        Args:
+            error_type: The exception class to handle. The handler will be called
+                for this exception type and any of its subclasses.
+            handler: An async function that will be called when the exception occurs.
+                The handler receives the exception instance and can use dependency
+                injection to access request/response objects.
+
+        Examples:
+            Handle 404 errors with a custom page:
+
+            ```python
+            from serv.exceptions import HTTPNotFoundException
+            from serv.responses import ResponseBuilder
+            from bevy import dependency
+
+            async def custom_404_handler(
+                error: HTTPNotFoundException,
+                response: ResponseBuilder = dependency()
+            ):
+                response.set_status(404)
+                response.content_type("text/html")
+                response.body("<h1>Page Not Found</h1><p>Sorry, that page doesn't exist.</p>")
+
+            app.add_error_handler(HTTPNotFoundException, custom_404_handler)
+            ```
+
+            Handle validation errors:
+
+            ```python
+            class ValidationError(Exception):
+                def __init__(self, message: str, field: str):
+                    self.message = message
+                    self.field = field
+
+            async def validation_error_handler(
+                error: ValidationError,
+                response: ResponseBuilder = dependency()
+            ):
+                response.set_status(400)
+                response.content_type("application/json")
+                response.body({
+                    "error": "validation_failed",
+                    "message": error.message,
+                    "field": error.field
+                })
+
+            app.add_error_handler(ValidationError, validation_error_handler)
+            ```
+
+            Generic error handler with logging:
+
+            ```python
+            import logging
+
+            async def generic_error_handler(
+                error: Exception,
+                response: ResponseBuilder = dependency(),
+                request: Request = dependency()
+            ):
+                logging.error(f"Unhandled error on {request.path}: {error}")
+                response.set_status(500)
+                response.content_type("text/html")
+                response.body("<h1>Internal Server Error</h1>")
+
+            app.add_error_handler(Exception, generic_error_handler)
+            ```
+        """
         self._error_handlers[error_type] = handler
 
     def add_middleware(self, middleware: Callable[[], AsyncIterator[None]]):
+        """Add middleware to the application's middleware stack.
+
+        Middleware functions are executed in the order they are added, wrapping
+        around the request handling process. They can modify requests, responses,
+        add headers, implement authentication, logging, and more.
+
+        Args:
+            middleware: An async generator function that yields control to the next
+                middleware or route handler. The function should yield exactly once.
+
+        Examples:
+            Basic logging middleware:
+
+            ```python
+            import logging
+            from serv.requests import Request
+            from bevy import dependency
+
+            async def logging_middleware(
+                request: Request = dependency()
+            ):
+                logging.info(f"Request: {request.method} {request.path}")
+                start_time = time.time()
+
+                yield  # Pass control to next middleware/handler
+
+                duration = time.time() - start_time
+                logging.info(f"Response time: {duration:.3f}s")
+
+            app.add_middleware(logging_middleware)
+            ```
+
+            Authentication middleware:
+
+            ```python
+            from serv.responses import ResponseBuilder
+            from serv.requests import Request
+            from bevy import dependency
+
+            async def auth_middleware(
+                request: Request = dependency(),
+                response: ResponseBuilder = dependency()
+            ):
+                # Check for authentication
+                auth_header = request.headers.get("authorization")
+                if not auth_header and request.path.startswith("/api/"):
+                    response.set_status(401)
+                    response.content_type("application/json")
+                    response.body({"error": "Authentication required"})
+                    return  # Don't yield, stop processing
+
+                yield  # Continue to next middleware/handler
+
+            app.add_middleware(auth_middleware)
+            ```
+
+            CORS middleware:
+
+            ```python
+            async def cors_middleware(
+                request: Request = dependency(),
+                response: ResponseBuilder = dependency()
+            ):
+                # Add CORS headers
+                response.add_header("Access-Control-Allow-Origin", "*")
+                response.add_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+                response.add_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+                # Handle preflight requests
+                if request.method == "OPTIONS":
+                    response.set_status(200)
+                    return
+
+                yield  # Continue processing
+
+            app.add_middleware(cors_middleware)
+            ```
+
+        Note:
+            Middleware is executed in LIFO (Last In, First Out) order during request
+            processing, and FIFO (First In, First Out) order during response processing.
+        """
         self._middleware.append(middleware)
 
     def add_plugin(self, plugin: Plugin):

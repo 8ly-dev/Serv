@@ -256,6 +256,144 @@ class Form:
 
 
 class Route:
+    """Base class for creating HTTP route handlers in Serv applications.
+
+    Route classes provide a structured way to handle HTTP requests by defining
+    methods that correspond to HTTP methods (GET, POST, etc.) and form handlers.
+    They support automatic request parsing, response type annotations, error
+    handling, and dependency injection.
+
+    The Route class automatically discovers handler methods based on their
+    signatures and annotations:
+    - Methods with Request subclass parameters become HTTP method handlers
+    - Methods with Form subclass parameters become form handlers
+    - Methods with Exception parameters become error handlers
+    - Return type annotations determine response wrapper classes
+
+    Examples:
+        Basic route with HTTP method handlers:
+
+        ```python
+        from serv.routes import Route, GetRequest, PostRequest
+        from serv.responses import JsonResponse, TextResponse
+        from typing import Annotated
+
+        class UserRoute(Route):
+            async def handle_get(self, request: GetRequest) -> Annotated[dict, JsonResponse]:
+                user_id = request.path_params.get("id")
+                return {"id": user_id, "name": "John Doe"}
+
+            async def handle_post(self, request: PostRequest) -> Annotated[str, TextResponse]:
+                data = await request.json()
+                # Create user logic here
+                return "User created successfully"
+        ```
+
+        Route with form handling:
+
+        ```python
+        from serv.routes import Route, Form
+        from serv.responses import HtmlResponse
+        from typing import Annotated
+
+        class ContactForm(Form):
+            name: str
+            email: str
+            message: str
+
+        class ContactRoute(Route):
+            async def handle_get(self, request: GetRequest) -> Annotated[str, HtmlResponse]:
+                return '''
+                <form method="post">
+                    <input name="name" placeholder="Name" required>
+                    <input name="email" type="email" placeholder="Email" required>
+                    <textarea name="message" placeholder="Message" required></textarea>
+                    <button type="submit">Send</button>
+                </form>
+                '''
+
+            async def handle_contact_form(self, form: ContactForm) -> Annotated[str, HtmlResponse]:
+                # Process the form submission
+                await self.send_email(form.email, form.name, form.message)
+                return "<h1>Thank you! Your message has been sent.</h1>"
+        ```
+
+        Route with error handling:
+
+        ```python
+        from serv.routes import Route
+        from serv.responses import JsonResponse
+        from typing import Annotated
+
+        class ValidationError(Exception):
+            def __init__(self, message: str):
+                self.message = message
+
+        class ApiRoute(Route):
+            async def handle_post(self, request: PostRequest) -> Annotated[dict, JsonResponse]:
+                data = await request.json()
+                if not data.get("email"):
+                    raise ValidationError("Email is required")
+                return {"status": "success"}
+
+            async def handle_validation_error(self, error: ValidationError) -> Annotated[dict, JsonResponse]:
+                return {"error": error.message, "status": "validation_failed"}
+        ```
+
+        Route with dependency injection:
+
+        ```python
+        from bevy import dependency
+        from serv.app import App
+
+        class DatabaseRoute(Route):
+            async def handle_get(
+                self,
+                request: GetRequest,
+                app: App = dependency()
+            ) -> Annotated[dict, JsonResponse]:
+                # Access app instance and its services
+                plugin = app.get_plugin("database")
+                data = await plugin.fetch_data()
+                return {"data": data}
+        ```
+
+        Advanced route with multiple forms:
+
+        ```python
+        class LoginForm(Form):
+            username: str
+            password: str
+
+        class RegisterForm(Form):
+            __form_method__ = "POST"
+            username: str
+            email: str
+            password: str
+            confirm_password: str
+
+        class AuthRoute(Route):
+            async def handle_login_form(self, form: LoginForm) -> Annotated[str, HtmlResponse]:
+                if self.authenticate(form.username, form.password):
+                    return "<h1>Login successful!</h1>"
+                else:
+                    return "<h1>Invalid credentials</h1>"
+
+            async def handle_register_form(self, form: RegisterForm) -> Annotated[str, HtmlResponse]:
+                if form.password != form.confirm_password:
+                    return "<h1>Passwords don't match</h1>"
+
+                await self.create_user(form.username, form.email, form.password)
+                return "<h1>Registration successful!</h1>"
+        ```
+
+    Note:
+        Route classes are automatically instantiated by the router when a matching
+        request is received. They can access plugin configuration and services
+        through dependency injection, and their methods can return Response objects
+        or use annotated return types for automatic response wrapping.
+    """
+
     __method_handlers__: dict[str, str]
     __error_handlers__: dict[type[Exception], list[str]]
     __form_handlers__: dict[str, dict[type[Form], list[str]]]

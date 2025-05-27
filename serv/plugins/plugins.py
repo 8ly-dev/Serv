@@ -28,6 +28,106 @@ def search_for_plugin_directory(path: Path) -> Path | None:
 
 
 class Plugin:
+    """Base class for creating Serv plugins.
+
+    Plugins extend the functionality of Serv applications by responding to events
+    that occur during the application lifecycle. They can add routes, middleware,
+    modify requests/responses, and integrate with external services.
+
+    Plugin classes automatically register event handlers based on method names
+    following the pattern `on_{event_name}` or `{prefix}_on_{event_name}`. This
+    allows for readable method names and automatic event subscription.
+
+    Common Events:
+    - `app_startup`: Application is starting up
+    - `app_shutdown`: Application is shutting down
+    - `app_request_begin`: New request is being processed
+    - `app_request_end`: Request processing is complete
+    - `plugin_loaded`: Plugin has been loaded
+    - Custom events emitted by your application
+
+    Examples:
+        Basic plugin with event handlers:
+
+        ```python
+        from serv.plugins import Plugin
+        from serv.routing import Router
+        from bevy import dependency
+
+        class MyPlugin(Plugin):
+            async def on_app_startup(self):
+                print("Application is starting!")
+
+            async def on_app_request_begin(self, router: Router = dependency()):
+                # Add routes when app starts handling requests
+                router.add_route("/hello", self.hello_handler, ["GET"])
+
+            async def hello_handler(self, response: ResponseBuilder = dependency()):
+                response.body("Hello from my plugin!")
+
+            async def on_app_shutdown(self):
+                print("Application is shutting down!")
+        ```
+
+        Plugin with custom event handlers:
+
+        ```python
+        class UserPlugin(Plugin):
+            async def on_user_created(self, user_id: int):
+                print(f"User {user_id} was created!")
+
+            async def send_email_on_user_created(self, user_id: int, email: str):
+                # Send welcome email
+                await self.send_welcome_email(email)
+
+            async def on_user_deleted(self, user_id: int):
+                # Cleanup user data
+                await self.cleanup_user_data(user_id)
+        ```
+
+        Plugin with dependency injection:
+
+        ```python
+        from serv.requests import Request
+        from serv.responses import ResponseBuilder
+
+        class AuthPlugin(Plugin):
+            async def on_app_request_begin(
+                self,
+                request: Request = dependency(),
+                response: ResponseBuilder = dependency()
+            ):
+                # Check authentication for protected routes
+                if request.path.startswith("/admin/"):
+                    auth_header = request.headers.get("authorization")
+                    if not auth_header:
+                        response.set_status(401)
+                        response.body("Authentication required")
+                        return
+        ```
+
+        Plugin configuration:
+
+        ```python
+        class DatabasePlugin(Plugin):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
+                # Access plugin configuration from plugin.yaml
+                config = self.__plugin_spec__.config
+                self.db_url = config.get("database_url", "sqlite:///app.db")
+                self.pool_size = config.get("pool_size", 10)
+
+            async def on_app_startup(self):
+                # Initialize database connection
+                self.db_pool = await create_db_pool(self.db_url, self.pool_size)
+        ```
+
+    Note:
+        Plugin methods that handle events can use dependency injection to access
+        request/response objects, the router, and other services. The plugin system
+        automatically manages the lifecycle and ensures proper cleanup.
+    """
+
     def __init_subclass__(cls, **kwargs) -> None:
         cls.__plugins__ = defaultdict(list)
 

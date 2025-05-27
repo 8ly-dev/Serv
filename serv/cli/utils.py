@@ -14,7 +14,25 @@ logger = logging.getLogger("serv")
 
 
 def to_pascal_case(name: str) -> str:
-    """Converts a string to PascalCase."""
+    """Converts a string to PascalCase.
+
+    Transforms various naming conventions (snake_case, kebab-case, space-separated)
+    into PascalCase format commonly used for class names.
+
+    Args:
+        name: Input string to convert.
+
+    Returns:
+        String converted to PascalCase.
+
+    Examples:
+        ```python
+        to_pascal_case("user_profile")     # "UserProfile"
+        to_pascal_case("api-handler")      # "ApiHandler"
+        to_pascal_case("my plugin")        # "MyPlugin"
+        to_pascal_case("v2_api")          # "V2Api"
+        ```
+    """
     name = name.replace("-", " ").replace("_", " ")
     parts = name.split(" ")
     processed_parts = []
@@ -30,7 +48,25 @@ def to_pascal_case(name: str) -> str:
 
 
 def to_snake_case(name: str) -> str:
-    """Converts a string to snake_case. Handles spaces, hyphens, and existing PascalCase/camelCase."""
+    """Converts a string to snake_case.
+
+    Handles spaces, hyphens, and existing PascalCase/camelCase conversions.
+    Commonly used for file names, directory names, and Python identifiers.
+
+    Args:
+        name: Input string to convert.
+
+    Returns:
+        String converted to snake_case.
+
+    Examples:
+        ```python
+        to_snake_case("UserProfile")       # "user_profile"
+        to_snake_case("API-Handler")       # "api_handler"
+        to_snake_case("my plugin name")    # "my_plugin_name"
+        to_snake_case("XMLHttpRequest")    # "xml_http_request"
+        ```
+    """
     s = re.sub(r"[\s-]+", "_", name)  # Replace spaces/hyphens with underscores
     s = re.sub(
         r"(.)([A-Z][a-z]+)", r"\1_\2", s
@@ -44,7 +80,25 @@ def to_snake_case(name: str) -> str:
 
 
 def prompt_user(text: str, default: str | None = None) -> str:
-    """Prompts the user for input with an optional default value."""
+    """Prompts the user for input with an optional default value.
+
+    Displays a prompt to the user and waits for input. If a default value is
+    provided, it will be used when the user presses Enter without typing anything.
+
+    Args:
+        text: The prompt text to display to the user.
+        default: Optional default value to use if user provides no input.
+
+    Returns:
+        The user's input string, or the default value if no input was provided.
+
+    Examples:
+        ```python
+        name = prompt_user("Enter your name")
+        port = prompt_user("Enter port", default="8000")
+        confirm = prompt_user("Continue? (y/n)", default="y")
+        ```
+    """
     prompt_text = f"{text}"
     if default is not None:
         prompt_text += f" [{default}]"

@@ -15,6 +15,68 @@ class RouteSettings:
 
 
 class Router:
+    """HTTP request router for mapping URLs to handlers.
+
+    The Router class is responsible for matching incoming HTTP requests to the
+    appropriate handler functions or Route classes. It supports path parameters,
+    HTTP method filtering, route mounting, and URL generation.
+
+    Features:
+    - Path parameter extraction (e.g., `/users/{id}`)
+    - HTTP method-specific routing
+    - Route mounting and sub-routers
+    - URL generation with `url_for()`
+    - Route settings and metadata
+    - Flexible handler types (functions, Route classes)
+
+    Examples:
+        Basic router setup:
+
+        ```python
+        from serv.routing import Router
+
+        router = Router()
+
+        # Add function-based routes
+        async def get_users():
+            return {"users": []}
+
+        router.add_route("/users", get_users, ["GET"])
+
+        # Add Route class
+        class UserRoute:
+            async def handle_get(self, request):
+                return {"user": "data"}
+
+        router.add_route("/users/{id}", UserRoute)
+        ```
+
+        Router with settings:
+
+        ```python
+        router = Router(settings={
+            "auth_required": True,
+            "rate_limit": 100
+        })
+        ```
+
+        Mounting sub-routers:
+
+        ```python
+        api_router = Router()
+        api_router.add_route("/users", users_handler)
+        api_router.add_route("/posts", posts_handler)
+
+        main_router = Router()
+        main_router.mount("/api/v1", api_router)
+        # Now /api/v1/users and /api/v1/posts are available
+        ```
+
+    Args:
+        settings: Optional dictionary of router-level settings that will be
+            available to all routes handled by this router.
+    """
+
     def __init__(self, settings: dict[str, Any] = None):
         # Stores tuples of (path_pattern, methods, handler_callable, settings)
         self._routes: list[

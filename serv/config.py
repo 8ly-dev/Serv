@@ -38,17 +38,62 @@ class ServConfigError(Exception):
 
 
 def import_from_string(import_str: str) -> Any:
-    """
-    Import a class, function, or variable from a module by string.
+    """Import a class, function, or variable from a module by string.
+
+    This utility function allows dynamic importing of Python objects using
+    string notation, which is commonly used in configuration files and
+    plugin systems.
 
     Args:
-        import_str: String in the format "module.path:symbol"
+        import_str: String in the format "module.path:symbol" where module.path
+            is the Python module path and symbol is the name of the object to
+            import from that module.
 
     Returns:
-        The imported object
+        The imported object (class, function, variable, etc.).
 
     Raises:
-        ServConfigError: If the import failed.
+        ServConfigError: If the import failed due to missing module, missing
+            symbol, or other import-related errors.
+
+    Examples:
+        Import a class:
+
+        ```python
+        # Import the App class from serv.app module
+        app_class = import_from_string("serv.app:App")
+        app = app_class()
+        ```
+
+        Import a function:
+
+        ```python
+        # Import a specific function
+        handler = import_from_string("myapp.handlers:user_handler")
+        ```
+
+        Import a nested attribute:
+
+        ```python
+        # Import a nested class or attribute
+        validator = import_from_string("myapp.validators:UserValidator.email_validator")
+        ```
+
+        Common usage in plugin configuration:
+
+        ```python
+        # In plugin.yaml:
+        # entry_points:
+        #   main: "myapp.plugins.auth:AuthPlugin"
+
+        plugin_class = import_from_string("myapp.plugins.auth:AuthPlugin")
+        plugin_instance = plugin_class()
+        ```
+
+    Note:
+        The import string format follows the pattern used by many Python
+        frameworks and tools. The colon (:) separates the module path from
+        the symbol name within that module.
     """
     if ":" not in import_str:
         raise ServConfigError(
