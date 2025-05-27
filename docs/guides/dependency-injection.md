@@ -55,7 +55,7 @@ Serv automatically provides several built-in dependencies:
 from serv import App
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from serv.plugins.routing import Router
+from serv.extensions.routing import Router
 from bevy import dependency, Container
 
 async def handler_with_all_deps(
@@ -86,7 +86,7 @@ class DatabaseService:
         # Database query implementation
         pass
 
-class MyPlugin(Plugin):
+class MyExtension(Extension):
     async def on_app_startup(self, container: Container = dependency()):
         # Register the database service
         db_service = DatabaseService("postgresql://localhost/mydb")
@@ -120,7 +120,7 @@ def create_email_service(config: dict) -> EmailService:
         password=config.get('smtp_password')
     )
 
-class EmailPlugin(Plugin):
+class EmailExtension(Extension):
     async def on_app_startup(self, container: Container = dependency()):
         config = self.get_config()
         email_service = create_email_service(config)
@@ -170,7 +170,7 @@ class InMemoryUserRepository(UserRepository):
         pass
 
 # Register the implementation
-class UserPlugin(Plugin):
+class UserExtension(Extension):
     async def on_app_startup(self, container: Container = dependency()):
         # Use database implementation in production
         db = container.get(Database)
@@ -183,7 +183,7 @@ class UserPlugin(Plugin):
 Register different implementations based on configuration:
 
 ```python
-class StoragePlugin(Plugin):
+class StorageExtension(Extension):
     async def on_app_startup(self, container: Container = dependency()):
         config = self.get_config()
         storage_type = config.get('storage_type', 'local')
@@ -218,7 +218,7 @@ class RequestScopedService:
     def get(self, key: str):
         return self.data.get(key)
 
-class ScopedPlugin(Plugin):
+class ScopedExtension(Extension):
     async def on_app_request_begin(
         self,
         container: Container = dependency(),
@@ -301,10 +301,10 @@ async def auth_middleware(
     # Cleanup after request if needed
 ```
 
-### In Plugin Event Handlers
+### In Extension Event Handlers
 
 ```python
-class MyPlugin(Plugin):
+class MyExtension(Extension):
     async def on_app_startup(
         self,
         container: Container = dependency(),
@@ -428,7 +428,7 @@ class MockEmailService(EmailService):
 Register dependencies during application startup:
 
 ```python
-class MyPlugin(Plugin):
+class MyExtension(Extension):
     async def on_app_startup(self, container: Container = dependency()):
         # Register all services early
         container.instances[UserService] = UserService()
@@ -487,7 +487,7 @@ def create_database_service(config: dict) -> DatabaseService:
     
     return DatabaseService(connection_pool)
 
-class DatabasePlugin(Plugin):
+class DatabaseExtension(Extension):
     async def on_app_startup(self, container: Container = dependency()):
         config = self.get_config()
         db_service = create_database_service(config)
@@ -510,7 +510,7 @@ class ServiceLocator:
     def get_service(self, service_type: type):
         return self.container.get(service_type)
 
-class MyPlugin(Plugin):
+class MyExtension(Extension):
     async def on_app_startup(self, container: Container = dependency()):
         locator = ServiceLocator(container)
         container.instances[ServiceLocator] = locator
@@ -531,7 +531,7 @@ class DatabaseConfig:
     username: str
     password: str
 
-class DatabasePlugin(Plugin):
+class DatabaseExtension(Extension):
     async def on_app_startup(self, container: Container = dependency()):
         config_dict = self.get_config()
         db_config = DatabaseConfig(**config_dict)
@@ -550,7 +550,7 @@ async def handler(
 
 ## Next Steps
 
-- **[Plugins](plugins.md)** - Learn how to create plugins that use DI
+- **[Extensions](extensions.md)** - Learn how to create extensions that use DI
 - **[Middleware](middleware.md)** - Use DI in middleware
 - **[Testing](testing.md)** - Test code that uses dependency injection
 - **[Routing](routing.md)** - Use DI in route handlers 

@@ -11,26 +11,27 @@ from unittest.mock import MagicMock
 from bevy import dependency
 from bevy.containers import Container
 
-from serv.plugins import Listener
-from serv.plugins.importer import Importer
-from serv.plugins.loader import PluginSpec
+from serv.extensions import Listener
+from serv.extensions.importer import Importer
+from serv.extensions.loader import ExtensionSpec
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routing import Router
 
 
-def patch_plugin_spec_on_module(plugin: Listener):
-    """Patch the plugin's module with its __plugin_spec__ for testing.
+def patch_extension_spec_on_module(extension: Listener):
+    """Patch the extension's module with its __extension_spec__ for testing.
 
-    This is needed because test plugins are standalone and don't go through
-    the normal plugin loading system that sets module.__plugin_spec__.
+    This is needed because test extensions are standalone and don't go through
+    the normal extension loading system that sets module.__extension_spec__.
     """
-    if hasattr(plugin, "_plugin_spec"):
-        module = sys.modules[plugin.__module__]
-        module.__plugin_spec__ = plugin._plugin_spec
+    if hasattr(extension, "_extension_spec"):
+        module = sys.modules[extension.__module__]
+        module.__extension_spec__ = extension._extension_spec
+        module.__extension_spec__ = extension._extension_spec  # Backward compatibility
 
 
-class RouteAddingPlugin(Listener):
+class RouteAddingExtension(Listener):
     def __init__(
         self,
         path: str,
@@ -42,10 +43,10 @@ class RouteAddingPlugin(Listener):
         self.methods = methods
         self.was_called = 0
         self.received_kwargs = None
-        # Define _plugin_spec and patch module BEFORE super().__init__
-        self._plugin_spec = PluginSpec(
+        # Define _extension_spec and patch module BEFORE super().__init__
+        self._extension_spec = ExtensionSpec(
             config={
-                "name": "RouteAddingPlugin",
+                "name": "RouteAddingExtension",
                 "description": "A test plugin that adds routes",
                 "version": "0.1.0",
                 "author": "Test Author",
@@ -54,9 +55,9 @@ class RouteAddingPlugin(Listener):
             override_settings={},
             importer=create_mock_importer(Path(__file__).parent),
         )
-        patch_plugin_spec_on_module(self)
+        patch_extension_spec_on_module(self)
         super().__init__()
-        # self._stand_alone = True # No longer needed here for Plugin base class init
+        # self._stand_alone = True # No longer needed here for Extension base class init
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler_wrapper, methods=self.methods)
@@ -93,14 +94,14 @@ def create_mock_importer(directory: Path = None) -> Importer:
     return mock_importer
 
 
-def create_test_plugin_spec(
-    name: str = "TestPlugin",
+def create_test_extension_spec(
+    name: str = "TestExtension",
     version: str = "0.1.0",
     path: Path = None,
     override_settings: dict[str, Any] = None,
     importer: Importer = None,
-) -> PluginSpec:
-    """Create a PluginSpec for testing purposes."""
+) -> ExtensionSpec:
+    """Create an ExtensionSpec for testing purposes."""
     if path is None:
         path = Path(".")
     if override_settings is None:
@@ -111,28 +112,37 @@ def create_test_plugin_spec(
     config = {
         "name": name,
         "version": version,
-        "description": "A test plugin",
+        "description": "A test extension",
         "author": "Test Author",
     }
 
-    return PluginSpec(
+    return ExtensionSpec(
         config=config, path=path, override_settings=override_settings, importer=importer
     )
 
 
-class EventWatcherPlugin(Listener):
+# Backward compatibility aliases
+EventWatcherExtension = None  # Will be set after class definition
+patch_extension_spec_on_module = patch_extension_spec_on_module
+
+
+class EventWatcherExtension(Listener):
     def __init__(self):
         self.events_seen = []
-        # Define _plugin_spec and patch module BEFORE super().__init__
-        self._plugin_spec = create_test_plugin_spec(
-            name="EventWatcherPlugin", path=Path(__file__).parent
+        # Define _extension_spec and patch module BEFORE super().__init__
+        self._extension_spec = create_test_extension_spec(
+            name="EventWatcherExtension", path=Path(__file__).parent
         )
-        patch_plugin_spec_on_module(self)
+        patch_extension_spec_on_module(self)
         super().__init__()
-        # self._stand_alone = True # No longer needed here for Plugin base class init
+        # self._stand_alone = True # No longer needed here for Extension base class init
 
     async def on(self, event_name: str, **kwargs: Any) -> None:
         self.events_seen.append((event_name, kwargs))
+
+
+# Set backward compatibility alias after class definition
+EventWatcherExtension = EventWatcherExtension
 
 
 # Example of a simple middleware for testing

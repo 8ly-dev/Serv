@@ -1,5 +1,5 @@
 from bevy import dependency
-from serv.plugins import Listener
+from serv.extensions import Listener
 from serv.routing import Router
 
 

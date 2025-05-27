@@ -1,5 +1,5 @@
 """
-Tests for the declarative router functionality using RouterPlugin and plugin.yaml routers configuration.
+Tests for the declarative router functionality using RouterExtension and extension.yaml routers configuration.
 """
 
 import sys
@@ -11,33 +11,33 @@ import pytest
 import yaml
 from bevy.registries import Registry
 
-from serv.plugins.loader import PluginSpec
-from serv.plugins.router_plugin import RouterPlugin
+from serv.extensions.loader import ExtensionSpec
+from serv.extensions.router_extension import RouterExtension
 from serv.routing import Router
 from tests.helpers import create_mock_importer
 
 
-def create_declarative_router_plugin(plugin_config):
-    """Helper to create a RouterPlugin with specific configuration."""
+def create_declarative_router_plugin(extension_config):
+    """Helper to create a RouterExtension with specific configuration."""
     temp_dir = tempfile.TemporaryDirectory()
-    plugin_dir = Path(temp_dir.name)
+    extension_dir = Path(temp_dir.name)
 
-    # Create a temporary plugin.yaml file
-    with open(plugin_dir / "plugin.yaml", "w") as f:
-        yaml.dump(plugin_config, f)
+    # Create a temporary extension.yaml file
+    with open(extension_dir / "extension.yaml", "w") as f:
+        yaml.dump(extension_config, f)
 
     # Create a dummy __init__.py to make it a package
-    (plugin_dir / "__init__.py").touch()
+    (extension_dir / "__init__.py").touch()
 
     # Create handler modules if needed
-    routers_config = plugin_config.get("routers", [])
+    routers_config = extension_config.get("routers", [])
     for router_config in routers_config:
         routes = router_config.get("routes", [])
         for route in routes:
             handler_str = route.get("handler", "")
             if ":" in handler_str:
                 module_name, class_name = handler_str.split(":")
-                module_file = plugin_dir / f"{module_name}.py"
+                module_file = extension_dir / f"{module_name}.py"
                 if not module_file.exists():
                     module_file.write_text(f"""
 from serv.responses import ResponseBuilder
@@ -50,32 +50,32 @@ class {class_name}:
 """)
 
     # Temporarily add the plugin directory to sys.path
-    sys.path.insert(0, str(plugin_dir))
+    sys.path.insert(0, str(extension_dir))
 
     try:
         # Create the plugin spec
-        spec = PluginSpec(
-            config=plugin_config,
-            path=plugin_dir,
+        spec = ExtensionSpec(
+            config=extension_config,
+            path=extension_dir,
             override_settings={},
-            importer=create_mock_importer(plugin_dir),
+            importer=create_mock_importer(extension_dir),
         )
 
-        # Create the RouterPlugin instance
-        plugin = RouterPlugin(plugin_spec=spec, stand_alone=True)
+        # Create the RouterExtension instance
+        plugin = RouterExtension(extension_spec=spec, stand_alone=True)
 
         return plugin, temp_dir
     finally:
         # Clean up sys.path
-        if str(plugin_dir) in sys.path:
-            sys.path.remove(str(plugin_dir))
+        if str(extension_dir) in sys.path:
+            sys.path.remove(str(extension_dir))
 
 
 @pytest.mark.asyncio
 async def test_declarative_router_basic():
     """Test basic declarative router configuration."""
-    plugin_config = {
-        "name": "Declarative Router Test Plugin",
+    extension_config = {
+        "name": "Declarative Router Test Extension",
         "description": "A test plugin with declarative routers",
         "version": "0.1.0",
         "routers": [
@@ -86,7 +86,7 @@ async def test_declarative_router_basic():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -111,8 +111,8 @@ async def test_declarative_router_basic():
 @pytest.mark.asyncio
 async def test_declarative_router_multiple_routes():
     """Test declarative router with multiple routes."""
-    plugin_config = {
-        "name": "Multi-Route Test Plugin",
+    extension_config = {
+        "name": "Multi-Route Test Extension",
         "description": "A test plugin with multiple declarative routes",
         "version": "0.1.0",
         "routers": [
@@ -127,7 +127,7 @@ async def test_declarative_router_multiple_routes():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -153,8 +153,8 @@ async def test_declarative_router_multiple_routes():
 @pytest.mark.asyncio
 async def test_declarative_router_multiple_routers():
     """Test declarative configuration with multiple routers."""
-    plugin_config = {
-        "name": "Multi-Router Test Plugin",
+    extension_config = {
+        "name": "Multi-Router Test Extension",
         "description": "A test plugin with multiple declarative routers",
         "version": "0.1.0",
         "routers": [
@@ -169,7 +169,7 @@ async def test_declarative_router_multiple_routers():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -195,8 +195,8 @@ async def test_declarative_router_multiple_routers():
 @pytest.mark.asyncio
 async def test_declarative_router_with_mount():
     """Test declarative router with mount configuration."""
-    plugin_config = {
-        "name": "Mounted Router Test Plugin",
+    extension_config = {
+        "name": "Mounted Router Test Extension",
         "description": "A test plugin with mounted declarative router",
         "version": "0.1.0",
         "routers": [
@@ -211,7 +211,7 @@ async def test_declarative_router_with_mount():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -239,8 +239,8 @@ async def test_declarative_router_with_mount():
 @pytest.mark.asyncio
 async def test_declarative_router_with_config():
     """Test declarative router with router-level configuration."""
-    plugin_config = {
-        "name": "Configured Router Test Plugin",
+    extension_config = {
+        "name": "Configured Router Test Extension",
         "description": "A test plugin with router configuration",
         "version": "0.1.0",
         "routers": [
@@ -258,7 +258,7 @@ async def test_declarative_router_with_config():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -283,14 +283,14 @@ async def test_declarative_router_with_config():
 @pytest.mark.asyncio
 async def test_declarative_router_empty_config():
     """Test declarative router with empty routers configuration."""
-    plugin_config = {
-        "name": "Empty Router Test Plugin",
+    extension_config = {
+        "name": "Empty Router Test Extension",
         "description": "A test plugin with no routers",
         "version": "0.1.0",
         "routers": [],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -310,13 +310,13 @@ async def test_declarative_router_empty_config():
 @pytest.mark.asyncio
 async def test_declarative_router_no_routers_config():
     """Test declarative router with no routers configuration at all."""
-    plugin_config = {
-        "name": "No Routers Test Plugin",
+    extension_config = {
+        "name": "No Routers Test Extension",
         "description": "A test plugin with no routers configuration",
         "version": "0.1.0",
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -335,7 +335,7 @@ async def test_declarative_router_no_routers_config():
 
 def test_router_builder_with_mount():
     """Test RouterBuilder with mount path."""
-    from serv.plugins.router_plugin import RouterBuilder
+    from serv.extensions.router_extension import RouterBuilder
 
     # Create a mock importer
     mock_importer = create_mock_importer()
@@ -371,8 +371,8 @@ def test_router_builder_with_mount():
 @pytest.mark.asyncio
 async def test_declarative_router_with_methods():
     """Test declarative router with specific HTTP methods."""
-    plugin_config = {
-        "name": "Methods Test Plugin",
+    extension_config = {
+        "name": "Methods Test Extension",
         "description": "A test plugin with method-specific routes",
         "version": "0.1.0",
         "routers": [
@@ -394,7 +394,7 @@ async def test_declarative_router_with_methods():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -426,8 +426,8 @@ async def test_declarative_router_with_methods():
 @pytest.mark.asyncio
 async def test_declarative_router_complex_configuration():
     """Test declarative router with complex nested configuration."""
-    plugin_config = {
-        "name": "Complex Router Test Plugin",
+    extension_config = {
+        "name": "Complex Router Test Extension",
         "description": "A test plugin with complex router configuration",
         "version": "0.1.0",
         "routers": [
@@ -467,7 +467,7 @@ async def test_declarative_router_complex_configuration():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -509,8 +509,8 @@ async def test_declarative_router_complex_configuration():
 async def test_declarative_router_error_handling():
     """Test declarative router error handling for invalid configurations."""
     # Test with invalid handler format
-    plugin_config = {
-        "name": "Error Test Plugin",
+    extension_config = {
+        "name": "Error Test Extension",
         "description": "A test plugin with invalid handler",
         "version": "0.1.0",
         "routers": [
@@ -526,7 +526,7 @@ async def test_declarative_router_error_handling():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -541,8 +541,8 @@ async def test_declarative_router_error_handling():
 
 def test_declarative_router_integration_with_app():
     """Test declarative router integration with the App class."""
-    plugin_config = {
-        "name": "Integration Test Plugin",
+    extension_config = {
+        "name": "Integration Test Extension",
         "description": "A test plugin for app integration",
         "version": "0.1.0",
         "routers": [
@@ -557,17 +557,17 @@ def test_declarative_router_integration_with_app():
 
     # Create the plugin
     temp_dir = tempfile.TemporaryDirectory()
-    plugin_dir = Path(temp_dir.name)
+    extension_dir = Path(temp_dir.name)
 
-    # Create plugin.yaml
-    with open(plugin_dir / "plugin.yaml", "w") as f:
-        yaml.dump(plugin_config, f)
+    # Create extension.yaml
+    with open(extension_dir / "extension.yaml", "w") as f:
+        yaml.dump(extension_config, f)
 
     # Create __init__.py
-    (plugin_dir / "__init__.py").touch()
+    (extension_dir / "__init__.py").touch()
 
     # Create handlers module
-    handlers_file = plugin_dir / "handlers.py"
+    handlers_file = extension_dir / "handlers.py"
     handlers_file.write_text("""
 from serv.responses import ResponseBuilder
 from bevy import dependency
@@ -579,14 +579,14 @@ class IntegrationHandler:
 """)
 
     # Create the plugin spec and plugin
-    spec = PluginSpec(
-        config=plugin_config,
-        path=plugin_dir,
+    spec = ExtensionSpec(
+        config=extension_config,
+        path=extension_dir,
         override_settings={},
-        importer=create_mock_importer(plugin_dir),
+        importer=create_mock_importer(extension_dir),
     )
 
-    plugin = RouterPlugin(plugin_spec=spec, stand_alone=True)
+    plugin = RouterExtension(extension_spec=spec, stand_alone=True)
 
     # Verify the plugin was created successfully
     assert len(plugin._routers) == 1
@@ -596,8 +596,8 @@ class IntegrationHandler:
 @pytest.mark.asyncio
 async def test_declarative_router_route_resolution():
     """Test that declarative routes can be resolved correctly."""
-    plugin_config = {
-        "name": "Resolution Test Plugin",
+    extension_config = {
+        "name": "Resolution Test Extension",
         "description": "A test plugin for route resolution",
         "version": "0.1.0",
         "routers": [
@@ -614,7 +614,7 @@ async def test_declarative_router_route_resolution():
         ],
     }
 
-    plugin, temp_dir = create_declarative_router_plugin(plugin_config)
+    plugin, temp_dir = create_declarative_router_plugin(extension_config)
 
     # Create a container for dependency injection
     registry = Registry()
@@ -640,36 +640,40 @@ async def test_declarative_router_route_resolution():
 
 @pytest.mark.asyncio
 async def test_declarative_router_multiple_plugins():
-    """Test multiple RouterPlugins working together."""
+    """Test multiple RouterExtensions working together."""
     # First plugin
-    plugin_config1 = {
-        "name": "Plugin One",
+    extension_config1 = {
+        "name": "Extension One",
         "description": "First test plugin",
         "version": "0.1.0",
         "routers": [
             {
                 "name": "plugin1_router",
-                "routes": [{"path": "/plugin1", "handler": "handlers:Plugin1Handler"}],
+                "routes": [
+                    {"path": "/plugin1", "handler": "handlers:Extension1Handler"}
+                ],
             }
         ],
     }
 
     # Second plugin
-    plugin_config2 = {
-        "name": "Plugin Two",
+    extension_config2 = {
+        "name": "Extension Two",
         "description": "Second test plugin",
         "version": "0.1.0",
         "routers": [
             {
                 "name": "plugin2_router",
                 "mount": "/api",
-                "routes": [{"path": "/plugin2", "handler": "handlers:Plugin2Handler"}],
+                "routes": [
+                    {"path": "/plugin2", "handler": "handlers:Extension2Handler"}
+                ],
             }
         ],
     }
 
-    plugin1, temp_dir1 = create_declarative_router_plugin(plugin_config1)
-    plugin2, temp_dir2 = create_declarative_router_plugin(plugin_config2)
+    plugin1, temp_dir1 = create_declarative_router_plugin(extension_config1)
+    plugin2, temp_dir2 = create_declarative_router_plugin(extension_config2)
 
     # Create a container for dependency injection
     registry = Registry()

@@ -1,0 +1,5 @@
+site_info:
+  name: Demo of Declarative Extension Routes
+  description: This demo shows how declarative routes work for plugins.
+plugins:
+- declarative_routers

@@ -1,6 +1,6 @@
 # Middleware
 
-Middleware in Serv provides a powerful way to add cross-cutting concerns to your application. This guide covers how to create, configure, and use middleware effectively using Serv's CLI-first approach and plugin-based architecture.
+Middleware in Serv provides a powerful way to add cross-cutting concerns to your application. This guide covers how to create, configure, and use middleware effectively using Serv's CLI-first approach and extension-based architecture.
 
 ## What is Middleware?
 
@@ -19,19 +19,19 @@ Middleware are async generator functions that execute during the request/respons
 
 Serv middleware follows these principles:
 
-- **Plugin-Based**: Middleware is organized within plugins
+- **Extension-Based**: Middleware is organized within extensions
 - **CLI-Created**: Use CLI commands to create middleware
-- **Declarative Configuration**: Middleware is configured in `plugin.yaml` files
+- **Declarative Configuration**: Middleware is configured in `extension.yaml` files
 - **Dependency Injection**: Full access to Serv's DI system
 
 ### Middleware Structure
 
-Middleware in Serv is organized within plugins:
+Middleware in Serv is organized within extensions:
 
 ```
-plugins/
-└── my_plugin/
-    ├── plugin.yaml
+extensions/
+└── my_extension/
+    ├── extension.yaml
     ├── middleware_auth.py
     ├── middleware_logging.py
     └── middleware_cors.py
@@ -44,24 +44,24 @@ plugins/
 The recommended way to create middleware is using the Serv CLI:
 
 ```bash
-# Create a plugin first (if you don't have one)
-serv create plugin --name "Security"
+# Create a extension first (if you don't have one)
+serv create extension --name "Security"
 
-# Create middleware within the plugin
-serv create middleware --name "auth_check" --plugin "security"
+# Create middleware within the extension
+serv create middleware --name "auth_check" --extension "security"
 
 # Create another middleware
-serv create middleware --name "rate_limiter" --plugin "security"
+serv create middleware --name "rate_limiter" --extension "security"
 ```
 
 ### Generated Middleware Structure
 
 After running the commands above, you'll have:
 
-**plugins/security/plugin.yaml:**
+**extensions/security/extension.yaml:**
 ```yaml
 name: Security
-description: A cool Serv plugin.
+description: A cool Serv extension.
 version: 0.1.0
 author: Your Name
 
@@ -74,7 +74,7 @@ middleware:
       requests_per_minute: 60
 ```
 
-**plugins/security/middleware_auth_check.py:**
+**extensions/security/middleware_auth_check.py:**
 ```python
 from typing import AsyncIterator
 from serv.requests import Request
@@ -362,9 +362,9 @@ async def database_transaction_middleware(
 
 ## Middleware Configuration
 
-### Plugin Configuration
+### Extension Configuration
 
-Configure middleware in your plugin's `plugin.yaml`:
+Configure middleware in your extension's `extension.yaml`:
 
 ```yaml
 name: Security
@@ -404,7 +404,7 @@ async def configurable_middleware(
     """Middleware that uses configuration"""
     
     # Access middleware configuration
-    # (This would be injected by the plugin system)
+    # (This would be injected by the extension system)
     config = getattr(configurable_middleware, '_config', {})
     
     max_requests = config.get('requests_per_minute', 60)
@@ -431,8 +431,8 @@ Override middleware configuration in `serv.config.yaml`:
 site_info:
   name: "My Application"
 
-plugins:
-  - plugin: security
+extensions:
+  - extension: security
     settings:
       middleware:
         auth_middleware:
@@ -481,9 +481,9 @@ async def middleware_c():
 # A: After
 ```
 
-### Plugin-Level Ordering
+### Extension-Level Ordering
 
-Control middleware order within plugins:
+Control middleware order within extensions:
 
 ```yaml
 name: Security
@@ -496,13 +496,13 @@ middleware:
 
 ### Global Middleware Order
 
-Control order across plugins by plugin loading order in `serv.config.yaml`:
+Control order across extensions by extension loading order in `serv.config.yaml`:
 
 ```yaml
-plugins:
-  - plugin: logging      # Logging middleware runs first
-  - plugin: security     # Security middleware runs second
-  - plugin: api          # API-specific middleware runs last
+extensions:
+  - extension: logging      # Logging middleware runs first
+  - extension: security     # Security middleware runs second
+  - extension: api          # API-specific middleware runs last
 ```
 
 ## Conditional Middleware
@@ -581,7 +581,7 @@ async def api_version_middleware(
 ```python
 import pytest
 from unittest.mock import Mock, AsyncMock
-from plugins.security.middleware_auth import auth_middleware
+from extensions.security.middleware_auth import auth_middleware
 
 @pytest.mark.asyncio
 async def test_auth_middleware_success():
@@ -653,7 +653,7 @@ async def test_middleware_integration():
 ```python
 def test_middleware_configuration():
     """Test middleware configuration loading"""
-    from plugins.security.middleware_rate_limiter import rate_limiter_middleware
+    from extensions.security.middleware_rate_limiter import rate_limiter_middleware
     
     # Mock configuration
     config = {
@@ -674,7 +674,7 @@ def test_middleware_configuration():
 
 ```bash
 # Good: Use CLI commands
-serv create middleware --name "auth_check" --plugin "security"
+serv create middleware --name "auth_check" --extension "security"
 
 # Avoid: Manual file creation
 ```
@@ -787,16 +787,16 @@ Identify what cross-cutting concerns your application needs:
 - Error handling
 - Security headers
 
-### 2. Create Plugin and Middleware
+### 2. Create Extension and Middleware
 
 ```bash
-# Create a plugin for your middleware
-serv create plugin --name "Security"
+# Create a extension for your middleware
+serv create extension --name "Security"
 
-# Add middleware to the plugin
-serv create middleware --name "auth_check" --plugin "security"
-serv create middleware --name "rate_limiter" --plugin "security"
-serv create middleware --name "cors_handler" --plugin "security"
+# Add middleware to the extension
+serv create middleware --name "auth_check" --extension "security"
+serv create middleware --name "rate_limiter" --extension "security"
+serv create middleware --name "cors_handler" --extension "security"
 ```
 
 ### 3. Implement Middleware Logic
@@ -805,13 +805,13 @@ Edit the generated middleware files to implement your logic.
 
 ### 4. Configure Middleware
 
-Update the plugin's `plugin.yaml` with appropriate configuration.
+Update the extension's `extension.yaml` with appropriate configuration.
 
 ### 5. Enable and Test
 
 ```bash
-# Enable the plugin
-serv plugin enable security
+# Enable the extension
+serv extension enable security
 
 # Test the application
 serv dev
@@ -822,7 +822,7 @@ serv test
 
 ## Next Steps
 
-- **[Plugins](plugins.md)** - Learn about plugin architecture and organization
+- **[Extensions](extensions.md)** - Learn about extension architecture and organization
 - **[Routing](routing.md)** - Understand how middleware interacts with routes
 - **[Dependency Injection](dependency-injection.md)** - Master DI patterns for middleware
 - **[Error Handling](error-handling.md)** - Advanced error handling techniques 

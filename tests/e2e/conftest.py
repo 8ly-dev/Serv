@@ -69,7 +69,7 @@ def app_builder() -> AppBuilder:
         ```
         @pytest.mark.asyncio
         async def test_with_builder(app_builder):
-            builder = app_builder.with_plugin(MyPlugin())
+            builder = app_builder.with_plugin(MyExtension())
 
             # Use as a factory for app instance
             app = builder.build()

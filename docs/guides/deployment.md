@@ -49,7 +49,7 @@ def create_app():
     # This function will be called by uvicorn within the event loop
     app = App(
         config="config/production.yaml",
-        plugin_dir="./plugins",
+        extension_dir="./extensions",
         dev_mode=False
     )
     return app
@@ -173,7 +173,7 @@ def create_app():
     # Create app with production settings
     app = App(
         config=config_file,
-        plugin_dir="./plugins",
+        extension_dir="./extensions",
         dev_mode=environment == "development"
     )
     
@@ -228,7 +228,7 @@ logging:
     - "console"
     - "file"
 
-plugins:
+extensions:
   - name: "auth"
     enabled: true
     config:
@@ -276,7 +276,7 @@ logging:
   handlers:
     - "console"
 
-plugins:
+extensions:
   - name: "auth"
     enabled: true
     config:
@@ -717,22 +717,22 @@ sudo crontab -e
 # Add: 0 12 * * * /usr/bin/certbot renew --quiet
 ```
 
-### Security Plugin
+### Security Extension
 
-**plugins/security/security_plugin.py:**
+**extensions/security/security_extension.py:**
 ```python
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from bevy import dependency
 from typing import AsyncIterator
 
-class SecurityPlugin(Plugin):
-    """Security plugin for production deployments."""
+class SecurityExtension(Extension):
+    """Security extension for production deployments."""
     
     async def on_app_startup(self):
         """Initialize security settings."""
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         self.allowed_hosts = config.get("allowed_hosts", [])
         self.cors_origins = config.get("cors_origins", [])
         self.force_https = config.get("force_https", True)
@@ -799,18 +799,18 @@ class SecurityPlugin(Plugin):
 
 ### Secrets Management
 
-**plugins/secrets/secrets_plugin.py:**
+**extensions/secrets/secrets_extension.py:**
 ```python
 import os
 import json
-from serv.plugins import Plugin
+from serv.extensions import Extension
 
-class SecretsPlugin(Plugin):
+class SecretsExtension(Extension):
     """Manage secrets from various sources."""
     
     async def on_app_startup(self):
         """Load secrets from environment or external services."""
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         
         # Load from environment variables
         self.secrets = {}
@@ -855,19 +855,19 @@ class SecretsPlugin(Plugin):
 
 ## Monitoring and Logging
 
-### Health Check Plugin
+### Health Check Extension
 
-**plugins/monitoring/monitoring_plugin.py:**
+**extensions/monitoring/monitoring_extension.py:**
 ```python
 import time
 import psutil
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from serv.routes import GetRequest
 from serv.responses import ResponseBuilder
 from bevy import dependency
 
-class MonitoringPlugin(Plugin):
-    """Monitoring and health check plugin."""
+class MonitoringExtension(Extension):
+    """Monitoring and health check extension."""
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -875,7 +875,7 @@ class MonitoringPlugin(Plugin):
     
     async def on_app_request_begin(self, router):
         """Add monitoring routes."""
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         
         health_endpoint = config.get("health_endpoint", "/health")
         metrics_endpoint = config.get("metrics_endpoint", "/metrics")
@@ -951,13 +951,13 @@ class MonitoringPlugin(Plugin):
 
 ### Structured Logging
 
-**plugins/logging/logging_plugin.py:**
+**extensions/logging/logging_extension.py:**
 ```python
 import logging
 import json
 import sys
 from datetime import datetime
-from serv.plugins import Plugin
+from serv.extensions import Extension
 
 class JSONFormatter(logging.Formatter):
     """JSON formatter for structured logging."""
@@ -988,12 +988,12 @@ class JSONFormatter(logging.Formatter):
         
         return json.dumps(log_entry)
 
-class LoggingPlugin(Plugin):
+class LoggingExtension(Extension):
     """Configure structured logging for production."""
     
     async def on_app_startup(self):
         """Configure logging."""
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         
         # Get configuration
         log_level = config.get("level", "INFO")
@@ -1034,26 +1034,26 @@ class LoggingPlugin(Plugin):
 
 ## Performance Optimization
 
-### Caching Plugin
+### Caching Extension
 
-**plugins/caching/caching_plugin.py:**
+**extensions/caching/caching_extension.py:**
 ```python
 import redis
 import json
 import hashlib
 from typing import Any, Optional
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from bevy import dependency
 from typing import AsyncIterator
 
-class CachingPlugin(Plugin):
-    """Redis-based caching plugin."""
+class CachingExtension(Extension):
+    """Redis-based caching extension."""
     
     async def on_app_startup(self):
         """Initialize Redis connection."""
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         redis_url = config.get("redis_url", "redis://localhost:6379/0")
         
         self.redis_client = redis.from_url(redis_url)
@@ -1144,14 +1144,14 @@ class CachingPlugin(Plugin):
 
 ### Database Connection Pooling
 
-**plugins/database/database_plugin.py:**
+**extensions/database/database_extension.py:**
 ```python
 import asyncpg
 from typing import Optional
-from serv.plugins import Plugin
+from serv.extensions import Extension
 
-class DatabasePlugin(Plugin):
-    """Database connection pooling plugin."""
+class DatabaseExtension(Extension):
+    """Database connection pooling extension."""
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1159,7 +1159,7 @@ class DatabasePlugin(Plugin):
     
     async def on_app_startup(self):
         """Initialize database connection pool."""
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         
         database_url = config.get("database_url")
         min_size = config.get("min_size", 5)

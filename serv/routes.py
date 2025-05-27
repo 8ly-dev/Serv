@@ -19,9 +19,9 @@ from bevy import dependency, inject
 from bevy.containers import Container
 
 import serv
-import serv.plugins.loader as pl
+import serv.extensions.loader as pl
 from serv.exceptions import HTTPMethodNotAllowedException
-from serv.plugins import Listener
+from serv.extensions import Listener
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
@@ -149,13 +149,13 @@ class Jinja2Response(Response):
         return template.generate_async(**self.context)
 
     @staticmethod
-    def _get_template_locations(plugin: "pl.PluginSpec"):
-        if not plugin:
-            raise RuntimeError("Jinja2Response cannot be used outside of a plugin.")
+    def _get_template_locations(extension: "pl.ExtensionSpec"):
+        if not extension:
+            raise RuntimeError("Jinja2Response cannot be used outside of a extension.")
 
         return [
-            Path.cwd() / "templates" / plugin.name,
-            plugin.path / "templates",
+            Path.cwd() / "templates" / extension.name,
+            extension.path / "templates",
         ]
 
 
@@ -394,8 +394,8 @@ class Route:
                 app: App = dependency()
             ) -> Annotated[dict, JsonResponse]:
                 # Access app instance and its services
-                plugin = app.get_plugin("database")
-                data = await plugin.fetch_data()
+                extension = app.get_extension("database")
+                data = await extension.fetch_data()
                 return {"data": data}
         ```
 
@@ -430,7 +430,7 @@ class Route:
 
     Note:
         Route classes are automatically instantiated by the router when a matching
-        request is received. They can access plugin configuration and services
+        request is received. They can access extension configuration and services
         through dependency injection, and their methods can return Response objects
         or use annotated return types for automatic response wrapping.
     """
@@ -440,7 +440,7 @@ class Route:
     __form_handlers__: dict[str, dict[type[Form], list[str]]]
     __annotated_response_wrappers__: dict[str, type[Response]]
 
-    _plugin: "Listener | None"
+    _extension: "Listener | None"
 
     def __init_subclass__(cls) -> None:
         cls.__method_handlers__ = {}
@@ -530,18 +530,18 @@ class Route:
 
     @property
     @inject
-    def plugin(self, app: "serv.App" = dependency()) -> Listener | None:
-        if hasattr(self, "_plugin"):
-            return self._plugin
+    def extension(self, app: "serv.App" = dependency()) -> Listener | None:
+        if hasattr(self, "_extension"):
+            return self._extension
 
         try:
-            self._plugin = pl.find_plugin_spec(
+            self._extension = pl.find_extension_spec(
                 Path(sys.modules[self.__module__].__file__)
             )
         except Exception:
-            type(self)._plugin = None
+            type(self)._extension = None
 
-        return self._plugin
+        return self._extension
 
     async def _handle_request(self, request: Request, container: Container) -> Any:
         method = request.method
@@ -598,7 +598,7 @@ class Route:
                     f"Annotated response type."
                 )
 
-            response.set_created_by(self.plugin)
+            response.set_created_by(self.extension)
             return response
 
         except Exception as e:

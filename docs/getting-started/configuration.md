@@ -10,16 +10,16 @@ The main configuration file is typically named `serv.config.yaml` and placed in 
 
 ```yaml
 # serv.config.yaml
-plugins:
-  - plugin: auth
+extensions:
+  - extension: auth
     settings:
       secret_key: "your-secret-key-here"
       token_expiry: 3600
-  - plugin: blog
+  - extension: blog
     settings:
       posts_per_page: 10
       allow_comments: true
-  - entry: external_package.plugin:ExternalPlugin
+  - entry: external_package.extension:ExternalExtension
     config:
       api_url: "https://api.example.com"
 
@@ -51,54 +51,54 @@ app = App(config="./config/production.yaml")
 app = App(config=["./base.yaml", "./environment.yaml"])
 ```
 
-## Plugin Configuration
+## Extension Configuration
 
-### Plugin Settings
+### Extension Settings
 
-Configure plugins in the `plugins` section:
+Configure extensions in the `extensions` section:
 
 ```yaml
-plugins:
-  - plugin: auth  # Plugin directory name
+extensions:
+  - extension: auth  # Extension directory name
     settings:
       secret_key: "super-secret-key"
       algorithm: "HS256"
       token_expiry: 86400  # 24 hours
       
-  - plugin: database
+  - extension: database
     settings:
       url: "postgresql://user:pass@localhost/db"
       pool_size: 10
       echo: false
 ```
 
-### External Plugin Configuration
+### External Extension Configuration
 
-Load plugins from external packages:
+Load extensions from external packages:
 
 ```yaml
-plugins:
-  - entry: "my_package.auth:AuthPlugin"
+extensions:
+  - entry: "my_package.auth:AuthExtension"
     config:
       provider: "oauth2"
       client_id: "your-client-id"
       
-  - entry: "third_party_plugin:MainPlugin"
+  - entry: "third_party_extension:MainExtension"
     config:
       api_key: "your-api-key"
 ```
 
-### Plugin-Specific Configuration Files
+### Extension-Specific Configuration Files
 
-Plugins can have their own `plugin.yaml` files with default settings:
+Extensions can have their own `extension.yaml` files with default settings:
 
 ```yaml
-# plugins/auth/plugin.yaml
-name: Authentication Plugin
+# extensions/auth/extension.yaml
+name: Authentication Extension
 description: Provides user authentication
 version: 1.0.0
 author: Your Name
-entry: auth.main:AuthPlugin
+entry: auth.main:AuthExtension
 
 settings:
   secret_key: "default-secret"
@@ -111,8 +111,8 @@ Application configuration can override these defaults:
 
 ```yaml
 # serv.config.yaml
-plugins:
-  - plugin: auth
+extensions:
+  - extension: auth
     settings:
       secret_key: "production-secret"  # Overrides default
       token_expiry: 7200               # Overrides default
@@ -127,12 +127,12 @@ Use environment variables for sensitive or environment-specific settings:
 
 ```yaml
 # serv.config.yaml
-plugins:
-  - plugin: database
+extensions:
+  - extension: database
     settings:
       url: ${DATABASE_URL}
       
-  - plugin: auth
+  - extension: auth
     settings:
       secret_key: ${JWT_SECRET_KEY}
       
@@ -147,8 +147,8 @@ Organize configuration by environment:
 
 ```yaml
 # base.yaml - Common settings
-plugins:
-  - plugin: auth
+extensions:
+  - extension: auth
     settings:
       algorithm: "HS256"
       token_expiry: 3600
@@ -159,8 +159,8 @@ settings:
 
 ```yaml
 # development.yaml - Development overrides
-plugins:
-  - plugin: auth
+extensions:
+  - extension: auth
     settings:
       secret_key: "dev-secret"
 
@@ -171,8 +171,8 @@ settings:
 
 ```yaml
 # production.yaml - Production overrides
-plugins:
-  - plugin: auth
+extensions:
+  - extension: auth
     settings:
       secret_key: ${JWT_SECRET_KEY}
 
@@ -272,12 +272,12 @@ middleware:
       burst_size: 10
 ```
 
-### Plugin-Provided Middleware
+### Extension-Provided Middleware
 
-Plugins can register their own middleware:
+Extensions can register their own middleware:
 
 ```yaml
-# In plugin.yaml
+# In extension.yaml
 middleware:
   - entry: "auth.middleware:AuthMiddleware"
     config:
@@ -298,19 +298,19 @@ Define schemas to validate your configuration:
 from serv.config import ConfigSchema
 from typing import Optional
 
-class AuthPluginConfig(ConfigSchema):
+class AuthExtensionConfig(ConfigSchema):
     secret_key: str
     algorithm: str = "HS256"
     token_expiry: int = 3600
     require_email_verification: bool = True
 
-class AuthPlugin(Plugin):
+class AuthExtension(Extension):
     def __init__(self):
         # Validate configuration against schema
-        self.config = AuthPluginConfig.from_config(self.get_config())
+        self.config = AuthExtensionConfig.from_config(self.get_config())
     
     async def on_app_startup(self):
-        print(f"Auth plugin starting with algorithm: {self.config.algorithm}")
+        print(f"Auth extension starting with algorithm: {self.config.algorithm}")
 ```
 
 ### Required Settings
@@ -318,7 +318,7 @@ class AuthPlugin(Plugin):
 Mark settings as required:
 
 ```yaml
-# plugin.yaml
+# extension.yaml
 settings:
   secret_key: !required  # Must be provided
   algorithm: "HS256"     # Has default
@@ -333,24 +333,24 @@ Never commit secrets to version control:
 
 ```yaml
 # Good
-plugins:
-  - plugin: auth
+extensions:
+  - extension: auth
     settings:
       secret_key: ${JWT_SECRET_KEY}
 
 # Bad - secret in config file
-plugins:
-  - plugin: auth
+extensions:
+  - extension: auth
     settings:
       secret_key: "super-secret-key-123"
 ```
 
 ### 2. Provide Sensible Defaults
 
-Make your plugins work out of the box:
+Make your extensions work out of the box:
 
 ```yaml
-# plugin.yaml
+# extension.yaml
 settings:
   debug: false
   timeout: 30
@@ -363,8 +363,8 @@ settings:
 Document all configuration options:
 
 ```yaml
-# plugin.yaml
-name: My Plugin
+# extension.yaml
+name: My Extension
 description: Does awesome things
 
 settings:
@@ -386,7 +386,7 @@ settings:
 Validate configuration at startup:
 
 ```python
-class MyPlugin(Plugin):
+class MyExtension(Extension):
     def __init__(self):
         config = self.get_config()
         
@@ -407,7 +407,7 @@ class MyPlugin(Plugin):
 
 Organize configuration in layers:
 
-1. **Plugin defaults** (in `plugin.yaml`)
+1. **Extension defaults** (in `extension.yaml`)
 2. **Application config** (in `serv.config.yaml`)
 3. **Environment variables** (for deployment-specific values)
 4. **Command-line arguments** (for runtime overrides)
@@ -417,7 +417,7 @@ Organize configuration in layers:
 import os
 from serv import App
 
-# 1. Start with plugin defaults
+# 1. Start with extension defaults
 # 2. Override with application config
 app = App(config="serv.config.yaml")
 
@@ -434,7 +434,7 @@ if os.getenv("DEBUG"):
 Some settings can be changed at runtime:
 
 ```python
-class ConfigurablePlugin(Plugin):
+class ConfigurableExtension(Extension):
     def __init__(self):
         self.config = self.get_config()
         self.debug = self.config.get('debug', False)
@@ -507,18 +507,18 @@ settings:
     email_verification: ${EMAIL_VERIFICATION:false}
     analytics: ${ANALYTICS:false}
 
-plugins:
-  - plugin: auth
+extensions:
+  - extension: auth
     settings:
       secret_key: ${JWT_SECRET_KEY}
       token_expiry: ${TOKEN_EXPIRY:3600}
       
-  - plugin: blog
+  - extension: blog
     settings:
       posts_per_page: ${POSTS_PER_PAGE:10}
       allow_comments: ${ALLOW_COMMENTS:true}
       
-  - plugin: email
+  - extension: email
     settings:
       smtp_host: ${SMTP_HOST:localhost}
       smtp_port: ${SMTP_PORT:587}
@@ -535,15 +535,15 @@ middleware:
       requests_per_minute: ${RATE_LIMIT:60}
 ```
 
-### Plugin Configuration Template
+### Extension Configuration Template
 
 ```yaml
-# plugins/my_plugin/plugin.yaml
-name: My Plugin
-description: A sample plugin demonstrating configuration
+# extensions/my_extension/extension.yaml
+name: My Extension
+description: A sample extension demonstrating configuration
 version: 1.0.0
 author: Your Name
-entry: my_plugin.main:MyPlugin
+entry: my_extension.main:MyExtension
 
 # Default settings (can be overridden in serv.config.yaml)
 settings:
@@ -568,13 +568,13 @@ settings:
 
 # Additional entry points
 entry_points:
-  - entry: my_plugin.admin:AdminPlugin
+  - entry: my_extension.admin:AdminExtension
     config:
       admin_path: "/admin"
 
-# Middleware provided by this plugin
+# Middleware provided by this extension
 middleware:
-  - entry: my_plugin.middleware:SecurityMiddleware
+  - entry: my_extension.middleware:SecurityMiddleware
     config:
       check_csrf: true
       check_origin: true
@@ -582,7 +582,7 @@ middleware:
 
 ## Next Steps
 
-- **[Plugins](../guides/plugins.md)** - Learn how to create and configure plugins
+- **[Extensions](../guides/extensions.md)** - Learn how to create and configure extensions
 - **[Middleware](../guides/middleware.md)** - Understand middleware configuration
 - **[Deployment](../guides/deployment.md)** - Configure for production deployment
 - **[Testing](../guides/testing.md)** - Test your configuration 

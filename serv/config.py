@@ -15,7 +15,7 @@ T = TypeVar("T")
 ImportCallable = Callable[..., Any]
 
 
-class PluginConfig(TypedDict, total=False):
+class ExtensionConfig(TypedDict, total=False):
     entry: str
     config: dict[str, Any]
 
@@ -27,7 +27,7 @@ class MiddlewareConfig(TypedDict, total=False):
 
 class ServConfig(TypedDict, total=False):
     site_info: dict[str, Any]
-    plugins: list[PluginConfig]
+    extensions: list[ExtensionConfig]
     middleware: list[MiddlewareConfig]
 
 
@@ -42,7 +42,7 @@ def import_from_string(import_str: str) -> Any:
 
     This utility function allows dynamic importing of Python objects using
     string notation, which is commonly used in configuration files and
-    plugin systems.
+    extension systems.
 
     Args:
         import_str: String in the format "module.path:symbol" where module.path
@@ -79,15 +79,15 @@ def import_from_string(import_str: str) -> Any:
         validator = import_from_string("myapp.validators:UserValidator.email_validator")
         ```
 
-        Common usage in plugin configuration:
+        Common usage in extension configuration:
 
         ```python
-        # In plugin.yaml:
+        # In extension.yaml:
         # entry_points:
-        #   main: "myapp.plugins.auth:AuthPlugin"
+        #   main: "myapp.extensions.auth:AuthExtension"
 
-        plugin_class = import_from_string("myapp.plugins.auth:AuthPlugin")
-        plugin_instance = plugin_class()
+        extension_class = import_from_string("myapp.extensions.auth:AuthExtension")
+        extension_instance = extension_class()
         ```
 
     Note:

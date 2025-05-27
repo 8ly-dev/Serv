@@ -3,7 +3,7 @@ import asyncio
 from bevy import dependency
 
 from serv.app import App
-from serv.plugins import Listener
+from serv.extensions import Listener
 from serv.responses import ResponseBuilder
 from serv.routing import Router
 
@@ -23,7 +23,7 @@ async def about_page(response: ResponseBuilder = dependency()):
     )
 
 
-class BasicAppPlugin(Listener):
+class BasicAppExtension(Listener):
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route("/", homepage)
         router.add_route("/about", about_page)
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
         # Create an app instance inside the event loop
         app = App()
-        app.add_plugin(BasicAppPlugin(stand_alone=True))
+        app.add_extension(BasicAppExtension(stand_alone=True))
 
         # Configure and run Uvicorn with the same loop
         config = uvicorn.Config(

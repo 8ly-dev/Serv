@@ -21,14 +21,14 @@ The key concept is that when you create a dataclass (or Pydantic/attrs class) th
 Let's start with a complete contact form example that demonstrates the core concepts:
 
 ```bash
-# Create a plugin for contact functionality
-serv create plugin --name "Contact"
+# Create a extension for contact functionality
+serv create extension --name "Contact"
 
 # Create a route to handle the contact form
-serv create route --name "contact" --path "/contact" --plugin "contact"
+serv create route --name "contact" --path "/contact" --extension "contact"
 ```
 
-**plugins/contact/route_contact.py:**
+**extensions/contact/route_contact.py:**
 ```python
 from dataclasses import dataclass
 from typing import Annotated, Optional
@@ -130,7 +130,7 @@ class ContactRoute(Route):
             print(f"Added {form.email} to newsletter")
 ```
 
-**plugins/contact/plugin.yaml:**
+**extensions/contact/extension.yaml:**
 ```yaml
 name: Contact
 description: Contact form handling
@@ -552,11 +552,11 @@ async def handle_contact_form(self, form: ContactForm, request: Request):
 Start by identifying what data you need to collect and design your form classes:
 
 ```bash
-# Create plugin for your forms
-serv create plugin --name "Forms"
+# Create extension for your forms
+serv create extension --name "Forms"
 
 # Create routes for each form
-serv create route --name "contact" --path "/contact" --plugin "forms"
+serv create route --name "contact" --path "/contact" --extension "forms"
 ```
 
 ### 2. Implement Form Classes

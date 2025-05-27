@@ -2,7 +2,7 @@
 End-to-end tests for declarative router functionality.
 
 This file tests the complete workflow of declarative routers:
-1. Creating plugins with routers configuration in plugin.yaml
+1. Creating plugins with routers configuration in extension.yaml
 2. Loading plugins through the normal plugin loading mechanism
 3. Verifying that HTTP requests work correctly through the declarative routes
 4. Testing integration with the CLI commands
@@ -28,7 +28,7 @@ class TestDeclarativeRoutersE2E:
         test_dir = tempfile.mkdtemp()
         try:
             # Create basic project structure
-            plugins_dir = Path(test_dir) / "plugins"
+            plugins_dir = Path(test_dir) / "extensions"
             plugins_dir.mkdir(exist_ok=True)
 
             # Create basic serv.config.yaml
@@ -37,7 +37,7 @@ class TestDeclarativeRoutersE2E:
                     "name": "Test App",
                     "description": "Test application for declarative routers",
                 },
-                "plugins": [],
+                "extensions": [],
                 "middleware": [],
             }
 
@@ -48,21 +48,23 @@ class TestDeclarativeRoutersE2E:
         finally:
             shutil.rmtree(test_dir)
 
-    def create_declarative_router_plugin(self, project_dir, plugin_name, plugin_config):
+    def create_declarative_router_plugin(
+        self, project_dir, plugin_name, extension_config
+    ):
         """Create a plugin with declarative router configuration."""
-        plugins_dir = Path(project_dir) / "plugins"
-        plugin_dir = plugins_dir / plugin_name
-        plugin_dir.mkdir(exist_ok=True)
+        plugins_dir = Path(project_dir) / "extensions"
+        extension_dir = plugins_dir / plugin_name
+        extension_dir.mkdir(exist_ok=True)
 
-        # Create plugin.yaml with routers configuration
-        with open(plugin_dir / "plugin.yaml", "w") as f:
-            yaml.dump(plugin_config, f)
+        # Create extension.yaml with routers configuration
+        with open(extension_dir / "extension.yaml", "w") as f:
+            yaml.dump(extension_config, f)
 
         # Create __init__.py to make it a package
-        (plugin_dir / "__init__.py").touch()
+        (extension_dir / "__init__.py").touch()
 
         # Create handler modules based on the router configuration
-        routers_config = plugin_config.get("routers", [])
+        routers_config = extension_config.get("routers", [])
         module_handlers = {}  # Track handlers per module
 
         for router_config in routers_config:
@@ -79,7 +81,7 @@ class TestDeclarativeRoutersE2E:
 
         # Create module files with all handlers
         for module_name, handlers in module_handlers.items():
-            module_file = plugin_dir / f"{module_name}.py"
+            module_file = extension_dir / f"{module_name}.py"
             handler_functions = []
             for class_name, path in handlers:
                 handler_functions.append(f"""
@@ -95,14 +97,14 @@ from bevy import dependency
 """
             module_file.write_text(handler_code)
 
-        return plugin_dir
+        return extension_dir
 
     @pytest.mark.asyncio
     async def test_basic_declarative_router_e2e(self, test_project_dir):
         """Test basic declarative router functionality end-to-end."""
         # Create a plugin with declarative router configuration
-        plugin_config = {
-            "name": "Basic Router Plugin",
+        extension_config = {
+            "name": "Basic Router Extension",
             "description": "A plugin with basic declarative router",
             "version": "1.0.0",
             "routers": [
@@ -117,21 +119,21 @@ from bevy import dependency
         }
 
         self.create_declarative_router_plugin(
-            test_project_dir, "basic_router_plugin", plugin_config
+            test_project_dir, "basic_router_plugin", extension_config
         )
 
         # Update the app config to include this plugin
         config_path = Path(test_project_dir) / "serv.config.yaml"
         with open(config_path) as f:
             config = yaml.safe_load(f)
-        config["plugins"] = ["basic_router_plugin"]
+        config["extensions"] = ["basic_router_plugin"]
         with open(config_path, "w") as f:
             yaml.dump(config, f)
 
         # Create the app and test the routes
         app = App(
             config=str(config_path),
-            plugin_dir=str(Path(test_project_dir) / "plugins"),
+            extension_dir=str(Path(test_project_dir) / "extensions"),
             dev_mode=True,
         )
 
@@ -156,8 +158,8 @@ from bevy import dependency
     async def test_mounted_declarative_router_e2e(self, test_project_dir):
         """Test mounted declarative router functionality end-to-end."""
         # Create a plugin with mounted router configuration
-        plugin_config = {
-            "name": "API Router Plugin",
+        extension_config = {
+            "name": "API Router Extension",
             "description": "A plugin with mounted API router",
             "version": "1.0.0",
             "routers": [
@@ -181,21 +183,21 @@ from bevy import dependency
         }
 
         self.create_declarative_router_plugin(
-            test_project_dir, "api_router_plugin", plugin_config
+            test_project_dir, "api_router_plugin", extension_config
         )
 
         # Update the app config to include this plugin
         config_path = Path(test_project_dir) / "serv.config.yaml"
         with open(config_path) as f:
             config = yaml.safe_load(f)
-        config["plugins"] = ["api_router_plugin"]
+        config["extensions"] = ["api_router_plugin"]
         with open(config_path, "w") as f:
             yaml.dump(config, f)
 
         # Create the app and test the mounted routes
         app = App(
             config=str(config_path),
-            plugin_dir=str(Path(test_project_dir) / "plugins"),
+            extension_dir=str(Path(test_project_dir) / "extensions"),
             dev_mode=True,
         )
 
@@ -232,8 +234,8 @@ from bevy import dependency
     async def test_multiple_declarative_routers_e2e(self, test_project_dir):
         """Test multiple declarative routers in a single plugin end-to-end."""
         # Create a plugin with multiple router configurations
-        plugin_config = {
-            "name": "Multi Router Plugin",
+        extension_config = {
+            "name": "Multi Router Extension",
             "description": "A plugin with multiple declarative routers",
             "version": "1.0.0",
             "routers": [
@@ -257,21 +259,21 @@ from bevy import dependency
         }
 
         self.create_declarative_router_plugin(
-            test_project_dir, "multi_router_plugin", plugin_config
+            test_project_dir, "multi_router_plugin", extension_config
         )
 
         # Update the app config to include this plugin
         config_path = Path(test_project_dir) / "serv.config.yaml"
         with open(config_path) as f:
             config = yaml.safe_load(f)
-        config["plugins"] = ["multi_router_plugin"]
+        config["extensions"] = ["multi_router_plugin"]
         with open(config_path, "w") as f:
             yaml.dump(config, f)
 
         # Create the app and test all routes
         app = App(
             config=str(config_path),
-            plugin_dir=str(Path(test_project_dir) / "plugins"),
+            extension_dir=str(Path(test_project_dir) / "extensions"),
             dev_mode=True,
         )
 
@@ -298,7 +300,7 @@ from bevy import dependency
         """Test multiple plugins each with declarative routers end-to-end."""
         # Create first plugin
         plugin1_config = {
-            "name": "Blog Plugin",
+            "name": "Blog Extension",
             "description": "A blog plugin with declarative routes",
             "version": "1.0.0",
             "routers": [
@@ -315,7 +317,7 @@ from bevy import dependency
 
         # Create second plugin
         plugin2_config = {
-            "name": "Shop Plugin",
+            "name": "Shop Extension",
             "description": "A shop plugin with declarative routes",
             "version": "1.0.0",
             "routers": [
@@ -342,14 +344,14 @@ from bevy import dependency
         config_path = Path(test_project_dir) / "serv.config.yaml"
         with open(config_path) as f:
             config = yaml.safe_load(f)
-        config["plugins"] = ["blog_plugin", "shop_plugin"]
+        config["extensions"] = ["blog_plugin", "shop_plugin"]
         with open(config_path, "w") as f:
             yaml.dump(config, f)
 
         # Create the app and test routes from both plugins
         app = App(
             config=str(config_path),
-            plugin_dir=str(Path(test_project_dir) / "plugins"),
+            extension_dir=str(Path(test_project_dir) / "extensions"),
             dev_mode=True,
         )
 
@@ -376,8 +378,8 @@ from bevy import dependency
     async def test_declarative_router_with_route_config_e2e(self, test_project_dir):
         """Test declarative router with route-level configuration end-to-end."""
         # Create a plugin with route configuration
-        plugin_config = {
-            "name": "Configured Router Plugin",
+        extension_config = {
+            "name": "Configured Router Extension",
             "description": "A plugin with route-level configuration",
             "version": "1.0.0",
             "routers": [
@@ -399,12 +401,12 @@ from bevy import dependency
             ],
         }
 
-        plugin_dir = self.create_declarative_router_plugin(
-            test_project_dir, "configured_router_plugin", plugin_config
+        extension_dir = self.create_declarative_router_plugin(
+            test_project_dir, "configured_router_plugin", extension_config
         )
 
         # Create custom handlers that use the configuration
-        handlers_file = plugin_dir / "handlers.py"
+        handlers_file = extension_dir / "handlers.py"
         handlers_code = """
 from serv.responses import ResponseBuilder
 from bevy import dependency
@@ -423,14 +425,14 @@ async def PrivateHandler(response: ResponseBuilder = dependency()):
         config_path = Path(test_project_dir) / "serv.config.yaml"
         with open(config_path) as f:
             config = yaml.safe_load(f)
-        config["plugins"] = ["configured_router_plugin"]
+        config["extensions"] = ["configured_router_plugin"]
         with open(config_path, "w") as f:
             yaml.dump(config, f)
 
         # Create the app and test the configured routes
         app = App(
             config=str(config_path),
-            plugin_dir=str(Path(test_project_dir) / "plugins"),
+            extension_dir=str(Path(test_project_dir) / "extensions"),
             dev_mode=True,
         )
 
@@ -455,8 +457,8 @@ async def PrivateHandler(response: ResponseBuilder = dependency()):
     async def test_declarative_router_error_handling_e2e(self, test_project_dir):
         """Test error handling in declarative routers end-to-end."""
         # Create a plugin with invalid handler reference
-        plugin_config = {
-            "name": "Error Router Plugin",
+        extension_config = {
+            "name": "Error Router Extension",
             "description": "A plugin with invalid handler for testing error handling",
             "version": "1.0.0",
             "routers": [
@@ -474,19 +476,19 @@ async def PrivateHandler(response: ResponseBuilder = dependency()):
         }
 
         # Create the plugin directory manually to avoid auto-creating all handlers
-        plugins_dir = Path(test_project_dir) / "plugins"
-        plugin_dir = plugins_dir / "error_router_plugin"
-        plugin_dir.mkdir(exist_ok=True)
+        plugins_dir = Path(test_project_dir) / "extensions"
+        extension_dir = plugins_dir / "error_router_plugin"
+        extension_dir.mkdir(exist_ok=True)
 
-        # Create plugin.yaml with routers configuration
-        with open(plugin_dir / "plugin.yaml", "w") as f:
-            yaml.dump(plugin_config, f)
+        # Create extension.yaml with routers configuration
+        with open(extension_dir / "extension.yaml", "w") as f:
+            yaml.dump(extension_config, f)
 
         # Create __init__.py to make it a package
-        (plugin_dir / "__init__.py").touch()
+        (extension_dir / "__init__.py").touch()
 
         # Create only the valid handler (not the nonexistent one)
-        handlers_file = plugin_dir / "handlers.py"
+        handlers_file = extension_dir / "handlers.py"
         handlers_code = """
 from serv.responses import ResponseBuilder
 from bevy import dependency
@@ -502,7 +504,7 @@ async def ValidHandler(response: ResponseBuilder = dependency()):
         config_path = Path(test_project_dir) / "serv.config.yaml"
         with open(config_path) as f:
             config = yaml.safe_load(f)
-        config["plugins"] = ["error_router_plugin"]
+        config["extensions"] = ["error_router_plugin"]
         with open(config_path, "w") as f:
             yaml.dump(config, f)
 
@@ -510,7 +512,7 @@ async def ValidHandler(response: ResponseBuilder = dependency()):
         # when the router plugin tries to load the nonexistent handler
         app = App(
             config=str(config_path),
-            plugin_dir=str(Path(test_project_dir) / "plugins"),
+            extension_dir=str(Path(test_project_dir) / "extensions"),
             dev_mode=True,
         )
 
@@ -531,8 +533,8 @@ async def ValidHandler(response: ResponseBuilder = dependency()):
     async def test_declarative_router_complex_paths_e2e(self, test_project_dir):
         """Test declarative router with complex path patterns end-to-end."""
         # Create a plugin with complex path patterns
-        plugin_config = {
-            "name": "Complex Paths Plugin",
+        extension_config = {
+            "name": "Complex Paths Extension",
             "description": "A plugin with complex path patterns",
             "version": "1.0.0",
             "routers": [
@@ -556,12 +558,12 @@ async def ValidHandler(response: ResponseBuilder = dependency()):
             ],
         }
 
-        plugin_dir = self.create_declarative_router_plugin(
-            test_project_dir, "complex_paths_plugin", plugin_config
+        extension_dir = self.create_declarative_router_plugin(
+            test_project_dir, "complex_paths_plugin", extension_config
         )
 
         # Create handlers that use path parameters
-        handlers_file = plugin_dir / "handlers.py"
+        handlers_file = extension_dir / "handlers.py"
         handlers_code = """
 from serv.responses import ResponseBuilder
 from serv.requests import Request
@@ -585,14 +587,14 @@ async def VersionedDataHandler(version: int, response: ResponseBuilder = depende
         config_path = Path(test_project_dir) / "serv.config.yaml"
         with open(config_path) as f:
             config = yaml.safe_load(f)
-        config["plugins"] = ["complex_paths_plugin"]
+        config["extensions"] = ["complex_paths_plugin"]
         with open(config_path, "w") as f:
             yaml.dump(config, f)
 
         # Create the app and test complex path patterns
         app = App(
             config=str(config_path),
-            plugin_dir=str(Path(test_project_dir) / "plugins"),
+            extension_dir=str(Path(test_project_dir) / "extensions"),
             dev_mode=True,
         )
 

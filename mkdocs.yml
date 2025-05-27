@@ -87,7 +87,7 @@ nav:
   - Guides:
     - Routing: guides/routing.md
     - Dependency Injection: guides/dependency-injection.md
-    - Plugins: guides/plugins.md
+    - Extensions: guides/plugins.md
     - Middleware: guides/middleware.md
     - Request Handling: guides/requests.md
     - Response Building: guides/responses.md
@@ -102,7 +102,7 @@ nav:
   - API Reference: reference/
   - Examples:
     - Basic App: examples/basic-app.md
-    - Plugin Development: examples/plugin-development.md
+    - Extension Development: examples/plugin-development.md
     - Advanced Routing: examples/advanced-routing.md
     - Authentication: examples/authentication.md
 

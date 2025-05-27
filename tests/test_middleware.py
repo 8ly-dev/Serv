@@ -10,7 +10,7 @@ from serv.exceptions import (
 )
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from tests.helpers import RouteAddingPlugin, example_header_middleware
+from tests.helpers import RouteAddingExtension, example_header_middleware
 
 
 @pytest.mark.asyncio
@@ -20,8 +20,8 @@ async def test_single_middleware_modifies_headers(app: App, client: AsyncClient)
     async def ok_handler(response: ResponseBuilder = dependency()):
         response.body("OK")
 
-    plugin = RouteAddingPlugin("/mw_headers", ok_handler, methods=["GET"])
-    app.add_plugin(plugin)
+    plugin = RouteAddingExtension("/mw_headers", ok_handler, methods=["GET"])
+    app.add_extension(plugin)
 
     response = await client.get("/mw_headers")
     assert response.status_code == 200
@@ -54,8 +54,8 @@ async def test_multiple_middleware_order(app: App, client: AsyncClient):
         order_tracker.append("handler_called")
         response.body("Handler response")
 
-    plugin = RouteAddingPlugin("/mw_order", simple_handler, methods=["GET"])
-    app.add_plugin(plugin)
+    plugin = RouteAddingExtension("/mw_order", simple_handler, methods=["GET"])
+    app.add_extension(plugin)
 
     response = await client.get("/mw_order")
     assert response.status_code == 200
@@ -95,8 +95,10 @@ async def test_middleware_exception_before_yield(app: App, client: AsyncClient):
     async def test_route_handler(response: ResponseBuilder = dependency()):
         response.body("Should not be reached")
 
-    plugin = RouteAddingPlugin("/mw_error_before", test_route_handler, methods=["GET"])
-    app.add_plugin(plugin)
+    plugin = RouteAddingExtension(
+        "/mw_error_before", test_route_handler, methods=["GET"]
+    )
+    app.add_extension(plugin)
 
     response = await client.get("/mw_error_before")
     assert response.status_code == 500  # Default error handler
@@ -133,8 +135,10 @@ async def test_middleware_exception_after_yield(app: App, client: AsyncClient):
     async def test_route_handler(response: ResponseBuilder = dependency()):
         response.body("Handler was called")
 
-    plugin = RouteAddingPlugin("/mw_error_after", test_route_handler, methods=["GET"])
-    app.add_plugin(plugin)
+    plugin = RouteAddingExtension(
+        "/mw_error_after", test_route_handler, methods=["GET"]
+    )
+    app.add_extension(plugin)
 
     response = await client.get("/mw_error_after")
     assert response.status_code == 500
@@ -169,8 +173,8 @@ async def test_handler_exception_propagates_to_middleware(
     async def error_handler(request: Request = dependency()):
         raise HTTPNotFoundException(f"Simulated error for {request.path}")
 
-    plugin = RouteAddingPlugin("/handler_error", error_handler, methods=["GET"])
-    app.add_plugin(plugin)
+    plugin = RouteAddingExtension("/handler_error", error_handler, methods=["GET"])
+    app.add_extension(plugin)
 
     response = await client.get("/handler_error")
     assert response.status_code == 404  # Our specific 404 handler should take over

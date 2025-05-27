@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Serv!</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Optional: Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Prism.js CSS (Coy theme for minimal highlighting) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-coy.min.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8f9fa; /* Light gray background for contrast with white elements */
+            color: #212529;
+            line-height: 1.6;
+        }
+
+        .hero-gradient {
+            background: radial-gradient(ellipse at top center, #007bff 0%, #0056b3 80%, #004085 100%); /* New radial gradient */
+            color: #ffffff;
+            padding: 8rem 1rem; /* Increased padding for taller hero */
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        .hero-gradient h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .hero-gradient p.lead {
+            font-size: 1.5rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
+        }
+
+        .navbar-brand strong {
+            color: #007bff;
+        }
+
+        /* Make header fixed and transparent */
+        body > .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1030; /* Higher than default sticky */
+            background-color: transparent !important; /* Fully transparent */
+            backdrop-filter: blur(5px); /* Optional: adds a blur effect to the background */
+            transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out; /* Smooth transition */
+        }
+
+        /* Styles for navbar-dark (initial state over hero) */
+        body > .navbar.navbar-dark .navbar-brand,
+        body > .navbar.navbar-dark .nav-link {
+            color: #f8f9fa; /* Light color for text */
+        }
+        body > .navbar.navbar-dark .navbar-brand:hover,
+        body > .navbar.navbar-dark .nav-link:hover {
+            color: #ffffff;
+        }
+        body > .navbar.navbar-dark .logo-font span {
+            color: #f0f0f0; /* Light grey for dot */
+        }
+        /* Removed navbar-toggler-icon background-image for navbar-dark, using spans now */
+
+        /* Scrolled state for navbar */
+        body > .navbar.navbar-scrolled {
+            background-color: rgba(255, 255, 255, 0.5) !important; /* 50% transparent white */
+            /* box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); */ /* Removed box shadow */
+        }
+
+        .nav-link {
+            padding-left: 0;
+        }
+
+        /* Styles for navbar-light (when scrolled) */
+        body > .navbar.navbar-scrolled.navbar-light .navbar-brand,
+        body > .navbar.navbar-scrolled.navbar-light .nav-link {
+            color: #212529; /* Dark color for text */
+        }
+        body > .navbar.navbar-scrolled.navbar-light .navbar-brand:hover,
+        body > .navbar.navbar-scrolled.navbar-light .nav-link:hover {
+            color: #000000;
+        }
+        body > .navbar.navbar-scrolled.navbar-light .logo-font span {
+            color: #0056b3; /* Serv blue for dot */
+        }
+        /* Removed navbar-toggler-icon background-image for navbar-light, using spans now */
+
+        /* Navbar toggler (hamburger menu) style overrides */
+        body > .navbar .navbar-toggler {
+            border: none !important; /* Remove border */
+            box-shadow: none !important; /* Remove focus outline/shadow */
+            padding: 0.25rem 0.5rem; /* Adjusted padding for custom icon */
+            position: relative;
+            width: 36px; /* Fixed width */
+            height: 36px; /* Fixed height */
+        }
+        body > .navbar .navbar-toggler:focus {
+            outline: none !important; /* Remove outline on focus */
+            box-shadow: none !important; /* Ensure no shadow on focus */
+        }
+
+        .navbar-toggler span {
+            display: block;
+            width: 22px;
+            height: 2px;
+            border-radius: 1px;
+            margin: 4px auto; /* Centered */
+            transition: all 0.3s ease-in-out;
+            position: absolute;
+            left: 0;
+            right: 0;
+        }
+        .navbar-toggler span:nth-child(1) { top: 9px; }
+        .navbar-toggler span:nth-child(2) { top: 15px; }
+        .navbar-toggler span:nth-child(3) { top: 21px; }
+
+        /* Bar colors for navbar-dark state */
+        body > .navbar.navbar-dark .navbar-toggler span {
+            background-color: rgba(255, 255, 255, 0.85);
+        }
+        /* Bar colors for navbar-light state (scrolled) */
+        body > .navbar.navbar-scrolled.navbar-light .navbar-toggler span {
+            background-color: rgba(0, 0, 0, 0.65);
+        }
+
+        /* Animation to X */
+        .navbar-toggler.active span:nth-child(1) {
+            transform: translateY(6px) rotate(45deg);
+        }
+        .navbar-toggler.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .navbar-toggler.active span:nth-child(3) {
+            transform: translateY(-6px) rotate(-45deg);
+        }
+
+        .setup-steps .card {
+            border: none; /* Flat design - remove card borders */
+            /* box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); */ /* Removed shadow */
+            background-color: transparent; /* Ensure no card background color */
+            margin-bottom: 1.5rem;
+        }
+
+        .setup-steps .card-header {
+            background-color: #007bff;
+            color: white;
+            font-weight: 500;
+            border-bottom: none;
+        }
+        
+        .setup-steps .list-group-item {
+            border: none; /* Flat list items */
+            padding-left: 0;
+            display: flex;
+            align-items: baseline; /* Align icon with first line of text */
+            background-color: transparent; /* Ensure list items are transparent */
+        }
+
+        .setup-steps .list-group-item i {
+            color: #007bff;
+            margin-right: 0.75rem;
+            font-size: 1.2rem;
+            line-height: 1.6; /* Align icon better with text */
+        }
+
+        code {
+            /* background-color: #dbe4ee; */ /* Removed as per request */
+            padding: 0.2em 0.5em; /* Adjusted padding */
+            border-radius: 0.3rem;
+            font-size: 0.85em; /* Slightly smaller font for code */
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            /* border: 1px solid #ced4da; */ /* Removed as per request */
+        }
+
+        .footer {
+            padding: 2rem 0;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+
+        .logo-font {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        /* .logo-font span { color: #f0f0f0; } */ /* Removed: Handled by contextual navbar-dark/light styles */
+
+        /* Responsive adjustments for "On This Page" section */
+        @media (max-width: 767.98px) { /* Applies to screens smaller than Bootstrap md breakpoint */
+            #next-steps-sections > .row > .col-md-4:last-child { /* Targets the column with "On This Page" */
+                order: -1; /* Moves this column to the top of the .row container */
+            }
+
+            #next-steps-sections > .row > .col-md-4:last-child > .position-sticky[style] {
+                /* Override Bootstrap class and the inline style for mobile view */
+                position: static !important; 
+                top: auto !important;
+            }
+        }
+
+        /* Prism.js Coy theme overrides for code blocks */
+        pre[class*='language-'] {
+            box-shadow: none !important;
+            border-left: none !important;
+        }
+
+        pre[class*='language-']::before,
+        pre[class*='language-']::after {
+            display: none !important; /* Hide pseudo-elements causing border/shadow effects */
+        }
+
+        code[class*='language-'],
+        pre[class*='language-'] {
+            font-size: 0.9em !important; /* Adjust font size */
+        }
+
+        pre code {
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            box-shadow: none !important;
+            padding: 0.5em !important;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand logo-font" href="#">Serv<span>.</span></a>
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link fw-medium" href="https://getserv.ing" target="_blank">Serv Website <i class="bi bi-box-arrow-up-right"></i></a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="hero-gradient">
+        <div class="container">
+            <h1>Welcome to Serv!</h1>
+            <p class="lead">Your sleek, modern Python web framework journey starts now.</p>
+            <a href="#next-steps-sections" class="btn btn-light btn-lg px-4">Get Started</a>
+        </div>
+    </div>
+
+    <div class="container mt-5 mb-5" id="next-steps-sections">
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Content Sections will go here -->
+                <h2 class="text-center mb-5 visually-hidden">Your Serv Adventure Guide</h2>
+
+                <section id="getting-started" class="mb-5">
+                    <h3 class="mb-3"><i class="bi bi-rocket-takeoff-fill me-2"></i>Getting Started with Serv</h3>
+                    <p>Begin your journey by setting up your Serv application and getting familiar with the basic commands.</p>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Initialize Your Application
+                        </div>
+                        <div class="card-body">
+                            <p>The first step is to initialize your Serv project. This creates a <code>serv.config.yaml</code> file in your current directory, which will hold your site's configuration, extension settings, and middleware definitions.</p>
+                            <p>Run the following command in your project's root directory:</p>
+                            <pre><code class="language-bash">serv app init</code></pre>
+                            <p>You'll be prompted for a site name and description. These are optional but recommended for clarity.</p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Inspect Your Configuration
+                        </div>
+                        <div class="card-body">
+                            <p>Once initialized, or any time you want to see how Serv interprets your configuration file (including resolved extension paths), use:</p>
+                            <pre><code class="language-bash">serv app details</code></pre>
+                            <p>This command displays a formatted view of your <code>serv.config.yaml</code>, making it easy to verify your setup.</p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Launch Your Serv App
+                        </div>
+                        <div class="card-body">
+                            <p>To start the development server and see your application in action, run:</p>
+                            <pre><code class="language-bash">serv launch</code></pre>
+                            <p>By default, this serves your application (defined by <code>serv.app:App</code> if not overridden) on <code>http://127.0.0.1:8000</code>.</p>
+                            <p>For a smoother development experience, especially when making frequent changes, use the <code>--reload</code> flag. This will automatically restart the server when code changes are detected:</p>
+                            <pre><code class="language-bash">serv launch --reload</code></pre>
+                            <p>You can also specify a different host or port:</p>
+                            <pre><code class="language-bash">serv launch --host 0.0.0.0 --port 8080 --reload</code></pre>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="working-with-extensions" class="mb-5">
+                    <h3 class="mb-3"><i class="bi bi-puzzle-fill me-2"></i>Working with Extensions</h3>
+                    <p>Extensions are the building blocks of your Serv application, allowing you to organize features and extend functionality. Serv provides CLI tools to help you create and manage them.</p>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Scaffold a New Extension
+                        </div>
+                        <div class="card-body">
+                            <p>To quickly create the basic file structure for a new extension (including a <code>extension.yaml</code> definition file and a main Python file), use:</p>
+                            <pre><code class="language-bash">serv create extension --name "My Extension Name"</code></pre>
+                            <p>You'll be prompted for the extension's author, description, and version. This information will populate the generated files. Extensions are typically created in a <code>./extensions/</code> directory.</p>
+                            <p>A typical extension might define routes. For example, in your extension's <code>main.py</code>:</p>
+                            <pre><code class="language-python">from serv import Route, Extension, ResponseBuilder
+
+class MySampleRoute(Route):
+    async def say_hello(self, request: GetRequest):
+        return PlainTextResponse("Hello from MySampleRoute!")
+
+class MyNewExtension(Extension):
+    async def on_request_begin(self, router: Router = dependency()):
+        router.add_route("/my-route", MySampleRoute)</code></pre>
+                            <p>Remember to update your extension's <code>extension.yaml</code> to point to your main extension class.</p>
+                            <pre><code class="language-yaml">
+name: Sample Extension
+entry: extensions.sample.sample:MyNewExtension
+version: 0.1.0
+author: Me
+description: An awesome sample extension</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Enable &amp; Disable Extensions
+                        </div>
+                        <div class="card-body">
+                            <p>To activate a extension and include it in your application's lifecycle, add it to your <code>serv.config.yaml</code> using:</p>
+                            <pre><code class="language-bash">serv extension enable &lt;extension_name_or_entry_string&gt;</code></pre>
+                            <p>You can use the simple name of the extension (e.g., <code>my_new_extension</code> if it's in your local <code>./extensions</code> directory) or the full entry string (e.g., <code>some_module.some_extension:SomeExtension</code>).</p>
+                            <p>To remove a extension from your configuration:</p>
+                            <pre><code class="language-bash">serv extension disable &lt;extension_name_or_entry_string&gt;</code></pre>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="using-middleware" class="mb-5">
+                    <h3 class="mb-3"><i class="bi bi-sliders me-2"></i>Using Middleware</h3>
+                    <p>Middleware components allow you to process requests and responses globally or for specific routes, implement custom authentication, logging, and more.</p>
+
+                     <div class="card mb-4">
+                        <div class="card-header">
+                            Scaffold New Middleware
+                        </div>
+                        <div class="card-body">
+                            <p>Serv helps you get started with new middleware by creating a template:</p>
+                            <pre><code class="language-bash">serv create middleware --name "My Middleware"</code></pre>
+                            <p>You'll be prompted for the extension to add the middleware to and a brief description. This creates a new middleware file in the specified extension directory containing a class that inherits from <code>serv.middleware.ServMiddleware</code>.</p>
+                            <p>The generated middleware class includes stubs for <code>enter</code>, <code>leave</code>, and <code>on_error</code> hooks, demonstrating how to use Bevy for dependency injection:</p>
+                            <pre><code class="language-python">from serv import ServMiddleware, Request, ResponseBuilder
+from bevy import dependency
+
+class MyCustomMiddleware(ServMiddleware):
+    async def enter(self, request: Request = dependency()):
+        # Code to run before the request is handled
+        # print(f"Entering middleware for {request.path}")
+        pass
+
+    async def leave(self, response: ResponseBuilder = dependency()):
+        # Code to run after the request is handled, before the response is sent
+        # print(f"Leaving middleware for {response.status_code}")
+        pass
+
+    async def on_error(self, exc: Exception, request: Request = dependency()):
+        # Code to run if an exception occurs during request handling
+        # print(f"Error in middleware: {exc} for {request.path}")
+        pass</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                           Configure Middleware
+                        </div>
+                        <div class="card-body">
+                            <p>Once you've created middleware, you need to configure it in your extension's <code>extension.yaml</code> file. Add the middleware to the extension configuration:</p>
+                            <pre><code class="language-yaml">name: My Extension
+description: A extension with middleware
+version: 0.1.0
+author: Your Name
+entry: my_extension.main:MyExtension
+
+middleware:
+  - entry: middleware_auth_check:auth_check_middleware
+    config:
+      timeout: 30</code></pre>
+                            <p>The middleware will be automatically loaded when the extension is enabled. You can also add middleware directly in your extension's code using <code>app.add_middleware()</code> during extension initialization.</p>
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="defining-routes" class="mb-5">
+                    <h3 class="mb-3"><i class="bi bi-signpost-split-fill me-2"></i>Defining Routes</h3>
+                    <p>Routes are the heart of your web application, mapping URL paths to specific request handlers. In Serv, you define routes by creating classes that inherit from <code>serv.routing.Route</code>.</p>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Basic Route Structure
+                        </div>
+                        <div class="card-body">
+                            <p>A route class can contain multiple handler methods. Handler methods can have any descriptive name. Serv determines the specific handler to execute for an incoming request by matching the HTTP method (e.g., GET, POST) to a handler method whose first parameter is type-hinted with the corresponding <code>Request</code> subtype from <code>serv.requests</code> (e.g., <code>GetRequest</code> for GET, <code>PostRequest</code> for POST). These methods receive the specific request object and must return an instance of a <code>Response</code> subtype (e.g., <code>TextResponse</code>, <code>JSONResponse</code> from <code>serv.response_types</code>). These response objects are used to define the response body, status code, headers, etc.</p>
+                            <pre><code class="language-python">from serv import Route
+from serv.requests import GetRequest # Import specific request types
+from serv.response_types import TextResponse # Or HTMLResponse, JSONResponse etc.
+
+class GreeterRoute(Route):
+    # This method handles GET requests because its first parameter is type-hinted as GetRequest.
+    # The method name can be anything descriptive.
+    async def show_greeting(self, request: GetRequest) -> TextResponse:
+        name = request.query.get("name", "World")
+        # Handlers should return a Response object.
+        # TextResponse sets Content-Type: text/plain by default.
+        # Status code and headers can be set via its constructor if needed.
+        return TextResponse(f"Hello, {name}!")</code></pre>
+                            <p>Routes are typically added to your application via a extension's event handler (e.g., <code>on_request_begin</code> if adding to the main router, or a more specific event) by calling <code>router.add_route("/path", YourRouteClass)</code> on a <code>Router</code> instance obtained through dependency injection.</p>
+                        </div>
+                    </div>
+                     <div class="card mb-4">
+                        <div class="card-header">
+                            Annotated Response Types &amp; Tuple Expansion
+                        </div>
+                        <div class="card-body">
+                            <p>Serv supports enhanced response handling using <code>typing.Annotated</code>. If a route handler's return type is annotated (e.g., <code>Annotated[dict, JSONResponse]</code> or <code>Annotated[tuple[str, dict], Jinja2Response]</code>), Serv will use the annotation to wrap the handler's output.</p>
+                            <p>For example, to return JSON:</p>
+                            <pre><code class="language-python">from typing import Annotated
+from serv import Route
+from serv.response_types import JSONResponse
+
+class DataRoute(Route):
+    async def handle_get(self) -> Annotated[dict, JSONResponse]:
+        return {"message": "This is a JSON response", "status": "ok"}</code></pre>
+                            <p>If your handler returns a tuple and uses an annotated response type that can accept multiple arguments (like <code>Jinja2Response</code> which might take a template name and context data), the tuple will be expanded as arguments to the response wrapper's constructor:</p>
+                            <pre><code class="language-python">from typing import Annotated
+from serv import Route
+from serv.response_types import Jinja2Response
+
+class ArticleRoute(Route):
+    async def handle_get(self, article_id: str) -> Annotated[tuple[str, dict], Jinja2Response]:
+        # Fetch article_data based on article_id
+        article_data = {"title": "My Article", "content": "..."} 
+        return "article_template.html", {"article": article_data}</code></pre>
+                            <p>This allows for cleaner and more expressive route handlers.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="further-resources" class="mb-4">
+                    <h3 class="mb-3"><i class="bi bi-book-fill me-2"></i>Further Resources</h3>
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>The official Serv documentation is your next destination for in-depth guides, API references, and advanced topics.
+                    </div>
+                    <p class="text-center">
+                        <a href="https://getserv.ing/docs" target="_blank" class="btn btn-primary btn-lg">
+                            Read the Docs (Coming Soon!) <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </p>
+                     <p class="mt-4 text-center">
+                        Consider joining the Serv community (details to be announced) to ask questions, share your projects, and contribute!
+                    </p>
+                </section>
+            </div>
+
+            <div class="col-md-4">
+                <div class="position-sticky" style="top: 5rem;"> <!-- Adjust top to account for fixed navbar height -->
+                    <div class="mb-3 bg-light rounded">
+                        <h4 class="fst-italic">On This Page</h4>
+                        <ol class="list-unstyled mb-0 nav flex-column" id="toc">
+                            <li class="nav-item"><a class="nav-link" href="#getting-started">Getting Started</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#working-with-extensions">Working with Extensions</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#using-middleware">Using Middleware</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#defining-routes">Defining Routes</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#further-resources">Further Resources</a></li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer text-center mt-auto py-3 bg-light">
+        <div class="container">
+            <span>Thank you for choosing Serv. Happy coding!</span>
+        </div>
+    </footer>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Prism.js Core JS and Autoloader Extension -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/extensions/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        Prism.extensions.autoloader.languages_path = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/';
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const navbar = document.querySelector('body > .navbar');
+            const heroSection = document.querySelector('.hero-gradient');
+            
+            if (navbar && heroSection) { // Ensure navbar and hero elements exist
+                window.addEventListener('scroll', function() {
+                    const scrollThreshold = heroSection.offsetHeight * 0.75; // 75% of hero height
+
+                    if (window.scrollY > scrollThreshold) {
+                        navbar.classList.add('navbar-scrolled');
+                        if (!navbar.classList.contains('navbar-light')) {
+                            navbar.classList.remove('navbar-dark');
+                            navbar.classList.add('navbar-light');
+                        }
+                    } else {
+                        navbar.classList.remove('navbar-scrolled');
+                        if (!navbar.classList.contains('navbar-dark')) {
+                            navbar.classList.remove('navbar-light');
+                            navbar.classList.add('navbar-dark');
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html> 

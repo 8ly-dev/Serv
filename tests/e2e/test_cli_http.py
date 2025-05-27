@@ -3,7 +3,7 @@ End-to-end HTTP tests for the Serv CLI commands.
 
 This file contains tests that validate the HTTP behavior of applications
 configured through the Serv CLI commands, particularly focusing on:
-- Plugin commands and their effect on HTTP endpoints
+- Extension commands and their effect on HTTP endpoints
 - Middleware commands and their effect on request processing
 """
 
@@ -82,7 +82,7 @@ class TestCliHttpBehavior:
             )
 
             # Create plugins directory
-            plugins_dir = Path(test_dir) / "plugins"
+            plugins_dir = Path(test_dir) / "extensions"
             plugins_dir.mkdir(exist_ok=True)
 
             # Create middleware directory
@@ -93,32 +93,34 @@ class TestCliHttpBehavior:
         finally:
             shutil.rmtree(test_dir)
 
-    def create_test_plugin(self, project_dir, plugin_name, route_path, response_text):
+    def create_test_extension(
+        self, project_dir, plugin_name, route_path, response_text
+    ):
         """Create a test plugin with a simple route."""
-        plugins_dir = Path(project_dir) / "plugins"
-        plugin_dir = plugins_dir / f"{plugin_name}"
-        plugin_dir.mkdir(exist_ok=True)
+        plugins_dir = Path(project_dir) / "extensions"
+        extension_dir = plugins_dir / f"{plugin_name}"
+        extension_dir.mkdir(exist_ok=True)
 
-        # Create plugin.yaml with the correct format expected by CLI
-        plugin_yaml = {
+        # Create extension.yaml with the correct format expected by CLI
+        extension_yaml = {
             "name": plugin_name.replace("_", " ").title(),
             "description": f"Test plugin that adds a {route_path} route",
             "version": "1.0.0",
             "author": "Test Author",
-            "entry": f"main:{plugin_name.replace('_', ' ').title().replace(' ', '')}Plugin",
+            "entry": f"main:{plugin_name.replace('_', ' ').title().replace(' ', '')}Extension",
         }
-        with open(plugin_dir / "plugin.yaml", "w") as f:
-            yaml.dump(plugin_yaml, f)
+        with open(extension_dir / "extension.yaml", "w") as f:
+            yaml.dump(extension_yaml, f)
 
         # Create main.py with the specified route
         plugin_code = f"""
-from serv.plugins import Plugin
-from serv.plugins.loader import PluginSpec
+from serv.extensions import Extension
+from serv.extensions.loader import ExtensionSpec
 from bevy import dependency
 from serv.routing import Router
 from serv.responses import ResponseBuilder
 
-class {plugin_name.replace("_", " ").title().replace(" ", "")}Plugin(Plugin):
+class {plugin_name.replace("_", " ").title().replace(" ", "")}Extension(Extension):
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
         router.add_route("{route_path}", self._handler, methods=["GET"])
 
@@ -126,10 +128,10 @@ class {plugin_name.replace("_", " ").title().replace(" ", "")}Plugin(Plugin):
         response.content_type("text/plain")
         response.body("{response_text}")
 """
-        with open(plugin_dir / "main.py", "w") as f:
+        with open(extension_dir / "main.py", "w") as f:
             f.write(plugin_code)
 
-        return plugin_dir
+        return extension_dir
 
     def create_test_middleware(
         self, project_dir, middleware_name, header_name, header_value
@@ -161,16 +163,16 @@ async def {middleware_name}_middleware(handler):
         return middleware_file
 
     @pytest.mark.asyncio
-    async def test_plugin_enable_disable(self, test_project_dir):
+    async def test_extension_enable_disable(self, test_project_dir):
         """Test enabling and disabling a plugin via CLI and verify HTTP behavior."""
         # Create a test plugin
-        plugin_dir = self.create_test_plugin(
-            test_project_dir, "test_plugin", "/test-route", "Hello from test plugin!"
+        extension_dir = self.create_test_extension(
+            test_project_dir, "test_extension", "/test-route", "Hello from test plugin!"
         )
 
         # Enable the plugin
         run_cli_command(
-            ["python", "-m", "serv", "plugin", "enable", "test_plugin"],
+            ["python", "-m", "serv", "extension", "enable", "test_extension"],
             cwd=test_project_dir,
         )
 
@@ -179,19 +181,19 @@ async def {middleware_name}_middleware(handler):
 
         from bevy import dependency
 
-        from serv.plugins import Plugin
+        from serv.extensions import Extension
         from serv.responses import ResponseBuilder
         from serv.routing import Router
-        from tests.helpers import create_test_plugin_spec
+        from tests.helpers import create_test_extension_spec
 
         # Create a mock plugin that mimics the test plugin behavior
-        class MockTestPlugin(Plugin):
+        class MockTestExtension(Extension):
             def __init__(self):
                 # Create a mock plugin spec
-                mock_spec = create_test_plugin_spec(
-                    name="Test Plugin", version="1.0.0", path=plugin_dir
+                mock_spec = create_test_extension_spec(
+                    name="Test Extension", version="1.0.0", path=extension_dir
                 )
-                super().__init__(plugin_spec=mock_spec)
+                super().__init__(extension_spec=mock_spec)
 
             async def on_app_request_begin(self, router: Router = dependency()) -> None:
                 router.add_route("/test-route", self._handler, methods=["GET"])
@@ -202,40 +204,42 @@ async def {middleware_name}_middleware(handler):
 
         # Mock the plugin loading to return our mock plugin
         with patch(
-            "serv.plugins.loader.PluginLoader.load_plugins"
-        ) as mock_load_plugins:
-            mock_load_plugins.return_value = (
+            "serv.extensions.loader.ExtensionLoader.load_extensions"
+        ) as mock_load_extensions:
+            mock_load_extensions.return_value = (
                 [
-                    create_test_plugin_spec(
-                        name="Test Plugin", version="1.0.0", path=plugin_dir
+                    create_test_extension_spec(
+                        name="Test Extension", version="1.0.0", path=extension_dir
                     )
                 ],
                 [],
             )
 
-            # Mock the add_plugin method to actually add our mock plugin
-            with patch("serv.app.App.add_plugin") as mock_add_plugin:
+            # Mock the add_extension method to actually add our mock extension
+            with patch("serv.app.App.add_extension") as mock_add_extension:
 
                 def side_effect(plugin):
                     # If it's our mock plugin, actually add it to the app
-                    if isinstance(plugin, MockTestPlugin):
+                    if isinstance(plugin, MockTestExtension):
                         # Store the plugin in the app's _plugins dict
-                        app._plugins[plugin.__plugin_spec__.path] = [plugin]
+                        app._extensions[plugin.__extension_spec__.path] = [plugin]
 
-                mock_add_plugin.side_effect = side_effect
+                mock_add_extension.side_effect = side_effect
 
                 # Create an app instance from the configuration
                 app = App(
                     config=str(Path(test_project_dir) / "serv.config.yaml"),
-                    plugin_dir=str(Path(test_project_dir) / "plugins"),
+                    extension_dir=str(Path(test_project_dir) / "extensions"),
                     dev_mode=True,
                 )
 
                 # Manually add our mock plugin to test the functionality
-                mock_plugin = MockTestPlugin()
-                app._plugins[mock_plugin.__plugin_spec__.path] = [mock_plugin]
+                mock_extension = MockTestExtension()
+                app._extensions[mock_extension.__extension_spec__.path] = [
+                    mock_extension
+                ]
 
-                # Test with the plugin enabled
+                # Test with the extension enabled
                 async with create_test_client(app_factory=lambda: app) as client:
                     response = await client.get("/test-route")
                     assert response.status_code == 200
@@ -243,24 +247,24 @@ async def {middleware_name}_middleware(handler):
 
         # Disable the plugin
         run_cli_command(
-            ["python", "-m", "serv", "plugin", "disable", "test_plugin"],
+            ["python", "-m", "serv", "extension", "disable", "test_extension"],
             cwd=test_project_dir,
         )
 
         # Mock the plugin loading to return no plugins (disabled)
         with patch(
-            "serv.plugins.loader.PluginLoader.load_plugins"
-        ) as mock_load_plugins:
-            mock_load_plugins.return_value = ([], [])
+            "serv.extensions.loader.ExtensionLoader.load_extensions"
+        ) as mock_load_extensions:
+            mock_load_extensions.return_value = ([], [])
 
             # Create a new app instance with updated config
             app = App(
                 config=str(Path(test_project_dir) / "serv.config.yaml"),
-                plugin_dir=str(Path(test_project_dir) / "plugins"),
+                extension_dir=str(Path(test_project_dir) / "extensions"),
                 dev_mode=True,
             )
 
-            # Test with the plugin disabled
+            # Test with the extension disabled
             async with create_test_client(app_factory=lambda: app) as client:
                 response = await client.get("/test-route")
                 assert response.status_code == 404  # Route should no longer exist

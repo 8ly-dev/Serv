@@ -2,5 +2,5 @@ site_info:
   name: {{ site_name }}
   description: {{ site_description }}
 
-plugins: []
+extensions: []
 middleware: [] 

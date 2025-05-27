@@ -13,19 +13,19 @@ from .commands import (
     handle_config_set_command,
     handle_config_show_command,
     handle_config_validate_command,
+    handle_create_extension_command,
     handle_create_listener_command,
     handle_create_middleware_command,
-    handle_create_plugin_command,
     handle_create_route_command,
     handle_dev_command,
-    handle_disable_plugin_command,
-    handle_enable_plugin_command,
+    handle_disable_extension_command,
+    handle_enable_extension_command,
     handle_init_command,
     handle_launch_command,
-    handle_list_plugin_command,
+    handle_list_extension_command,
     handle_shell_command,
     handle_test_command,
-    handle_validate_plugin_command,
+    handle_validate_extension_command,
 )
 
 
@@ -58,8 +58,8 @@ def create_parser():
         default=None,  # App will handle its default if this is None
     )
     parser.add_argument(
-        "--plugin-dirs",  # Name changed for consistency, was plugin_dirs before
-        help="Directory to search for plugins. Default: ./plugins or App default.",
+        "--extension-dirs",  # Name changed for consistency, was extension_dirs before
+        help="Directory to search for extensions. Default: ./extensions or App default.",
         default=None,  # App will handle its default
     )
 
@@ -100,7 +100,7 @@ def create_parser():
     launch_parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Load and configure the app and plugins but don't start the server.",
+        help="Load and configure the app and extensions but don't start the server.",
     )
     launch_parser.add_argument(
         "--dev",
@@ -141,10 +141,10 @@ def create_parser():
 
     # Test parser
     test_parser = subparsers.add_parser(
-        "test", help="Run tests for the application and plugins."
+        "test", help="Run tests for the application and extensions."
     )
     test_parser.add_argument(
-        "--plugins", action="store_true", help="Run plugin tests only"
+        "--extensions", action="store_true", help="Run extension tests only"
     )
     test_parser.add_argument(
         "--e2e", action="store_true", help="Run end-to-end tests only"
@@ -223,61 +223,65 @@ def create_parser():
     )
     config_set_parser.set_defaults(func=handle_config_set_command)
 
-    # Plugin commands
-    plugin_parser = subparsers.add_parser("plugin", help="Plugin management commands")
-    plugin_subparsers = plugin_parser.add_subparsers(
-        title="plugin commands",
-        dest="plugin_command",
+    # Extension commands
+    extension_parser = subparsers.add_parser(
+        "extension", help="Extension management commands"
+    )
+    extension_subparsers = extension_parser.add_subparsers(
+        title="extension commands",
+        dest="extension_command",
         required=True,
-        help="Plugin command to execute",
+        help="Extension command to execute",
     )
 
-    # Plugin enable command
-    plugin_enable_parser = plugin_subparsers.add_parser(
-        "enable", help="Enable a plugin"
+    # Extension enable command
+    extension_enable_parser = extension_subparsers.add_parser(
+        "enable", help="Enable an extension"
     )
-    plugin_enable_parser.add_argument(
-        "plugin_identifier", help="Plugin identifier (directory name or module path)"
+    extension_enable_parser.add_argument(
+        "extension_identifier",
+        help="Extension identifier (directory name or module path)",
     )
-    plugin_enable_parser.set_defaults(func=handle_enable_plugin_command)
+    extension_enable_parser.set_defaults(func=handle_enable_extension_command)
 
-    # Plugin disable command
-    plugin_disable_parser = plugin_subparsers.add_parser(
-        "disable", help="Disable a plugin"
+    # Extension disable command
+    extension_disable_parser = extension_subparsers.add_parser(
+        "disable", help="Disable an extension"
     )
-    plugin_disable_parser.add_argument(
-        "plugin_identifier", help="Plugin identifier (directory name or module path)"
+    extension_disable_parser.add_argument(
+        "extension_identifier",
+        help="Extension identifier (directory name or module path)",
     )
-    plugin_disable_parser.set_defaults(func=handle_disable_plugin_command)
+    extension_disable_parser.set_defaults(func=handle_disable_extension_command)
 
-    # Plugin list command
-    plugin_list_parser = plugin_subparsers.add_parser(
-        "list", help="List available and enabled plugins"
+    # Extension list command
+    extension_list_parser = extension_subparsers.add_parser(
+        "list", help="List available and enabled extensions"
     )
-    plugin_list_parser.add_argument(
+    extension_list_parser.add_argument(
         "--available",
         action="store_true",
-        help="Show all available plugins (default shows enabled plugins)",
+        help="Show all available extensions (default shows enabled extensions)",
     )
-    plugin_list_parser.set_defaults(func=handle_list_plugin_command)
+    extension_list_parser.set_defaults(func=handle_list_extension_command)
 
-    # Plugin validate command
-    plugin_validate_parser = plugin_subparsers.add_parser(
-        "validate", help="Validate plugin structure and configuration"
+    # Extension validate command
+    extension_validate_parser = extension_subparsers.add_parser(
+        "validate", help="Validate extension structure and configuration"
     )
-    plugin_validate_parser.add_argument(
-        "plugin_identifier",
+    extension_validate_parser.add_argument(
+        "extension_identifier",
         nargs="?",
-        help="Plugin identifier (directory name or module path). If not provided, validates all plugins.",
+        help="Extension identifier (directory name or module path). If not provided, validates all extensions.",
     )
-    plugin_validate_parser.add_argument(
-        "--all", action="store_true", help="Validate all plugins"
+    extension_validate_parser.add_argument(
+        "--all", action="store_true", help="Validate all extensions"
     )
-    plugin_validate_parser.set_defaults(func=handle_validate_plugin_command)
+    extension_validate_parser.set_defaults(func=handle_validate_extension_command)
 
     # Create commands
     create_parser = subparsers.add_parser(
-        "create", help="Create apps, plugins and components"
+        "create", help="Create apps, extensions and components"
     )
     create_subparsers = create_parser.add_subparsers(
         title="create commands",
@@ -301,34 +305,34 @@ def create_parser():
     )
     create_app_parser.set_defaults(func=handle_init_command)
 
-    # Create plugin command
-    create_plugin_parser = create_subparsers.add_parser(
-        "plugin", help="Create a new plugin"
+    # Create extension command
+    create_extension_parser = create_subparsers.add_parser(
+        "extension", help="Create a new extension"
     )
-    create_plugin_parser.add_argument(
-        "--name", help="Name of the plugin (will be prompted if not provided)"
+    create_extension_parser.add_argument(
+        "--name", help="Name of the extension (will be prompted if not provided)"
     )
-    create_plugin_parser.add_argument(
-        "--force", action="store_true", help="Force overwrite of existing plugin"
+    create_extension_parser.add_argument(
+        "--force", action="store_true", help="Force overwrite of existing extension"
     )
-    create_plugin_parser.add_argument(
+    create_extension_parser.add_argument(
         "--non-interactive",
         action="store_true",
         dest="non_interactive",
         help="Non-interactive mode with default values (for testing)",
     )
-    create_plugin_parser.set_defaults(func=handle_create_plugin_command)
+    create_extension_parser.set_defaults(func=handle_create_extension_command)
 
     # Create listener command
     create_listener_parser = create_subparsers.add_parser(
-        "listener", help="Create a new plugin listener"
+        "listener", help="Create a new extension listener"
     )
     create_listener_parser.add_argument(
         "--name", help="Name of the listener (will be prompted if not provided)"
     )
     create_listener_parser.add_argument(
-        "--plugin",
-        help="Plugin to add the listener to (auto-detected if not provided)",
+        "--extension",
+        help="Extension to add the listener to (auto-detected if not provided)",
     )
     create_listener_parser.add_argument(
         "--force", action="store_true", help="Force overwrite of existing files"
@@ -343,7 +347,7 @@ def create_parser():
 
     # Create route command
     create_route_parser = create_subparsers.add_parser(
-        "route", help="Create a new plugin route"
+        "route", help="Create a new extension route"
     )
     create_route_parser.add_argument(
         "--name", help="Name of the route (will be prompted if not provided)"
@@ -353,7 +357,8 @@ def create_parser():
     )
     create_route_parser.add_argument("--router", help="Router name to add the route to")
     create_route_parser.add_argument(
-        "--plugin", help="Plugin to add the route to (auto-detected if not provided)"
+        "--extension",
+        help="Extension to add the route to (auto-detected if not provided)",
     )
     create_route_parser.add_argument(
         "--force", action="store_true", help="Force overwrite of existing files"
@@ -368,14 +373,14 @@ def create_parser():
 
     # Create middleware command
     create_middleware_parser = create_subparsers.add_parser(
-        "middleware", help="Create a new plugin middleware"
+        "middleware", help="Create a new extension middleware"
     )
     create_middleware_parser.add_argument(
         "--name", help="Name of the middleware (will be prompted if not provided)"
     )
     create_middleware_parser.add_argument(
-        "--plugin",
-        help="Plugin to add the middleware to (auto-detected if not provided)",
+        "--extension",
+        help="Extension to add the middleware to (auto-detected if not provided)",
     )
     create_middleware_parser.add_argument(
         "--force", action="store_true", help="Force overwrite of existing files"

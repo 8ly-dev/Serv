@@ -13,23 +13,23 @@ import pytest
 from bevy import dependency
 
 from serv.app import App
-from serv.plugins import Plugin
-from serv.plugins.loader import PluginSpec
+from serv.extensions import Extension
+from serv.extensions.loader import ExtensionSpec
 from serv.responses import ResponseBuilder
 from serv.routing import Router
 from tests.e2e_test_helpers import AppBuilder, create_test_client
 
 
-class SimpleTextPlugin(Plugin):
+class SimpleTextExtension(Extension):
     """Simple plugin that adds a route returning plain text."""
 
     def __init__(self, path: str, text: str):
         # Set up the plugin spec on the module before calling super().__init__()
         from tests.helpers import create_mock_importer
 
-        self._plugin_spec = PluginSpec(
+        self._extension_spec = ExtensionSpec(
             config={
-                "name": "SimpleTextPlugin",
+                "name": "SimpleTextExtension",
                 "description": "A simple plugin that returns plain text",
                 "version": "0.1.0",
                 "author": "Test Author",
@@ -39,11 +39,11 @@ class SimpleTextPlugin(Plugin):
             importer=create_mock_importer(Path(__file__).parent),
         )
 
-        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
+        # Patch the module's __extension_spec__ for testing BEFORE super().__init__()
         import sys
 
         module = sys.modules[self.__module__]
-        module.__plugin_spec__ = self._plugin_spec
+        module.__extension_spec__ = self._extension_spec
 
         super().__init__(stand_alone=True)
         self.path = path
@@ -58,16 +58,16 @@ class SimpleTextPlugin(Plugin):
         response.body(self.text)
 
 
-class JsonPlugin(Plugin):
+class JsonExtension(Extension):
     """Simple plugin that adds a route returning JSON data."""
 
     def __init__(self, path: str, data: dict):
         # Set up the plugin spec on the module before calling super().__init__()
         from tests.helpers import create_mock_importer
 
-        self._plugin_spec = PluginSpec(
+        self._extension_spec = ExtensionSpec(
             config={
-                "name": "JsonPlugin",
+                "name": "JsonExtension",
                 "description": "A simple plugin that returns JSON data",
                 "version": "0.1.0",
                 "author": "Test Author",
@@ -77,11 +77,11 @@ class JsonPlugin(Plugin):
             importer=create_mock_importer(Path(__file__).parent),
         )
 
-        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
+        # Patch the module's __extension_spec__ for testing BEFORE super().__init__()
         import sys
 
         module = sys.modules[self.__module__]
-        module.__plugin_spec__ = self._plugin_spec
+        module.__extension_spec__ = self._extension_spec
 
         super().__init__(stand_alone=True)
         self.path = path
@@ -102,7 +102,7 @@ class JsonPlugin(Plugin):
 async def test_basic_usage():
     """Basic usage of create_test_client with a simple plugin."""
     # Create a plugin that adds a route
-    hello_plugin = SimpleTextPlugin("/hello", "Hello, World!")
+    hello_plugin = SimpleTextExtension("/hello", "Hello, World!")
 
     # Use create_test_client directly
     async with create_test_client(plugins=[hello_plugin]) as client:
@@ -124,8 +124,8 @@ async def test_with_app_factory():
         app = App(dev_mode=True)
 
         # Add plugins
-        app.add_plugin(SimpleTextPlugin("/greet", "Greetings!"))
-        app.add_plugin(JsonPlugin("/data", {"message": "This is JSON data"}))
+        app.add_extension(SimpleTextExtension("/greet", "Greetings!"))
+        app.add_extension(JsonExtension("/data", {"message": "This is JSON data"}))
 
         return app
 
@@ -147,8 +147,8 @@ async def test_with_app_builder(app_builder: AppBuilder):
     """Using the AppBuilder for a more complex setup."""
     # Configure the app builder
     builder = (
-        app_builder.with_plugin(SimpleTextPlugin("/hello", "Hello from builder!"))
-        .with_plugin(JsonPlugin("/api/data", {"count": 42, "items": ["foo", "bar"]}))
+        app_builder.with_plugin(SimpleTextExtension("/hello", "Hello from builder!"))
+        .with_plugin(JsonExtension("/api/data", {"count": 42, "items": ["foo", "bar"]}))
         .with_dev_mode(True)
     )
 
@@ -170,8 +170,8 @@ async def test_with_app_test_client_fixture(app_test_client):
     """Using the app_test_client fixture from conftest.py."""
     # Create plugins
     plugins = [
-        SimpleTextPlugin("/fixture-test", "Testing with fixture!"),
-        JsonPlugin("/fixture-json", {"success": True}),
+        SimpleTextExtension("/fixture-test", "Testing with fixture!"),
+        JsonExtension("/fixture-json", {"success": True}),
     ]
 
     # Use the fixture

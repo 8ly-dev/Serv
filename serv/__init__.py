@@ -1,14 +1,14 @@
 """Serv - A modern Python web framework built for simplicity and extensibility.
 
 Serv is an ASGI-based web framework that emphasizes:
-- Plugin-based architecture for extensible functionality
+- Extension-based architecture for extensible functionality
 - Dependency injection for clean, testable code
 - Type-safe request/response handling
 - Automatic route discovery and URL generation
 - Built-in form handling and validation
 - Middleware support for cross-cutting concerns
 - Template rendering with Jinja2
-- Event-driven plugin system
+- Event-driven extension system
 
 Quick Start:
     ```python
@@ -32,7 +32,7 @@ Quick Start:
 Key Components:
     - App: Main application class and ASGI entry point
     - Route: Base class for HTTP route handlers
-    - Plugin: Base class for extending application functionality
+    - Extension: Base class for extending application functionality
     - Router: URL routing and path matching
     - ResponseBuilder: Fluent response construction
     - Request types: Type-safe request handling (GetRequest, PostRequest, etc.)

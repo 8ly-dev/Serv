@@ -7,7 +7,7 @@ This document provides a guide to understanding and using the Serv web framework
 1.  [Core Concepts](#core-concepts)
     *   [Dependency Injection (DI)](#dependency-injection-di)
     *   [Routing](#routing)
-    *   [Plugins](#plugins)
+    *   [Extensions](#plugins)
     *   [Middleware](#middleware)
 2.  [Command-Line Interface (CLI)](#command-line-interface-cli)
 3.  [Getting Started (Example from `demos/basic_app`)](#getting-started-example-from-demosbasic_app)
@@ -29,7 +29,7 @@ async def homepage(response: ResponseBuilder = dependency()):
     response.body("Hello from Serv! This is the basic demo.")
 ```
 
-In this example, `ResponseBuilder` is automatically injected into the `homepage` handler. Serv pre-registers common types like `Request`, `ResponseBuilder`, and the `Container` itself. Plugins and middleware can also have dependencies injected.
+In this example, `ResponseBuilder` is automatically injected into the `homepage` handler. Serv pre-registers common types like `Request`, `ResponseBuilder`, and the `Container` itself. Extensions and middleware can also have dependencies injected.
 
 ### Routing
 
@@ -46,13 +46,13 @@ You can define simple `async` functions as handlers and add them to a router, ty
         response.body("Hello from Serv! This is the basic demo.")
     ```
 
-* **Registration (within a Plugin in `demos/basic_app/main.py`):**
+* **Registration (within a Extension in `demos/basic_app/main.py`):**
   ```python
   from serv.plugins.routing import Router
-  from serv.plugins import Plugin
+  from serv.plugins import Extension
   from bevy import dependency
 
-  class BasicAppPlugin(Plugin):
+  class BasicAppExtension(Extension):
       async def on_app_request_begin(self, router: Router = dependency()):
           router.add_route("/", homepage) # GET by default
           router.add_route("/about", about_page, methods=["GET"]) # Explicit method
@@ -95,14 +95,14 @@ For more complex scenarios or to group related endpoints, you can create classes
     - If a method's first argument is type-hinted with a `Form` subclass (from `serv.routes`), it becomes a handler for form submissions matching that form's structure and `__form_method__` (default POST).
     - `Annotated` return types (e.g., `Annotated[str, HtmlResponse]`) instruct Serv on how to process the return value into an HTTP response. `Jinja2Response` renders a Jinja2 template.
 
-* **Registration (within a Plugin in `demos/complex_route_demo/plugins.py`):**
+* **Registration (within a Extension in `demos/complex_route_demo/plugins.py`):**
   ```python
   from serv.plugins.routing import Router
-  from serv.plugins import Plugin
+  from serv.plugins import Extension
   from bevy import dependency
   from .demo import HomeRoute, SubmitRoute # Assuming demo.py is in the same directory
 
-  class DemoRoutesPlugin(Plugin):
+  class DemoRoutesExtension(Extension):
       async def on_app_request_begin(self, router: Router = dependency()):
           router.add_route("/", HomeRoute) # Registers all handlers in HomeRoute for "/"
           router.add_route("/submit", SubmitRoute)
@@ -144,40 +144,40 @@ Serv supports multiple router instances. Middleware can be used to select which 
     ```
     The `app.add_middleware()` registers the `cookie_based_router_middleware`. Inside the middleware, `router.add_router()` dynamically adds one of the pre-configured routers (`welcome_router` or `form_router`) as a sub-router to the main router instance created for the request. The main router then delegates to this sub-router. Sub-routers are checked in LIFO order.
 
-### Plugins
+### Extensions
 
-Plugins are the primary way to organize and extend Serv applications. They can define routes, event listeners, and their own configurations.
+Extensions are the primary way to organize and extend Serv applications. They can define routes, event listeners, and their own configurations.
 
 *   **Structure (`serv/plugins.py`):**
-    Plugins are classes that inherit from `serv.plugins.Plugin`.
+    Extensions are classes that inherit from `serv.plugins.Extension`.
 
 *   **Event Handling:**
-    Plugins respond to application events by defining methods with names like `on_{event_name}` (e.g., `on_app_request_begin`, `on_lifespan_startup`). The `App`'s `emit` method triggers these.
+    Extensions respond to application events by defining methods with names like `on_{event_name}` (e.g., `on_app_request_begin`, `on_lifespan_startup`). The `App`'s `emit` method triggers these.
     ```python
     # Example from demos/basic_app/main.py
-    class BasicAppPlugin(Plugin):
+    class BasicAppExtension(Extension):
         async def on_app_request_begin(self, router: Router = dependency()):
             router.add_route("/", homepage)
             router.add_route("/about", about_page)
     ```
     The `on_app_request_begin` event is commonly used to add routes.
 
-*   **Plugin Configuration (`plugin.yaml`):**
-    Plugins can have their own `plugin.yaml` file in their directory. This file can define metadata (name, version, entry point) and plugin-specific configuration.
-    The `Plugin.config()` method can be used to access this configuration, though specific mechanisms for DI of this config into handlers might vary or be evolving. The CLI (`serv create plugin --name "Plugin Name"`) scaffolds this file.
+*   **Extension Configuration (`plugin.yaml`):**
+    Extensions can have their own `plugin.yaml` file in their directory. This file can define metadata (name, version, entry point) and plugin-specific configuration.
+    The `Extension.config()` method can be used to access this configuration, though specific mechanisms for DI of this config into handlers might vary or be evolving. The CLI (`serv create plugin --name "Extension Name"`) scaffolds this file.
 
-*   **Loading Plugins:**
-    Plugins are typically added to the `App` instance or configured via `serv.config.yaml`.
+*   **Loading Extensions:**
+    Extensions are typically added to the `App` instance or configured via `serv.config.yaml`.
     ```python
     # Direct addition (demos/basic_app/main.py)
     app = App()
-    app.add_plugin(BasicAppPlugin())
+    app.add_plugin(BasicAppExtension())
     ```
     Or via `serv.config.yaml` (handled by the CLI or `setup_app_from_config`):
     ```yaml
     # serv.config.yaml
     plugins:
-      - entry: my_project.my_plugins:MyPlugin
+      - entry: my_project.my_plugins:MyExtension
         config:
           some_setting: value
     ```
@@ -256,16 +256,16 @@ Key commands (discovered from `serv/cli.py` and `serv/bundled_plugins/welcome/te
 *   **`serv create plugin`**:
     Scaffolds a new plugin structure, creating a directory (usually under `./plugins/`), a `plugin.yaml` definition file, and a `main.py` template for your plugin class.
     ```bash
-    serv create plugin --name "My Plugin Name"
+    serv create plugin --name "My Extension Name"
     ```
     You'll be prompted for plugin details (author, description, version, etc.).
 
 *   **`serv plugin enable <plugin_identifier>`**:
     Enables a plugin by adding its entry to the `serv.config.yaml` file.
-    `<plugin_identifier>` can be a simple name (if the plugin is in `./plugins/` and has a `plugin.yaml`) or a full module path (e.g., `my_package.plugins:MyPlugin`).
+    `<plugin_identifier>` can be a simple name (if the plugin is in `./plugins/` and has a `plugin.yaml`) or a full module path (e.g., `my_package.plugins:MyExtension`).
     ```bash
     serv plugin enable my_cool_plugin
-    serv plugin enable some.other.module:AnotherPlugin
+    serv plugin enable some.other.module:AnotherExtension
     ```
 
 *   **`serv plugin disable <plugin_identifier>`**:
@@ -285,7 +285,7 @@ This example demonstrates a minimal Serv application using a plugin for routing.
 
 ```python
 from serv.app import App
-from serv.plugins import Plugin
+from serv.plugins import Extension
 from serv.responses import ResponseBuilder
 from bevy import dependency
 from serv.plugins.routing import Router
@@ -302,16 +302,16 @@ async def about_page(response: ResponseBuilder = dependency()):
     response.body("<h1>About Us</h1><p>This is a simple demo of the Serv framework.</p>")
 
 
-# 2. Create a Plugin to Register Routes
-class BasicAppPlugin(Plugin):
+# 2. Create a Extension to Register Routes
+class BasicAppExtension(Extension):
     async def on_app_request_begin(self, router: Router = dependency()):
         router.add_route("/", homepage)
         router.add_route("/about", about_page)
 
 
-# 3. Create App Instance and Add Plugin
+# 3. Create App Instance and Add Extension
 app = App()
-app.add_plugin(BasicAppPlugin())
+app.add_plugin(BasicAppExtension())
 
 # 4. Run with Uvicorn (if script is run directly)
 if __name__ == "__main__":

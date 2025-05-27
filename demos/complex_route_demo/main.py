@@ -1,7 +1,7 @@
 import pathlib
 import sys
 
-from demos.complex_route_demo.plugins import DemoRoutesPlugin
+from demos.complex_route_demo.plugins import DemoRoutesExtension
 from serv import App
 
 # Add project root to sys.path
@@ -21,7 +21,7 @@ def app_factory():  # Renamed for clarity
     if _app_instance is None:
         # This will be called by Uvicorn, which should have a loop running.
         _app_instance = App(dev_mode=True)
-        _app_instance.add_plugin(DemoRoutesPlugin(stand_alone=True))
+        _app_instance.add_extension(DemoRoutesExtension(stand_alone=True))
     return _app_instance
 
 

@@ -99,7 +99,7 @@ class UserRoute(Route):
         }
 ```
 
-**Plugin configuration:**
+**Extension configuration:**
 ```yaml
 routers:
   - name: main_router
@@ -135,7 +135,7 @@ class PostRoute(Route):
         }
 ```
 
-**Plugin configuration:**
+**Extension configuration:**
 ```yaml
 routers:
   - name: main_router
@@ -853,7 +853,7 @@ Identify what data your routes need:
 ### 2. Create Route Classes
 
 ```bash
-serv create route --name "user_api" --path "/api/users" --plugin "api"
+serv create route --name "user_api" --path "/api/users" --extension "api"
 ```
 
 ### 3. Implement Request Handlers

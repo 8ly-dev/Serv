@@ -23,7 +23,7 @@ from tests.e2e.helpers import create_test_client
 
 async with create_test_client(
     app_factory=my_app_factory,
-    plugins=[MyPlugin()],
+    plugins=[MyExtension()],
     base_url="http://testserver",
     use_lifespan=False
 ) as client:
@@ -38,7 +38,7 @@ A builder class for creating test applications with a fluent interface:
 ```python
 from tests.e2e.helpers import TestAppBuilder
 
-builder = TestAppBuilder().with_plugin(MyPlugin()).with_dev_mode(True)
+builder = TestAppBuilder().with_plugin(MyExtension()).with_dev_mode(True)
 app = builder.build()
 
 # Or create a client directly:
@@ -63,7 +63,7 @@ Several pytest fixtures are available in `conftest.py`:
 ```python
 @pytest.mark.asyncio
 async def test_basic_route():
-    async with create_test_client(plugins=[MyPlugin()]) as client:
+    async with create_test_client(plugins=[MyExtension()]) as client:
         response = await client.get("/hello")
         assert response.status_code == 200
         assert response.text == "Hello, World!"
@@ -76,7 +76,7 @@ async def test_basic_route():
 async def test_with_custom_app(app_factory):
     def create_my_app():
         app = app_factory()
-        app.add_plugin(MyPlugin())
+        app.add_plugin(MyExtension())
         return app
     
     async with create_test_client(app_factory=create_my_app) as client:
@@ -91,7 +91,7 @@ async def test_with_custom_app(app_factory):
 async def test_with_builder(app_builder):
     builder = (
         app_builder
-        .with_plugin(RoutePlugin("/api/users", my_handler))
+        .with_plugin(RouteExtension("/api/users", my_handler))
         .with_config({"debug": True})
     )
     
@@ -107,7 +107,7 @@ async def test_with_builder(app_builder):
 @pytest.mark.asyncio
 async def test_with_fixtures(app, test_client):
     # Add a plugin to the app
-    app.add_plugin(MyPlugin())
+    app.add_plugin(MyExtension())
     
     # Use the test_client that's already configured with the app
     response = await test_client.get("/my-endpoint")
@@ -116,7 +116,7 @@ async def test_with_fixtures(app, test_client):
 
 ## Tips for Effective Testing
 
-1. **Create Reusable Test Plugins**: Define test-specific plugins that help set up common test scenarios.
+1. **Create Reusable Test Extensions**: Define test-specific plugins that help set up common test scenarios.
 
 2. **Isolate Tests**: Each test should create its own application instance to prevent state leakage between tests.
 

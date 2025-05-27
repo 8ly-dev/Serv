@@ -14,7 +14,7 @@ from typing import Any
 from httpx import ASGITransport, AsyncClient
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.extensions import Extension
 
 
 @asynccontextmanager
@@ -150,7 +150,7 @@ class LifespanManager:
 @asynccontextmanager
 async def create_test_client(
     app_factory: Callable[[], App] | None = None,
-    plugins: list[Plugin] | None = None,
+    plugins: list[Extension] | None = None,
     config: dict[str, Any] | None = None,
     base_url: str = "http://testserver",
     use_lifespan: bool = False,
@@ -182,7 +182,7 @@ async def create_test_client(
         # With custom app factory
         def create_my_app():
             app = App(dev_mode=True)
-            app.add_plugin(MyPlugin())
+            app.add_extension(MyExtension())
             return app
 
         async with create_test_client(app_factory=create_my_app) as client:
@@ -199,7 +199,7 @@ async def create_test_client(
         # Add plugins if provided
         if plugins:
             for plugin in plugins:
-                app.add_plugin(plugin)
+                app.add_extension(plugin)
 
         # Configure the app if configuration provided
         # This is left as a placeholder for future implementation if needed
@@ -228,12 +228,12 @@ class AppBuilder:
     Examples:
         ```python
         # Create a basic app with a single plugin
-        app = AppBuilder().with_plugin(MyPlugin()).build()
+        app = AppBuilder().with_plugin(MyExtension()).build()
 
         # Create an app with multiple plugins and custom config
         app = (
             AppBuilder()
-            .with_plugins([AuthPlugin(), LoggingPlugin()])
+            .with_plugins([AuthExtension(), LoggingExtension()])
             .with_config({"debug": True})
             .build()
         )
@@ -241,18 +241,18 @@ class AppBuilder:
     """
 
     def __init__(self):
-        self._plugins: list[Plugin] = []
+        self._plugins: list[Extension] = []
         self._config: dict[str, Any] = {}
         self._dev_mode = True
         self._config_path = "./serv.config.yaml"
-        self._plugin_dir = "./plugins"
+        self._extension_dir = "./plugins"
 
-    def with_plugin(self, plugin: Plugin) -> "AppBuilder":
+    def with_plugin(self, plugin: Extension) -> "AppBuilder":
         """Add a single plugin to the app."""
         self._plugins.append(plugin)
         return self
 
-    def with_plugins(self, plugins: list[Plugin]) -> "AppBuilder":
+    def with_plugins(self, plugins: list[Extension]) -> "AppBuilder":
         """Add multiple plugins to the app."""
         self._plugins.extend(plugins)
         return self
@@ -272,9 +272,9 @@ class AppBuilder:
         self._config_path = config_path
         return self
 
-    def with_plugin_dir(self, plugin_dir: str) -> "AppBuilder":
+    def with_extension_dir(self, extension_dir: str) -> "AppBuilder":
         """Set the plugin directory."""
-        self._plugin_dir = plugin_dir
+        self._extension_dir = extension_dir
         return self
 
     def build(self) -> App:
@@ -282,13 +282,13 @@ class AppBuilder:
         # Create the app with basic settings
         app = App(
             config=self._config_path,
-            plugin_dir=self._plugin_dir,
+            extension_dir=self._extension_dir,
             dev_mode=self._dev_mode,
         )
 
         # Add all plugins
         for plugin in self._plugins:
-            app.add_plugin(plugin)
+            app.add_extension(plugin)
 
         return app
 

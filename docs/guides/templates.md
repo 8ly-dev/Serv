@@ -22,7 +22,7 @@ Jinja2 is the most popular template engine for Python web applications:
 pip install jinja2
 ```
 
-**plugins/templates/template_engine.py:**
+**extensions/templates/template_engine.py:**
 ```python
 import os
 from pathlib import Path
@@ -86,14 +86,14 @@ def create_template_engine() -> TemplateEngine:
     return TemplateEngine()
 ```
 
-**plugins/templates/plugin.py:**
+**extensions/templates/extension.py:**
 ```python
 from bevy import dependency
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from .template_engine import TemplateEngine, create_template_engine
 
-class TemplatesPlugin(Plugin):
-    """Plugin for template engine integration"""
+class TemplatesExtension(Extension):
+    """Extension for template engine integration"""
     
     async def on_startup(self):
         """Register template engine as dependency"""
@@ -101,9 +101,9 @@ class TemplatesPlugin(Plugin):
         dependency.register(TemplateEngine, create_template_engine)
 ```
 
-**plugins/templates/plugin.yaml:**
+**extensions/templates/extension.yaml:**
 ```yaml
-name: Templates Plugin
+name: Templates Extension
 version: 1.0.0
 description: Template engine integration for Serv
 dependencies: []
@@ -116,7 +116,7 @@ from serv.routes import Route, GetRequest
 from typing import Annotated
 from serv.responses import HtmlResponse
 from bevy import dependency
-from plugins.templates.template_engine import TemplateEngine
+from extensions.templates.template_engine import TemplateEngine
 
 class HomeRoute(Route):
     async def handle_get(
@@ -934,7 +934,7 @@ from typing import Annotated
 from serv.responses import HtmlResponse, RedirectResponse
 from serv.exceptions import HTTPNotFoundException
 from bevy import dependency
-from plugins.templates.template_engine import EnhancedTemplateEngine
+from extensions.templates.template_engine import EnhancedTemplateEngine
 
 class ProductRoute(Route):
     async def handle_get(

@@ -9,28 +9,28 @@ from bevy import dependency
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routes import JsonResponse
 from serv.routing import Router
 
 
-# Plugin to add simple handlers
-class DirectHandlerPlugin(Plugin):
+# Extension to add simple handlers
+class DirectHandlerExtension(Extension):
     def __init__(self, path: str, handler, methods: list[str]):
         # Set up the plugin spec on the module before calling super().__init__()
-        from tests.helpers import create_test_plugin_spec
+        from tests.helpers import create_test_extension_spec
 
-        self._plugin_spec = create_test_plugin_spec(
-            name="DirectHandlerPlugin", path=Path(__file__).parent
+        self._extension_spec = create_test_extension_spec(
+            name="DirectHandlerExtension", path=Path(__file__).parent
         )
 
-        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
+        # Patch the module's __extension_spec__ for testing BEFORE super().__init__()
         import sys
 
         module = sys.modules[self.__module__]
-        module.__plugin_spec__ = self._plugin_spec
+        module.__extension_spec__ = self._extension_spec
 
         super().__init__(stand_alone=True)
         self.path = path
@@ -132,8 +132,8 @@ async def handle_direct_single_file(
 
 @pytest.mark.asyncio
 async def test_direct_multipart_single_file(app: App, client: AsyncClient):
-    app.add_plugin(
-        DirectHandlerPlugin(
+    app.add_extension(
+        DirectHandlerExtension(
             "/direct_upload_single", handle_direct_single_file, methods=["POST"]
         )
     )
@@ -202,8 +202,8 @@ async def handle_direct_multiple_files(
 
 @pytest.mark.asyncio
 async def test_direct_multipart_multiple_files(app: App, client: AsyncClient):
-    app.add_plugin(
-        DirectHandlerPlugin(
+    app.add_extension(
+        DirectHandlerExtension(
             "/direct_upload_multi", handle_direct_multiple_files, methods=["POST"]
         )
     )

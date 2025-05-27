@@ -4,13 +4,13 @@ from typing import Any
 import pytest
 
 from serv.app import App
-from tests.helpers import EventWatcherPlugin
+from tests.helpers import EventWatcherExtension
 
 
 @pytest.mark.asyncio
 async def test_lifespan_protocol_flow(app: App):
-    event_watcher = EventWatcherPlugin()
-    app.add_plugin(event_watcher)
+    event_watcher = EventWatcherExtension()
+    app.add_extension(event_watcher)
 
     sent_messages = []
 
@@ -85,19 +85,21 @@ async def test_lifespan_protocol_flow(app: App):
 @pytest.mark.asyncio
 async def test_lifespan_startup_failure_simulation(app: App):
     """Simulates a failure during the app.lifespan.startup event phase."""
-    event_watcher = EventWatcherPlugin()
-    app.add_plugin(event_watcher)
+    event_watcher = EventWatcherExtension()
+    app.add_extension(event_watcher)
 
-    class StartupErrorPlugin(EventWatcherPlugin):  # Inherits event capture for checking
+    class StartupErrorExtension(
+        EventWatcherExtension
+    ):  # Inherits event capture for checking
         async def on(self, event_name: str, **kwargs: Any) -> None:
-            # Call the base class's (EventWatcherPlugin's) on method to record the event
+            # Call the base class's (EventWatcherExtension's) on method to record the event
             await super().on(event_name, **kwargs)
 
             if event_name == "app.startup":
                 raise RuntimeError("Simulated startup failure")
 
-    startup_fail_plugin = StartupErrorPlugin()
-    app.add_plugin(startup_fail_plugin)  # Add the faulty plugin
+    startup_fail_plugin = StartupErrorExtension()
+    app.add_extension(startup_fail_plugin)  # Add the faulty plugin
 
     sent_messages = []
 

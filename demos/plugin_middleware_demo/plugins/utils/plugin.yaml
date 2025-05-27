@@ -1,5 +1,0 @@
-name: Utils Plugin
-description: Provides utility functions for other plugins
-version: 0.1.0
-author: Serv Team
-entry: utils:Utils 

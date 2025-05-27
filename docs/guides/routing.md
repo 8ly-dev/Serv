@@ -6,10 +6,10 @@ Serv provides a powerful declarative routing system that emphasizes configuratio
 
 In Serv, routing follows these principles:
 
-1. **Declarative Configuration**: Routes are defined in `plugin.yaml` files
+1. **Declarative Configuration**: Routes are defined in `extension.yaml` files
 2. **CLI-First Development**: Use CLI commands to create routes and handlers
 3. **Automatic Wiring**: Serv automatically connects routes to handler functions
-4. **Plugin-Based Organization**: Routes are organized within plugins for modularity
+4. **Extension-Based Organization**: Routes are organized within extensions for modularity
 
 ## Getting Started
 
@@ -18,34 +18,34 @@ In Serv, routing follows these principles:
 The easiest way to create a route is using the Serv CLI:
 
 ```bash
-# Create a new plugin for your routes
-serv create plugin --name "Blog API"
+# Create a new extension for your routes
+serv create extension --name "Blog API"
 
-# Create a route within the plugin
+# Create a route within the extension
 serv create route --name "blog_posts" --path "/api/posts"
 ```
 
 This creates:
-1. A plugin directory structure
+1. A extension directory structure
 2. A route handler file
-3. Updates the plugin's `plugin.yaml` with the route configuration
+3. Updates the extension's `extension.yaml` with the route configuration
 
 ### Understanding the Generated Files
 
 After running the commands above, you'll have:
 
 ```
-plugins/
+extensions/
 └── blog_api/
     ├── __init__.py
-    ├── plugin.yaml
+    ├── extension.yaml
     └── route_blog_posts.py
 ```
 
-**plugin.yaml:**
+**extension.yaml:**
 ```yaml
 name: Blog API
-description: A cool Serv plugin.
+description: A cool Serv extension.
 version: 0.1.0
 author: Your Name
 
@@ -74,7 +74,7 @@ class BlogPosts(Route):
 
 ### Basic Route Definition
 
-Routes are defined in the `routers` section of your plugin's `plugin.yaml`:
+Routes are defined in the `routers` section of your extension's `extension.yaml`:
 
 ```yaml
 routers:
@@ -145,11 +145,11 @@ serv create route --name "user_profile" \
   --path "/users/{id}/profile" \
   --router "api_router"
 
-# Create a route for a specific plugin
+# Create a route for a specific extension
 serv create route --name "admin_dashboard" \
   --path "/dashboard" \
   --router "admin_router" \
-  --plugin "admin_plugin"
+  --extension "admin_extension"
 ```
 
 ### Handler Function Structure
@@ -332,7 +332,7 @@ routers:
         methods: ["GET", "PUT", "DELETE"]
 ```
 
-### Multiple Routers in One Plugin
+### Multiple Routers in One Extension
 
 Organize complex applications with multiple routers:
 
@@ -420,35 +420,35 @@ async def FileUpload(request: PostRequest, response: ResponseBuilder = dependenc
         response.body("No file provided")
 ```
 
-## Plugin Organization
+## Extension Organization
 
-### Feature-Based Plugins
+### Feature-Based Extensions
 
 Organize routes by feature or domain:
 
 ```bash
 # User management
-serv create plugin --name "User Management"
-serv create route --name "user_list" --path "/users" --plugin "user_management"
-serv create route --name "user_detail" --path "/users/{id}" --plugin "user_management"
+serv create extension --name "User Management"
+serv create route --name "user_list" --path "/users" --extension "user_management"
+serv create route --name "user_detail" --path "/users/{id}" --extension "user_management"
 
 # Blog functionality
-serv create plugin --name "Blog"
-serv create route --name "blog_home" --path "/blog" --plugin "blog"
-serv create route --name "blog_post" --path "/blog/{slug}" --plugin "blog"
+serv create extension --name "Blog"
+serv create route --name "blog_home" --path "/blog" --extension "blog"
+serv create route --name "blog_post" --path "/blog/{slug}" --extension "blog"
 
 # API endpoints
-serv create plugin --name "API"
-serv create route --name "api_posts" --path "/api/posts" --plugin "api"
-serv create route --name "api_users" --path "/api/users" --plugin "api"
+serv create extension --name "API"
+serv create route --name "api_posts" --path "/api/posts" --extension "api"
+serv create route --name "api_users" --path "/api/users" --extension "api"
 ```
 
-### Plugin Dependencies
+### Extension Dependencies
 
-Plugins can depend on other plugins for shared functionality:
+Extensions can depend on other extensions for shared functionality:
 
 ```yaml
-# In blog plugin's plugin.yaml
+# In blog extension's extension.yaml
 name: Blog
 description: Blog functionality
 version: 1.0.0
@@ -492,7 +492,7 @@ async def NotFoundHandler(response: ResponseBuilder = dependency()):
     response.content_type("text/html")
     response.body("<h1>Page Not Found</h1>")
 
-# Register in your plugin's event handler
+# Register in your extension's event handler
 class MyListener(Listener):
     async def on_app_startup(self, app = dependency()):
         app.add_error_handler(HTTPNotFoundException, NotFoundHandler)
@@ -553,20 +553,20 @@ serv create route --name "user_profile" --path "/users/{id}"
 
 ### 2. Organize by Feature
 
-Group related routes in feature-specific plugins:
+Group related routes in feature-specific extensions:
 
 ```
-plugins/
+extensions/
 ├── user_management/
-│   ├── plugin.yaml
+│   ├── extension.yaml
 │   ├── route_user_list.py
 │   └── route_user_detail.py
 ├── blog/
-│   ├── plugin.yaml
+│   ├── extension.yaml
 │   ├── route_blog_home.py
 │   └── route_blog_post.py
 └── api/
-    ├── plugin.yaml
+    ├── extension.yaml
     ├── route_api_posts.py
     └── route_api_users.py
 ```
@@ -635,41 +635,41 @@ Start by planning your application's URL structure:
 /admin/posts         # Admin: Manage posts
 ```
 
-### 2. Create Plugins
+### 2. Create Extensions
 
-Create plugins for each major feature:
+Create extensions for each major feature:
 
 ```bash
-serv create plugin --name "Blog"
-serv create plugin --name "API"
-serv create plugin --name "Admin"
+serv create extension --name "Blog"
+serv create extension --name "API"
+serv create extension --name "Admin"
 ```
 
 ### 3. Add Routes
 
-Add routes to each plugin:
+Add routes to each extension:
 
 ```bash
 # Blog routes
-serv create route --name "blog_home" --path "/blog" --plugin "blog"
-serv create route --name "blog_post" --path "/blog/{slug}" --plugin "blog"
+serv create route --name "blog_home" --path "/blog" --extension "blog"
+serv create route --name "blog_post" --path "/blog/{slug}" --extension "blog"
 
 # API routes
-serv create route --name "api_posts" --path "/posts" --router "api_router" --plugin "api"
-serv create route --name "api_post_detail" --path "/posts/{id}" --router "api_router" --plugin "api"
+serv create route --name "api_posts" --path "/posts" --router "api_router" --extension "api"
+serv create route --name "api_post_detail" --path "/posts/{id}" --router "api_router" --extension "api"
 
 # Admin routes
-serv create route --name "admin_dashboard" --path "/dashboard" --router "admin_router" --plugin "admin"
+serv create route --name "admin_dashboard" --path "/dashboard" --router "admin_router" --extension "admin"
 ```
 
-### 4. Enable Plugins
+### 4. Enable Extensions
 
-Enable your plugins in the application:
+Enable your extensions in the application:
 
 ```bash
-serv plugin enable blog
-serv plugin enable api
-serv plugin enable admin
+serv extension enable blog
+serv extension enable api
+serv extension enable admin
 ```
 
 ### 5. Test and Iterate
@@ -684,12 +684,12 @@ serv dev
 serv test
 
 # Validate configuration
-serv plugin validate --all
+serv extension validate --all
 ```
 
 ## Next Steps
 
-- **[Plugins](plugins.md)** - Learn about plugin architecture and event handling
+- **[Extensions](extensions.md)** - Learn about extension architecture and event handling
 - **[Dependency Injection](dependency-injection.md)** - Master dependency injection patterns
 - **[Middleware](middleware.md)** - Add cross-cutting concerns to your routes
 - **[Forms and Validation](forms.md)** - Handle complex form processing 

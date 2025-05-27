@@ -472,7 +472,7 @@ Identify what types of responses your application needs:
 Use the CLI to create routes and implement appropriate response types:
 
 ```bash
-serv create route --name "api" --path "/api/users" --plugin "api"
+serv create route --name "api" --path "/api/users" --extension "api"
 ```
 
 ### 3. Implement Error Handling

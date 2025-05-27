@@ -5,7 +5,7 @@
 
 **Tired of boilerplate? Craving flexibility? Say hello to Serv!**
 
-Serv is a powerful and intuitive ASGI web framework for Python, designed for ultimate extensibility while being opinionated only when necessary. It aims to make building web applications and APIs a breeze, even allowing you to construct entire sites with out-of-the-box plugins, minimizing the need to write custom code. With its modern architecture, first-class support for dependency injection, and a flexible plugin system, Serv empowers you to focus on your application's unique logic, not the plumbing.
+Serv is a powerful and intuitive ASGI web framework for Python, designed for ultimate extensibility while being opinionated only when necessary. It aims to make building web applications and APIs a breeze, even allowing you to construct entire sites with out-of-the-box extensions, minimizing the need to write custom code. With its modern architecture, first-class support for dependency injection, and a flexible plugin system, Serv empowers you to focus on your application's unique logic, not the plumbing.
 
 ## ✨ Features
 
@@ -13,13 +13,13 @@ Serv is a powerful and intuitive ASGI web framework for Python, designed for ult
 *   **Extensible & Minimally Opinionated:** Designed for flexibility, providing guidance where it counts.
 *   **Codeless Site Building:** Includes out-of-the-box plugins to get sites up and running quickly.
 *   **Dependency Injection:** Leverages `bevy` for clean, testable code.
-*   **Plugin Architecture:** Easily extend and customize framework behavior beyond the defaults.
+*   **Extension Architecture:** Easily extend and customize framework behavior beyond the defaults.
 *   **Middleware Support:** Integrate custom processing steps into the request/response lifecycle.
 *   **Flexible Routing:** Define routes with ease.
 *   **Comprehensive Error Handling:** Robust mechanisms for managing exceptions.
 *   **Event System:** Emit and listen to events throughout the application lifecycle.
 
-## 🔌 Plugin and Middleware System
+## 🔌 Extension and Middleware System
 
 Serv provides a robust plugin and middleware loader that makes extending your application easy:
 
@@ -28,28 +28,28 @@ Serv provides a robust plugin and middleware loader that makes extending your ap
 Serv uses a two-layer configuration approach:
 
 1. **Application Configuration (`serv.config.yaml`)**: Defines which plugins are enabled and can override plugin settings.
-2. **Plugin Configuration (`plugin.yaml`)**: Defines plugin metadata, entry points, middleware, and default settings.
+2. **Extension Configuration (`plugin.yaml`)**: Defines plugin metadata, entry points, middleware, and default settings.
 
-### Plugin Structure
+### Extension Structure
 
-Plugins in Serv are packages that should have the following structure:
+Extensions in Serv are packages that should have the following structure:
 
 ```
 plugins/
   plugin_name/
     __init__.py
-    main.py  # Contains your Plugin subclass
+    main.py  # Contains your Extension subclass
     plugin.yaml  # Metadata and configuration for your plugin
 ```
 
 The `plugin.yaml` file should contain:
 
 ```yaml
-name: My Plugin Name
+name: My Extension Name
 description: What my plugin does
 version: 0.1.0
 author: Your Name
-entry: plugin_name.main:PluginClass  # Main plugin entry point
+entry: plugin_name.main:ExtensionClass  # Main plugin entry point
 
 # Default settings for the plugin
 settings:
@@ -58,7 +58,7 @@ settings:
 
 # Additional entry points provided by this plugin
 entry_points:
-  - entry: plugin_name.submodule:AnotherPluginClass
+  - entry: plugin_name.submodule:AnotherExtensionClass
     config:
       ep_option: value
 
@@ -109,7 +109,7 @@ class MyMiddleware(ServMiddleware):
         pass
 ```
 
-### Loading Plugins and Middleware
+### Loading Extensions and Middleware
 
 You can specify plugin directories using the CLI:
 

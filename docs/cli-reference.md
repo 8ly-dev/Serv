@@ -1,6 +1,6 @@
 # CLI Reference
 
-The Serv CLI provides a comprehensive set of commands for managing your web applications, plugins, and development workflow. This reference covers all available commands with detailed examples and usage patterns.
+The Serv CLI provides a comprehensive set of commands for managing your web applications, extensions, and development workflow. This reference covers all available commands with detailed examples and usage patterns.
 
 ## Installation and Setup
 
@@ -26,7 +26,7 @@ All Serv commands support these global options:
 | `--debug` | Enable debug logging | `serv --debug launch` |
 | `--app`, `-a` | Custom application class | `serv -a myapp.core:CustomApp launch` |
 | `--config`, `-c` | Path to config file | `serv -c config/prod.yaml launch` |
-| `--plugin-dirs` | Plugin directory path | `serv --plugin-dirs ./custom-plugins launch` |
+| `--extension-dirs` | Extension directory path | `serv --extension-dirs ./custom-extensions launch` |
 
 ## Application Management
 
@@ -110,15 +110,15 @@ serv dev --host 0.0.0.0
 
 ### `serv test`
 
-Run tests for your application and plugins.
+Run tests for your application and extensions.
 
 **Usage:**
 ```bash
-serv test [--plugins] [--e2e] [--coverage] [--verbose] [test_path]
+serv test [--extensions] [--e2e] [--coverage] [--verbose] [test_path]
 ```
 
 **Options:**
-- `--plugins`: Run plugin tests only
+- `--extensions`: Run extension tests only
 - `--e2e`: Run end-to-end tests only
 - `--coverage`: Generate coverage report
 - `--verbose`, `-v`: Verbose test output
@@ -130,8 +130,8 @@ serv test [--plugins] [--e2e] [--coverage] [--verbose] [test_path]
 # Run all tests
 serv test
 
-# Run only plugin tests
-serv test --plugins
+# Run only extension tests
+serv test --extensions
 
 # Run only e2e tests
 serv test --e2e
@@ -158,7 +158,7 @@ Coverage Report:
 Name                 Stmts   Miss  Cover
 ----------------------------------------
 serv/app.py            45      2    96%
-plugins/auth.py        23      0   100%
+extensions/auth.py        23      0   100%
 ----------------------------------------
 TOTAL                  68      2    97%
 ```
@@ -192,7 +192,7 @@ serv shell --no-startup
 **Available objects in shell:**
 - `app`: Your Serv application instance
 - `serv`: The Serv module
-- `plugins`: List of loaded plugins
+- `extensions`: List of loaded extensions
 - `Path`: pathlib.Path class
 - `yaml`: PyYAML module
 
@@ -200,15 +200,15 @@ serv shell --no-startup
 ```python
 🐍 Starting interactive Python shell...
 📦 Loading Serv app context...
-🔌 Loaded 3 plugins into context
+🔌 Loaded 3 extensions into context
 ✅ App context loaded successfully
-Available objects: app, serv, plugins, Path, yaml
+Available objects: app, serv, extensions, Path, yaml
 
 >>> app.site_info
 {'name': 'My Awesome Website', 'description': 'A modern web application'}
->>> len(plugins)
+>>> len(extensions)
 3
->>> plugins[0].name
+>>> extensions[0].name
 'User Management'
 ```
 
@@ -243,9 +243,9 @@ serv config show --format json
 site_info:
   name: My Awesome Website
   description: A modern web application
-plugins:
-- plugin: user_management
-- plugin: api_router
+extensions:
+- extension: user_management
+- extension: api_router
 middleware:
 - entry: cors_middleware
 ```
@@ -263,7 +263,7 @@ serv config validate
 ```
 ✅ Configuration file is valid YAML
 ✅ Has required field: site_info
-✅ Has required field: plugins
+✅ Has required field: extensions
 🎉 Configuration validation passed!
 ```
 
@@ -282,8 +282,8 @@ serv config get <key>
 # Get site name
 serv config get site_info.name
 
-# Get first plugin
-serv config get plugins.0.plugin
+# Get first extension
+serv config get extensions.0.extension
 
 # Get nested values
 serv config get database.connection.host
@@ -325,37 +325,37 @@ serv config set allowed_hosts "localhost,127.0.0.1,example.com" --type list
 serv config set database.connection.timeout 30 --type int
 ```
 
-## Plugin Management
+## Extension Management
 
-### `serv plugin list`
+### `serv extension list`
 
-List available and enabled plugins.
+List available and enabled extensions.
 
 **Usage:**
 ```bash
-serv plugin list [--available]
+serv extension list [--available]
 ```
 
 **Options:**
-- `--available`: Show all available plugins (default shows enabled)
+- `--available`: Show all available extensions (default shows enabled)
 
 **Examples:**
 
 ```bash
-# List enabled plugins
-serv plugin list
+# List enabled extensions
+serv extension list
 
-# List all available plugins
-serv plugin list --available
+# List all available extensions
+serv extension list --available
 ```
 
 **Example output:**
 ```
-Enabled plugins (2):
+Enabled extensions (2):
   • User Management (v1.0.0) [user_management]
   • API Router (v2.1.0) [api_router] (with config)
 
-Available plugins (4):
+Available extensions (4):
   • User Management (v1.0.0) [user_management]
     User authentication and management system
   • API Router (v2.1.0) [api_router]
@@ -366,96 +366,96 @@ Available plugins (4):
     Administrative interface
 ```
 
-### `serv plugin enable`
+### `serv extension enable`
 
-Enable a plugin in your application.
+Enable a extension in your application.
 
 **Usage:**
 ```bash
-serv plugin enable <plugin_identifier>
+serv extension enable <extension_identifier>
 ```
 
 **Examples:**
 
 ```bash
 # Enable by directory name
-serv plugin enable user_management
+serv extension enable user_management
 
-# Enable plugin with different name
-serv plugin enable blog_engine
+# Enable extension with different name
+serv extension enable blog_engine
 ```
 
 **Example output:**
 ```
-Plugin 'user_management' enabled successfully.
+Extension 'user_management' enabled successfully.
 Human name: User Management
 ```
 
-### `serv plugin disable`
+### `serv extension disable`
 
-Disable a plugin in your application.
+Disable a extension in your application.
 
 **Usage:**
 ```bash
-serv plugin disable <plugin_identifier>
+serv extension disable <extension_identifier>
 ```
 
 **Examples:**
 
 ```bash
 # Disable by directory name
-serv plugin disable user_management
+serv extension disable user_management
 
-# Disable plugin with different name
-serv plugin disable blog_engine
+# Disable extension with different name
+serv extension disable blog_engine
 ```
 
-### `serv plugin validate`
+### `serv extension validate`
 
-Validate plugin structure and configuration.
+Validate extension structure and configuration.
 
 **Usage:**
 ```bash
-serv plugin validate [plugin_identifier] [--all]
+serv extension validate [extension_identifier] [--all]
 ```
 
 **Options:**
-- `--all`: Validate all plugins
+- `--all`: Validate all extensions
 
 **Examples:**
 
 ```bash
-# Validate all plugins
-serv plugin validate
+# Validate all extensions
+serv extension validate
 
-# Validate specific plugin
-serv plugin validate user_management
+# Validate specific extension
+serv extension validate user_management
 
 # Explicitly validate all
-serv plugin validate --all
+serv extension validate --all
 ```
 
 **Example output:**
 ```
-=== Validating 2 Plugin(s) ===
+=== Validating 2 Extension(s) ===
 
-🔍 Validating plugin: user_management
-✅ plugin.yaml is valid YAML
+🔍 Validating extension: user_management
+✅ extension.yaml is valid YAML
 ✅ Has required field: name
 ✅ Has required field: version
 ✅ Has recommended field: description
 ✅ Has recommended field: author
 ✅ Has __init__.py
 ✅ Found 3 Python file(s)
-✅ Has main plugin file: user_management.py
+✅ Has main extension file: user_management.py
 ✅ user_management.py has valid Python syntax
-🎉 Plugin 'user_management' validation passed!
+🎉 Extension 'user_management' validation passed!
 
 === Validation Summary ===
-🎉 All plugins passed validation!
+🎉 All extensions passed validation!
 ```
 
-## Project and Plugin Development
+## Project and Extension Development
 
 ### `serv create app`
 
@@ -492,63 +492,63 @@ Enter site description [A new website powered by Serv]: A modern web application
 **Generated files:**
 - `serv.config.yaml` - Main configuration file
 
-### `serv create plugin`
+### `serv create extension`
 
-Create a new plugin with proper structure.
+Create a new extension with proper structure.
 
 **Usage:**
 ```bash
-serv create plugin --name NAME [--force] [--non-interactive]
+serv create extension --name NAME [--force] [--non-interactive]
 ```
 
 **Options:**
-- `--name`: Name of the plugin (required)
-- `--force`: Overwrite existing plugin
+- `--name`: Name of the extension (required)
+- `--force`: Overwrite existing extension
 - `--non-interactive`: Use default values
 
 **Examples:**
 
 ```bash
-# Interactive plugin creation
-serv create plugin --name "User Authentication"
+# Interactive extension creation
+serv create extension --name "User Authentication"
 
 # Non-interactive with defaults
-serv create plugin --name "Blog Engine" --non-interactive
+serv create extension --name "Blog Engine" --non-interactive
 
 # Force overwrite existing
-serv create plugin --name "API Router" --force
+serv create extension --name "API Router" --force
 ```
 
 **Interactive prompts:**
 ```
 Author [Your Name]: John Doe
-Description [A cool Serv plugin.]: User authentication and management
+Description [A cool Serv extension.]: User authentication and management
 Version [0.1.0]: 1.0.0
 ```
 
 **Generated structure:**
 ```
-plugins/
+extensions/
 └── user_authentication/
     ├── __init__.py
-    ├── plugin.yaml
+    ├── extension.yaml
     └── user_authentication.py
 ```
 
 ### `serv create route`
 
-Create a new route handler in a plugin.
+Create a new route handler in a extension.
 
 **Usage:**
 ```bash
-serv create route --name NAME [--path PATH] [--router ROUTER] [--plugin PLUGIN] [--force]
+serv create route --name NAME [--path PATH] [--router ROUTER] [--extension PLUGIN] [--force]
 ```
 
 **Options:**
 - `--name`: Name of the route (required)
 - `--path`: URL path for the route
 - `--router`: Router name to add the route to
-- `--plugin`: Plugin to add the route to (auto-detected if not provided)
+- `--extension`: Extension to add the route to (auto-detected if not provided)
 - `--force`: Overwrite existing files
 
 **Examples:**
@@ -561,7 +561,7 @@ serv create route --name user_profile
 serv create route --name user_profile \
   --path "/users/{id}/profile" \
   --router api_router \
-  --plugin user_management
+  --extension user_management
 
 # Create API endpoint
 serv create route --name create_post \
@@ -584,7 +584,7 @@ Existing routers:
 Select router (name or number) [1]: 1
 ```
 
-**Generated plugin.yaml update:**
+**Generated extension.yaml update:**
 ```yaml
 routers:
 - name: api_router
@@ -595,20 +595,20 @@ routers:
 
 ### `serv create listener`
 
-Create a new plugin listener class.
+Create a new extension listener class.
 
 **Usage:**
 ```bash
-serv create listener --name NAME [--plugin PLUGIN] [--force]
+serv create listener --name NAME [--extension PLUGIN] [--force]
 ```
 
 **Examples:**
 
 ```bash
 # Create listener
-serv create listener --name admin_auth --plugin user_management
+serv create listener --name admin_auth --extension user_management
 
-# Auto-detect plugin
+# Auto-detect extension
 serv create listener --name email_sender
 
 # Force overwrite existing
@@ -621,17 +621,17 @@ Create a new middleware component.
 
 **Usage:**
 ```bash
-serv create middleware --name NAME [--plugin PLUGIN] [--force]
+serv create middleware --name NAME [--extension PLUGIN] [--force]
 ```
 
 **Examples:**
 
 ```bash
 # Create middleware
-serv create middleware --name auth_check --plugin user_management
+serv create middleware --name auth_check --extension user_management
 
 # Rate limiting middleware
-serv create middleware --name rate_limiter --plugin security
+serv create middleware --name rate_limiter --extension security
 ```
 
 ## Advanced Usage Patterns
@@ -659,14 +659,14 @@ serv -a myproject.app:CustomApp launch
 serv -a myproject.app:CustomApp -c custom.yaml dev
 ```
 
-### Plugin Development Workflow
+### Extension Development Workflow
 
 ```bash
 # 1. Create new project (if needed)
 serv create app
 
-# 2. Create plugin
-serv create plugin --name "My Feature"
+# 2. Create extension
+serv create extension --name "My Feature"
 
 # 3. Add listeners
 serv create listener --name feature_handler
@@ -677,14 +677,14 @@ serv create route --name feature_api --path "/api/feature" --router api_router
 # 5. Add middleware
 serv create middleware --name feature_auth
 
-# 6. Validate plugin
-serv plugin validate my_feature
+# 6. Validate extension
+serv extension validate my_feature
 
-# 7. Enable plugin
-serv plugin enable my_feature
+# 7. Enable extension
+serv extension enable my_feature
 
 # 8. Test
-serv test --plugins
+serv test --extensions
 
 # 9. Start development server
 serv dev
@@ -737,16 +737,16 @@ serv config validate
 serv create app
 ```
 
-**Plugin not loading:**
+**Extension not loading:**
 ```bash
-# Validate plugin structure
-serv plugin validate my_plugin
+# Validate extension structure
+serv extension validate my_extension
 
-# Check if plugin is enabled
-serv plugin list
+# Check if extension is enabled
+serv extension list
 
-# Enable plugin
-serv plugin enable my_plugin
+# Enable extension
+serv extension enable my_extension
 ```
 
 **Application health check:**
@@ -754,8 +754,8 @@ serv plugin enable my_plugin
 # Check configuration
 serv config validate
 
-# Check plugins
-serv plugin validate
+# Check extensions
+serv extension validate
 
 # Check if app can be loaded
 serv launch --dry-run
@@ -768,7 +768,7 @@ Enable debug logging for detailed information:
 ```bash
 serv --debug dev
 serv --debug config validate
-serv --debug plugin validate
+serv --debug extension validate
 ```
 
 ### Getting Help
@@ -790,7 +790,7 @@ Serv CLI respects these environment variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SERV_CONFIG` | Default config file path | `serv.config.yaml` |
-| `SERV_PLUGIN_DIRS` | Default plugin directories | `./plugins` |
+| `SERV_PLUGIN_DIRS` | Default extension directories | `./extensions` |
 | `SERV_DEBUG` | Enable debug mode | `false` |
 
 **Example:**
@@ -829,8 +829,8 @@ jobs:
     - name: Check application health
       run: serv app check
     
-    - name: Validate plugins
-      run: serv plugin validate
+    - name: Validate extensions
+      run: serv extension validate
     
     - name: Run tests with coverage
       run: serv test --coverage

@@ -1,6 +1,6 @@
 # Your First App
 
-In this tutorial, we'll build a complete blog application using Serv. You'll learn about routing, templates, forms, plugins, and more!
+In this tutorial, we'll build a complete blog application using Serv. You'll learn about routing, templates, forms, extensions, and more!
 
 ## What We'll Build
 
@@ -11,7 +11,7 @@ We're going to create a simple blog with the following features:
 - Admin interface to create new posts
 - Form handling and validation
 - Template rendering with Jinja2
-- Plugin-based architecture
+- Extension-based architecture
 
 ## Project Setup
 
@@ -36,12 +36,12 @@ serv-blog/
 │   ├── post.html
 │   └── admin/
 │       └── create_post.html
-└── plugins/
+└── extensions/
     └── blog/
         ├── __init__.py
         ├── main.py
         ├── models.py
-        └── plugin.yaml
+        └── extension.yaml
 ```
 
 ### 2. Install Dependencies
@@ -54,7 +54,7 @@ pip install getserving uvicorn
 
 ### 1. Create the Data Models
 
-First, let's create simple data models for our blog posts. Create `plugins/blog/models.py`:
+First, let's create simple data models for our blog posts. Create `extensions/blog/models.py`:
 
 ```python
 from dataclasses import dataclass
@@ -110,14 +110,14 @@ class BlogStorage:
         return None
 ```
 
-### 2. Create the Blog Plugin
+### 2. Create the Blog Extension
 
-Now let's create the main blog plugin. Create `plugins/blog/main.py`:
+Now let's create the main blog extension. Create `extensions/blog/main.py`:
 
 ```python
 from typing import Annotated
-from serv.plugins import Plugin
-from serv.plugins.routing import Router
+from serv.extensions import Extension
+from serv.extensions.routing import Router
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routes import Route, Form
@@ -126,13 +126,13 @@ import json
 
 from .models import BlogStorage, BlogPost
 
-class BlogPlugin(Plugin):
+class BlogExtension(Extension):
     def __init__(self):
         self.storage = BlogStorage()
     
     async def on_app_startup(self):
-        """Initialize the blog plugin"""
-        print("Blog plugin started!")
+        """Initialize the blog extension"""
+        print("Blog extension started!")
     
     async def on_app_request_begin(self, router: Router = dependency()):
         """Register routes for each request"""
@@ -338,16 +338,16 @@ class AdminRoute(Route):
         response.body("")
 ```
 
-### 3. Create the Plugin Configuration
+### 3. Create the Extension Configuration
 
-Create `plugins/blog/plugin.yaml`:
+Create `extensions/blog/extension.yaml`:
 
 ```yaml
-name: Blog Plugin
-description: A simple blog plugin for Serv
+name: Blog Extension
+description: A simple blog extension for Serv
 version: 1.0.0
 author: Your Name
-entry: blog.main:BlogPlugin
+entry: blog.main:BlogExtension
 
 settings:
   posts_per_page: 10
@@ -361,10 +361,10 @@ Create `app.py`:
 ```python
 from serv import App
 
-# Create the app with plugin directory
+# Create the app with extension directory
 app = App(
     config="./serv.config.yaml",
-    plugin_dir="./plugins"
+    extension_dir="./extensions"
 )
 
 if __name__ == "__main__":
@@ -377,19 +377,19 @@ if __name__ == "__main__":
 Create `serv.config.yaml`:
 
 ```yaml
-plugins:
-  - plugin: blog
+extensions:
+  - extension: blog
     settings:
       posts_per_page: 5
       allow_comments: true
 ```
 
-### 6. Initialize the Plugin Package
+### 6. Initialize the Extension Package
 
-Create `plugins/blog/__init__.py`:
+Create `extensions/blog/__init__.py`:
 
 ```python
-# Blog plugin package
+# Blog extension package
 ```
 
 ## Running the Application
@@ -409,9 +409,9 @@ Visit the following URLs to test your application:
 
 ## Understanding the Code
 
-### Plugin Architecture
+### Extension Architecture
 
-Our blog is implemented as a plugin, which makes it:
+Our blog is implemented as a extension, which makes it:
 
 - **Modular**: Easy to enable/disable
 - **Reusable**: Can be used in multiple applications
@@ -476,10 +476,10 @@ class DatabaseStorage:
 
 ### Add Authentication
 
-Create an authentication plugin:
+Create an authentication extension:
 
 ```python
-class AuthPlugin(Plugin):
+class AuthExtension(Extension):
     async def on_app_request_begin(self, router: Router = dependency()):
         router.add_route("/login", self.login_page)
         router.add_route("/logout", self.logout)
@@ -510,7 +510,7 @@ Use Jinja2 for proper template rendering:
 ```python
 from jinja2 import Environment, FileSystemLoader
 
-class BlogPlugin(Plugin):
+class BlogExtension(Extension):
     def __init__(self):
         self.storage = BlogStorage()
         self.jinja_env = Environment(
@@ -526,7 +526,7 @@ class BlogPlugin(Plugin):
 
 Congratulations! You've built a complete blog application with Serv. You've learned about:
 
-- ✅ Plugin architecture
+- ✅ Extension architecture
 - ✅ Routing (both function and class-based)
 - ✅ Form handling
 - ✅ Template rendering
@@ -537,7 +537,7 @@ Congratulations! You've built a complete blog application with Serv. You've lear
 
 - **[Configuration](configuration.md)** - Learn about advanced configuration options
 - **[Routing Guide](../guides/routing.md)** - Master advanced routing techniques
-- **[Plugin Development](../guides/plugins.md)** - Build more sophisticated plugins
+- **[Extension Development](../guides/extensions.md)** - Build more sophisticated extensions
 - **[Middleware](../guides/middleware.md)** - Add cross-cutting concerns to your app
 
 ### Explore More Examples

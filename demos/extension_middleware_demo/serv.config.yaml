@@ -1,0 +1,28 @@
+# Serv Configuration File
+# This is a demo configuration that loads plugins and middleware
+
+site_info:
+  name: "Extension and Middleware Demo"
+  description: "Demonstrates loading and using plugins and middleware"
+  version: "0.1.0"
+
+# Configure plugins from the local plugins directory
+plugins:
+  - entry: plugins.auth.main:Auth
+    config:
+      enabled: true
+      users:
+        admin: "password123"  # In a real app, this would be hashed
+
+  - entry: plugins.utils.main:Utils
+    config: {}
+    
+  - entry: plugins.routes.main:Routes
+    config: {}
+
+# Configure middleware from the local middleware directory
+middleware:
+  - entry: middleware.logging.main:request_logger_middleware
+    config:
+      level: "DEBUG"
+      log_headers: true 

@@ -62,59 +62,61 @@ def _should_prompt_interactively(args_ns):
         return False
 
 
-def _detect_plugin_context(plugin_arg=None):
-    """Detect which plugin to operate on based on context and arguments.
+def _detect_extension_context(extension_arg=None):
+    """Detect which extension to operate on based on context and arguments.
 
     Returns:
-        tuple: (plugin_name, plugin_dir_path) or (None, None) if not found
+        tuple: (extension_name, extension_dir_path) or (None, None) if not found
     """
-    if plugin_arg:
-        # Plugin explicitly specified
-        plugins_dir = Path.cwd() / "plugins"
-        plugin_dir = plugins_dir / plugin_arg
-        if plugin_dir.exists() and (plugin_dir / "plugin.yaml").exists():
-            return plugin_arg, plugin_dir
+    if extension_arg:
+        # Extension explicitly specified
+        extensions_dir = Path.cwd() / "extensions"
+        extension_dir = extensions_dir / extension_arg
+        if extension_dir.exists() and (extension_dir / "extension.yaml").exists():
+            return extension_arg, extension_dir
         else:
-            logger.error(f"Plugin '{plugin_arg}' not found in plugins directory")
+            logger.error(
+                f"Extension '{extension_arg}' not found in extensions directory"
+            )
             return None, None
 
-    # Check if we're in a plugin directory (has plugin.yaml)
-    if (Path.cwd() / "plugin.yaml").exists():
+    # Check if we're in a extension directory (has extension.yaml)
+    if (Path.cwd() / "extension.yaml").exists():
         return Path.cwd().name, Path.cwd()
 
-    # Check if there's only one plugin in the plugins directory
-    plugins_dir = Path.cwd() / "plugins"
-    if plugins_dir.exists():
-        plugin_dirs = [
+    # Check if there's only one extension in the extensions directory
+    extensions_dir = Path.cwd() / "extensions"
+    if extensions_dir.exists():
+        extension_dirs = [
             d
-            for d in plugins_dir.iterdir()
+            for d in extensions_dir.iterdir()
             if d.is_dir()
-            and (d / "plugin.yaml").exists()
+            and (d / "extension.yaml").exists()
             and not d.name.startswith("_")
         ]
-        if len(plugin_dirs) == 1:
-            plugin_dir = plugin_dirs[0]
-            return plugin_dir.name, plugin_dir
+        if len(extension_dirs) == 1:
+            extension_dir = extension_dirs[0]
+            return extension_dir.name, extension_dir
 
     return None, None
 
 
-def _update_plugin_config(plugin_dir, component_type, component_name, entry_path):
-    """Update the plugin.yaml file to include the new component.
+def _update_extension_config(extension_dir, component_type, component_name, entry_path):
+    """Update the extension.yaml file to include the new component.
 
     Args:
-        plugin_dir: Path to the plugin directory
+        extension_dir: Path to the extension directory
         component_type: Type of component ('listeners', 'middleware', 'routers')
         component_name: Name of the component
         entry_path: Entry path for the component
     """
-    plugin_yaml_path = plugin_dir / "plugin.yaml"
+    extension_yaml_path = extension_dir / "extension.yaml"
 
     try:
-        with open(plugin_yaml_path) as f:
+        with open(extension_yaml_path) as f:
             config = yaml.safe_load(f) or {}
     except Exception as e:
-        logger.error(f"Error reading plugin config '{plugin_yaml_path}': {e}")
+        logger.error(f"Error reading extension config '{extension_yaml_path}': {e}")
         return False
 
     # Initialize the component section if it doesn't exist
@@ -162,11 +164,11 @@ def _update_plugin_config(plugin_dir, component_type, component_name, entry_path
             )
 
     try:
-        with open(plugin_yaml_path, "w") as f:
+        with open(extension_yaml_path, "w") as f:
             yaml.dump(config, f, sort_keys=False, indent=2, default_flow_style=False)
         return True
     except Exception as e:
-        logger.error(f"Error writing plugin config '{plugin_yaml_path}': {e}")
+        logger.error(f"Error writing extension config '{extension_yaml_path}': {e}")
         return False
 
 
@@ -221,73 +223,74 @@ def handle_init_command(args_ns):
             f.write(config_content_str)
 
         print(f"Successfully created '{config_path}'.")
-        print("You can now configure your plugins in this file.")
+        print("You can now configure your extensions in this file.")
     except OSError as e:
         logger.error(f"Error writing config file '{config_path}': {e}")
 
 
-def handle_create_plugin_command(args_ns):
-    """Handles the 'create plugin' command."""
-    logger.debug("Create plugin command started.")
+def handle_create_extension_command(args_ns):
+    """Handles the 'create extension' command."""
+    logger.debug("Create extension command started.")
 
-    # Get plugin name from args or prompt for it
-    plugin_name_human = args_ns.name
-    if not plugin_name_human:
+    # Get extension name from args or prompt for it
+    extension_name_human = args_ns.name
+    if not extension_name_human:
         if _should_prompt_interactively(args_ns):
-            plugin_name_human = prompt_user("Plugin name")
-            if not plugin_name_human:
-                logger.error("Plugin name is required.")
+            extension_name_human = prompt_user("Extension name")
+            if not extension_name_human:
+                logger.error("Extension name is required.")
                 return
         else:
-            logger.error("Plugin name is required. Use --name to specify it.")
+            logger.error("Extension name is required. Use --name to specify it.")
             return
 
     # For non-interactive mode, use default values
     if getattr(args_ns, "non_interactive", False):
-        plugin_author = "Test Author"
-        plugin_description = "A test plugin for Serv"
-        plugin_version = "1.0.0"
+        extension_author = "Test Author"
+        extension_description = "A test extension for Serv"
+        extension_version = "1.0.0"
     else:
-        plugin_author = prompt_user("Author", "Your Name") or "Your Name"
-        plugin_description = (
-            prompt_user("Description", "A cool Serv plugin.") or "A cool Serv plugin."
+        extension_author = prompt_user("Author", "Your Name") or "Your Name"
+        extension_description = (
+            prompt_user("Description", "A cool Serv extension.")
+            or "A cool Serv extension."
         )
-        plugin_version = prompt_user("Version", "0.1.0") or "0.1.0"
+        extension_version = prompt_user("Version", "0.1.0") or "0.1.0"
 
-    plugin_dir_name = to_snake_case(plugin_name_human)
-    if not plugin_dir_name:
+    extension_dir_name = to_snake_case(extension_name_human)
+    if not extension_dir_name:
         logger.error(
-            f"Could not derive a valid module name from '{plugin_name_human}'. Please use alphanumeric characters."
+            f"Could not derive a valid module name from '{extension_name_human}'. Please use alphanumeric characters."
         )
         return
 
-    plugins_root_dir = Path.cwd() / "plugins"
-    plugin_specific_dir = plugins_root_dir / plugin_dir_name
+    extensions_root_dir = Path.cwd() / "extensions"
+    extension_specific_dir = extensions_root_dir / extension_dir_name
 
-    if plugin_specific_dir.exists() and not getattr(args_ns, "force", False):
+    if extension_specific_dir.exists() and not getattr(args_ns, "force", False):
         print(
-            f"Warning: Plugin directory '{plugin_specific_dir}' already exists. Files might be overwritten."
+            f"Warning: Extension directory '{extension_specific_dir}' already exists. Files might be overwritten."
         )
 
     try:
-        os.makedirs(plugin_specific_dir, exist_ok=True)
-        (plugins_root_dir / "__init__.py").touch(exist_ok=True)
-        (plugin_specific_dir / "__init__.py").touch(exist_ok=True)
+        os.makedirs(extension_specific_dir, exist_ok=True)
+        (extensions_root_dir / "__init__.py").touch(exist_ok=True)
+        (extension_specific_dir / "__init__.py").touch(exist_ok=True)
 
     except OSError as e:
         logger.error(
-            f"Error creating plugin directory structure '{plugin_specific_dir}': {e}"
+            f"Error creating extension directory structure '{extension_specific_dir}': {e}"
         )
         return
 
-    # Create plugin.yaml (without listeners - those will be added by create listener)
-    plugin_yaml_path = plugin_specific_dir / "plugin.yaml"
+    # Create extension.yaml (without listeners - those will be added by create listener)
+    extension_yaml_path = extension_specific_dir / "extension.yaml"
 
-    plugin_yaml_context = {
-        "plugin_name": plugin_name_human,
-        "plugin_version": plugin_version,
-        "plugin_author": plugin_author,
-        "plugin_description": plugin_description,
+    extension_yaml_context = {
+        "extension_name": extension_name_human,
+        "extension_version": extension_version,
+        "extension_author": extension_author,
+        "extension_description": extension_description,
     }
 
     try:
@@ -296,35 +299,35 @@ def handle_create_plugin_command(args_ns):
             / "scaffolding"
         )
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
-        template = env.get_template("plugin_yaml.template")
-        plugin_yaml_content_str = template.render(**plugin_yaml_context)
+        template = env.get_template("extension_yaml.template")
+        extension_yaml_content_str = template.render(**extension_yaml_context)
     except Exception as e_template:
-        logger.error(f"Error loading plugin_yaml.template: {e_template}")
+        logger.error(f"Error loading extension_yaml.template: {e_template}")
         return
 
     try:
-        with open(plugin_yaml_path, "w") as f:
-            f.write(plugin_yaml_content_str)
-        print(f"Created '{plugin_yaml_path}'")
+        with open(extension_yaml_path, "w") as f:
+            f.write(extension_yaml_content_str)
+        print(f"Created '{extension_yaml_path}'")
         print(
-            f"Plugin '{plugin_name_human}' created successfully in '{plugin_specific_dir}'."
+            f"Extension '{extension_name_human}' created successfully in '{extension_specific_dir}'."
         )
         print("To add functionality, create listeners with:")
         print(
-            f"  serv create listener --name <listener_name> --plugin {plugin_dir_name}"
+            f"  serv create listener --name <listener_name> --extension {extension_dir_name}"
         )
-        print("To enable the plugin, run:")
-        print(f"  serv plugin enable {plugin_dir_name}")
+        print("To enable the extension, run:")
+        print(f"  serv extension enable {extension_dir_name}")
 
     except OSError as e:
-        logger.error(f"Error writing '{plugin_yaml_path}': {e}")
+        logger.error(f"Error writing '{extension_yaml_path}': {e}")
         return
 
 
-def handle_enable_plugin_command(args_ns):
-    """Handles the 'enable-plugin' command."""
-    plugin_identifier = args_ns.plugin_identifier
-    logger.debug(f"Attempting to enable plugin: '{plugin_identifier}'...")
+def handle_enable_extension_command(args_ns):
+    """Handles the 'enable-extension' command."""
+    extension_identifier = args_ns.extension_identifier
+    logger.debug(f"Attempting to enable extension: '{extension_identifier}'...")
 
     config_path = Path.cwd() / DEFAULT_CONFIG_FILE
     if not config_path.exists():
@@ -333,28 +336,28 @@ def handle_enable_plugin_command(args_ns):
         )
         return
 
-    # Convert plugin identifier to directory name
-    plugin_id = to_snake_case(plugin_identifier)
-    plugin_name_human = plugin_identifier
+    # Convert extension identifier to directory name
+    extension_id = to_snake_case(extension_identifier)
+    extension_name_human = extension_identifier
 
-    # Check if plugin directory exists
-    plugins_dir = Path.cwd() / "plugins"
-    plugin_yaml_path = plugins_dir / plugin_id / "plugin.yaml"
+    # Check if extension directory exists
+    extensions_dir = Path.cwd() / "extensions"
+    extension_yaml_path = extensions_dir / extension_id / "extension.yaml"
 
-    if not plugin_yaml_path.exists():
+    if not extension_yaml_path.exists():
         logger.error(
-            f"Plugin '{plugin_identifier}' not found. Expected plugin.yaml at '{plugin_yaml_path}'."
+            f"Extension '{extension_identifier}' not found. Expected extension.yaml at '{extension_yaml_path}'."
         )
         return
 
-    # Get human name from plugin.yaml
+    # Get human name from extension.yaml
     try:
-        with open(plugin_yaml_path) as f:
-            plugin_meta = yaml.safe_load(f)
-        if isinstance(plugin_meta, dict):
-            plugin_name_human = plugin_meta.get("name", plugin_identifier)
+        with open(extension_yaml_path) as f:
+            extension_meta = yaml.safe_load(f)
+        if isinstance(extension_meta, dict):
+            extension_name_human = extension_meta.get("name", extension_identifier)
     except Exception:
-        plugin_name_human = plugin_identifier
+        extension_name_human = extension_identifier
 
     try:
         with open(config_path) as f:
@@ -363,37 +366,40 @@ def handle_enable_plugin_command(args_ns):
         logger.error(f"Error reading config file '{config_path}': {e}")
         return
 
-    plugins = config.get("plugins", [])
+    extensions = config.get("extensions", [])
 
-    # Check if plugin is already enabled
-    for plugin_entry in plugins:
-        if isinstance(plugin_entry, dict):
-            existing_plugin = plugin_entry.get("plugin")
+    # Check if extension is already enabled
+    for extension_entry in extensions:
+        if isinstance(extension_entry, dict):
+            existing_extension = extension_entry.get("extension")
         else:
-            existing_plugin = plugin_entry
+            existing_extension = extension_entry
 
-        if existing_plugin == plugin_id or existing_plugin == plugin_identifier:
-            print(f"Plugin '{plugin_identifier}' is already enabled.")
+        if (
+            existing_extension == extension_id
+            or existing_extension == extension_identifier
+        ):
+            print(f"Extension '{extension_identifier}' is already enabled.")
             return
 
-    # Add the plugin
-    plugins.append({"plugin": plugin_id})
-    config["plugins"] = plugins
+    # Add the extension
+    extensions.append({"extension": extension_id})
+    config["extensions"] = extensions
 
     try:
         with open(config_path, "w") as f:
             yaml.dump(config, f, sort_keys=False, indent=2, default_flow_style=False)
-        print(f"Plugin '{plugin_identifier}' enabled successfully.")
-        if plugin_name_human and plugin_name_human != plugin_identifier:
-            print(f"Human name: {plugin_name_human}")
+        print(f"Extension '{extension_identifier}' enabled successfully.")
+        if extension_name_human and extension_name_human != extension_identifier:
+            print(f"Human name: {extension_name_human}")
     except Exception as e:
         logger.error(f"Error writing config file '{config_path}': {e}")
 
 
-def handle_disable_plugin_command(args_ns):
-    """Handles the 'disable-plugin' command."""
-    plugin_identifier = args_ns.plugin_identifier
-    logger.debug(f"Attempting to disable plugin: '{plugin_identifier}'...")
+def handle_disable_extension_command(args_ns):
+    """Handles the 'disable-extension' command."""
+    extension_identifier = args_ns.extension_identifier
+    logger.debug(f"Attempting to disable extension: '{extension_identifier}'...")
 
     config_path = Path.cwd() / DEFAULT_CONFIG_FILE
     if not config_path.exists():
@@ -402,22 +408,22 @@ def handle_disable_plugin_command(args_ns):
         )
         return
 
-    # Convert plugin identifier to directory name
-    plugin_id = to_snake_case(plugin_identifier)
-    plugin_name_human = plugin_identifier
+    # Convert extension identifier to directory name
+    extension_id = to_snake_case(extension_identifier)
+    extension_name_human = extension_identifier
 
-    # Check if plugin directory exists and get human name
-    plugins_dir = Path.cwd() / "plugins"
-    plugin_yaml_path = plugins_dir / plugin_id / "plugin.yaml"
+    # Check if extension directory exists and get human name
+    extensions_dir = Path.cwd() / "extensions"
+    extension_yaml_path = extensions_dir / extension_id / "extension.yaml"
 
-    if plugin_yaml_path.exists():
+    if extension_yaml_path.exists():
         try:
-            with open(plugin_yaml_path) as f:
-                plugin_meta = yaml.safe_load(f)
-            if isinstance(plugin_meta, dict):
-                plugin_name_human = plugin_meta.get("name", plugin_identifier)
+            with open(extension_yaml_path) as f:
+                extension_meta = yaml.safe_load(f)
+            if isinstance(extension_meta, dict):
+                extension_name_human = extension_meta.get("name", extension_identifier)
         except Exception:
-            plugin_name_human = plugin_identifier
+            extension_name_human = extension_identifier
 
     try:
         with open(config_path) as f:
@@ -426,99 +432,101 @@ def handle_disable_plugin_command(args_ns):
         logger.error(f"Error reading config file '{config_path}': {e}")
         return
 
-    plugins = config.get("plugins", [])
-    original_count = len(plugins)
+    extensions = config.get("extensions", [])
+    original_count = len(extensions)
 
-    # Remove the plugin
-    plugins = [
+    # Remove the extension
+    extensions = [
         p
-        for p in plugins
+        for p in extensions
         if (
             (
                 isinstance(p, dict)
-                and p.get("plugin") not in [plugin_id, plugin_identifier]
+                and p.get("extension") not in [extension_id, extension_identifier]
             )
-            or (isinstance(p, str) and p not in [plugin_id, plugin_identifier])
+            or (isinstance(p, str) and p not in [extension_id, extension_identifier])
         )
     ]
 
-    if len(plugins) == original_count:
-        print(f"Plugin '{plugin_identifier}' was not found in the configuration.")
+    if len(extensions) == original_count:
+        print(f"Extension '{extension_identifier}' was not found in the configuration.")
         return
 
-    config["plugins"] = plugins
+    config["extensions"] = extensions
 
     try:
         with open(config_path, "w") as f:
             yaml.dump(config, f, sort_keys=False, indent=2, default_flow_style=False)
-        print(f"Plugin '{plugin_identifier}' disabled successfully.")
-        if plugin_name_human and plugin_name_human != plugin_identifier:
-            print(f"Human name: {plugin_name_human}")
+        print(f"Extension '{extension_identifier}' disabled successfully.")
+        if extension_name_human and extension_name_human != extension_identifier:
+            print(f"Human name: {extension_name_human}")
     except Exception as e:
         logger.error(f"Error writing config file '{config_path}': {e}")
 
 
-def handle_list_plugin_command(args_ns):
-    """Handles the 'list plugin' command."""
-    logger.debug("List plugin command started.")
+def handle_list_extension_command(args_ns):
+    """Handles the 'list extension' command."""
+    logger.debug("List extension command started.")
 
     config_path = Path.cwd() / DEFAULT_CONFIG_FILE
 
     if args_ns.available:
-        # Show all available plugins in the plugins directory
-        plugins_dir = Path.cwd() / "plugins"
-        if not plugins_dir.exists():
-            print("No plugins directory found.")
+        # Show all available extensions in the extensions directory
+        extensions_dir = Path.cwd() / "extensions"
+        if not extensions_dir.exists():
+            print("No extensions directory found.")
             return
 
-        available_plugins = []
-        for plugin_dir in plugins_dir.iterdir():
+        available_extensions = []
+        for extension_dir in extensions_dir.iterdir():
             if (
-                plugin_dir.is_dir()
-                and not plugin_dir.name.startswith("_")
-                and (plugin_dir / "plugin.yaml").exists()
+                extension_dir.is_dir()
+                and not extension_dir.name.startswith("_")
+                and (extension_dir / "extension.yaml").exists()
             ):
                 try:
-                    with open(plugin_dir / "plugin.yaml") as f:
-                        plugin_meta = yaml.safe_load(f) or {}
+                    with open(extension_dir / "extension.yaml") as f:
+                        extension_meta = yaml.safe_load(f) or {}
 
-                    plugin_name = plugin_meta.get("name", plugin_dir.name)
-                    plugin_version = plugin_meta.get("version", "Unknown")
-                    plugin_description = plugin_meta.get(
+                    extension_name = extension_meta.get("name", extension_dir.name)
+                    extension_version = extension_meta.get("version", "Unknown")
+                    extension_description = extension_meta.get(
                         "description", "No description"
                     )
 
-                    available_plugins.append(
+                    available_extensions.append(
                         {
-                            "dir_name": plugin_dir.name,
-                            "name": plugin_name,
-                            "version": plugin_version,
-                            "description": plugin_description,
+                            "dir_name": extension_dir.name,
+                            "name": extension_name,
+                            "version": extension_version,
+                            "description": extension_description,
                         }
                     )
                 except Exception as e:
                     logger.warning(
-                        f"Error reading plugin metadata for '{plugin_dir.name}': {e}"
+                        f"Error reading extension metadata for '{extension_dir.name}': {e}"
                     )
-                    available_plugins.append(
+                    available_extensions.append(
                         {
-                            "dir_name": plugin_dir.name,
-                            "name": plugin_dir.name,
+                            "dir_name": extension_dir.name,
+                            "name": extension_dir.name,
                             "version": "Unknown",
                             "description": "Error reading metadata",
                         }
                     )
 
-        if not available_plugins:
-            print("No plugins found in the plugins directory.")
+        if not available_extensions:
+            print("No extensions found in the extensions directory.")
             return
 
-        print(f"Available plugins ({len(available_plugins)}):")
-        for plugin in available_plugins:
-            print(f"  • {plugin['name']} (v{plugin['version']}) [{plugin['dir_name']}]")
-            print(f"    {plugin['description']}")
+        print(f"Available extensions ({len(available_extensions)}):")
+        for extension in available_extensions:
+            print(
+                f"  • {extension['name']} (v{extension['version']}) [{extension['dir_name']}]"
+            )
+            print(f"    {extension['description']}")
     else:
-        # Show enabled plugins from config
+        # Show enabled extensions from config
         if not config_path.exists():
             print(f"Configuration file '{config_path}' not found.")
             print("Run 'serv app init' to create a configuration file.")
@@ -531,116 +539,118 @@ def handle_list_plugin_command(args_ns):
             logger.error(f"Error reading config file '{config_path}': {e}")
             return
 
-        plugins = config.get("plugins", [])
+        extensions = config.get("extensions", [])
 
-        if not plugins:
-            print("No plugins are currently enabled.")
-            print("Use 'serv plugin enable <plugin>' to enable a plugin.")
+        if not extensions:
+            print("No extensions are currently enabled.")
+            print("Use 'serv extension enable <extension>' to enable a extension.")
             return
 
-        print(f"Enabled plugins ({len(plugins)}):")
-        for plugin_entry in plugins:
-            if isinstance(plugin_entry, dict):
-                plugin_id = plugin_entry.get("plugin", "Unknown")
-                plugin_config = plugin_entry.get("config", {})
-                config_info = " (with config)" if plugin_config else ""
+        print(f"Enabled extensions ({len(extensions)}):")
+        for extension_entry in extensions:
+            if isinstance(extension_entry, dict):
+                extension_id = extension_entry.get("extension", "Unknown")
+                extension_config = extension_entry.get("config", {})
+                config_info = " (with config)" if extension_config else ""
             else:
-                plugin_id = plugin_entry
+                extension_id = extension_entry
                 config_info = ""
 
-            # Try to get human-readable name from plugin metadata
-            plugin_name = plugin_id
-            plugin_version = "Unknown"
+            # Try to get human-readable name from extension metadata
+            extension_name = extension_id
+            extension_version = "Unknown"
 
-            # Check if this is a directory-based plugin
-            plugins_dir = Path.cwd() / "plugins"
-            if plugins_dir.exists():
-                # Extract directory name from plugin_id (handle both simple names and module paths)
-                if ":" in plugin_id:
-                    # Full module path like "test_plugin.test_plugin:TestPlugin"
-                    module_path = plugin_id.split(":")[0]
+            # Check if this is a directory-based extension
+            extensions_dir = Path.cwd() / "extensions"
+            if extensions_dir.exists():
+                # Extract directory name from extension_id (handle both simple names and module paths)
+                if ":" in extension_id:
+                    # Full module path like "test_extension.test_extension:TestExtension"
+                    module_path = extension_id.split(":")[0]
                     dir_name = module_path.split(".")[0]
                 else:
                     # Simple name or just module path
-                    dir_name = plugin_id.split(".")[0]
+                    dir_name = extension_id.split(".")[0]
 
-                # Try to find the plugin directory
-                plugin_dir = plugins_dir / dir_name
+                # Try to find the extension directory
+                extension_dir = extensions_dir / dir_name
                 if (
-                    plugin_dir.exists()
-                    and plugin_dir.is_dir()
-                    and (plugin_dir / "plugin.yaml").exists()
+                    extension_dir.exists()
+                    and extension_dir.is_dir()
+                    and (extension_dir / "extension.yaml").exists()
                 ):
                     try:
-                        with open(plugin_dir / "plugin.yaml") as f:
-                            plugin_meta = yaml.safe_load(f) or {}
-                        plugin_name = plugin_meta.get("name", plugin_id)
-                        plugin_version = plugin_meta.get("version", "Unknown")
+                        with open(extension_dir / "extension.yaml") as f:
+                            extension_meta = yaml.safe_load(f) or {}
+                        extension_name = extension_meta.get("name", extension_id)
+                        extension_version = extension_meta.get("version", "Unknown")
                     except Exception:
                         pass
 
-            print(f"  • {plugin_name} (v{plugin_version}) [{plugin_id}]{config_info}")
+            print(
+                f"  • {extension_name} (v{extension_version}) [{extension_id}]{config_info}"
+            )
 
 
-def handle_validate_plugin_command(args_ns):
-    """Handles the 'plugin validate' command."""
-    logger.debug("Plugin validate command started.")
+def handle_validate_extension_command(args_ns):
+    """Handles the 'extension validate' command."""
+    logger.debug("Extension validate command started.")
 
-    plugins_dir = Path.cwd() / "plugins"
-    if not plugins_dir.exists():
-        print("❌ No plugins directory found.")
+    extensions_dir = Path.cwd() / "extensions"
+    if not extensions_dir.exists():
+        print("❌ No extensions directory found.")
         return False
 
-    # Determine which plugins to validate
-    if args_ns.plugin_identifier and not args_ns.all:
-        # Validate specific plugin
-        plugin_dirs = []
-        plugin_dir = plugins_dir / args_ns.plugin_identifier
-        if plugin_dir.exists() and plugin_dir.is_dir():
-            plugin_dirs = [plugin_dir]
+    # Determine which extensions to validate
+    if args_ns.extension_identifier and not args_ns.all:
+        # Validate specific extension
+        extension_dirs = []
+        extension_dir = extensions_dir / args_ns.extension_identifier
+        if extension_dir.exists() and extension_dir.is_dir():
+            extension_dirs = [extension_dir]
         else:
-            print(f"❌ Plugin '{args_ns.plugin_identifier}' not found.")
+            print(f"❌ Extension '{args_ns.extension_identifier}' not found.")
             return False
     else:
-        # Validate all plugins
-        plugin_dirs = [
+        # Validate all extensions
+        extension_dirs = [
             d
-            for d in plugins_dir.iterdir()
+            for d in extensions_dir.iterdir()
             if d.is_dir() and not d.name.startswith("_")
         ]
 
-    if not plugin_dirs:
-        print("ℹ️  No plugins found to validate.")
+    if not extension_dirs:
+        print("ℹ️  No extensions found to validate.")
         return True
 
-    print(f"=== Validating {len(plugin_dirs)} Plugin(s) ===")
+    print(f"=== Validating {len(extension_dirs)} Extension(s) ===")
 
     total_issues = 0
 
-    for plugin_dir in plugin_dirs:
-        print(f"\n🔍 Validating plugin: {plugin_dir.name}")
+    for extension_dir in extension_dirs:
+        print(f"\n🔍 Validating extension: {extension_dir.name}")
         issues = 0
 
-        # Check for plugin.yaml
-        plugin_yaml = plugin_dir / "plugin.yaml"
-        if not plugin_yaml.exists():
-            print("❌ Missing plugin.yaml")
+        # Check for extension.yaml
+        extension_yaml = extension_dir / "extension.yaml"
+        if not extension_yaml.exists():
+            print("❌ Missing extension.yaml")
             issues += 1
         else:
             try:
-                with open(plugin_yaml) as f:
-                    plugin_config = yaml.safe_load(f)
+                with open(extension_yaml) as f:
+                    extension_config = yaml.safe_load(f)
 
-                if not plugin_config:
-                    print("❌ plugin.yaml is empty")
+                if not extension_config:
+                    print("❌ extension.yaml is empty")
                     issues += 1
                 else:
-                    print("✅ plugin.yaml is valid YAML")
+                    print("✅ extension.yaml is valid YAML")
 
                     # Check required fields
                     required_fields = ["name", "version"]
                     for field in required_fields:
-                        if field not in plugin_config:
+                        if field not in extension_config:
                             print(f"❌ Missing required field: {field}")
                             issues += 1
                         else:
@@ -649,13 +659,13 @@ def handle_validate_plugin_command(args_ns):
                     # Check optional but recommended fields
                     recommended_fields = ["description", "author"]
                     for field in recommended_fields:
-                        if field not in plugin_config:
+                        if field not in extension_config:
                             print(f"⚠️  Missing recommended field: {field}")
                         else:
                             print(f"✅ Has recommended field: {field}")
 
                     # Validate version format
-                    version = plugin_config.get("version", "")
+                    version = extension_config.get("version", "")
                     if (
                         version
                         and not version.replace(".", "")
@@ -666,41 +676,43 @@ def handle_validate_plugin_command(args_ns):
                         print(f"⚠️  Version format may be invalid: {version}")
 
             except yaml.YAMLError as e:
-                print(f"❌ plugin.yaml contains invalid YAML: {e}")
+                print(f"❌ extension.yaml contains invalid YAML: {e}")
                 issues += 1
             except Exception as e:
-                print(f"❌ Error reading plugin.yaml: {e}")
+                print(f"❌ Error reading extension.yaml: {e}")
                 issues += 1
 
         # Check for __init__.py
-        init_file = plugin_dir / "__init__.py"
+        init_file = extension_dir / "__init__.py"
         if not init_file.exists():
             print("⚠️  Missing __init__.py (recommended for Python packages)")
         else:
             print("✅ Has __init__.py")
 
         # Check for Python files
-        py_files = list(plugin_dir.glob("*.py"))
+        py_files = list(extension_dir.glob("*.py"))
         if not py_files:
             print("❌ No Python files found")
             issues += 1
         else:
             print(f"✅ Found {len(py_files)} Python file(s)")
 
-            # Check for main plugin file (matching directory name)
-            expected_main_file = plugin_dir / f"{plugin_dir.name}.py"
+            # Check for main extension file (matching directory name)
+            expected_main_file = extension_dir / f"{extension_dir.name}.py"
             if expected_main_file.exists():
-                print(f"✅ Has main plugin file: {expected_main_file.name}")
+                print(f"✅ Has main extension file: {expected_main_file.name}")
             else:
-                print(f"⚠️  No main plugin file found (expected: {plugin_dir.name}.py)")
+                print(
+                    f"⚠️  No main extension file found (expected: {extension_dir.name}.py)"
+                )
 
         # Check for common issues
-        if (plugin_dir / "main.py").exists() and not expected_main_file.exists():
+        if (extension_dir / "main.py").exists() and not expected_main_file.exists():
             print(
-                f"⚠️  Found main.py but expected {plugin_dir.name}.py (consider renaming)"
+                f"⚠️  Found main.py but expected {extension_dir.name}.py (consider renaming)"
             )
 
-        # Try to import the plugin (basic syntax check)
+        # Try to import the extension (basic syntax check)
         if py_files:
             try:
                 # This is a basic check - we're not actually importing to avoid side effects
@@ -720,17 +732,17 @@ def handle_validate_plugin_command(args_ns):
                 print(f"⚠️  Could not perform syntax check: {e}")
 
         if issues == 0:
-            print(f"🎉 Plugin '{plugin_dir.name}' validation passed!")
+            print(f"🎉 Extension '{extension_dir.name}' validation passed!")
         else:
-            print(f"⚠️  Plugin '{plugin_dir.name}' has {issues} issue(s)")
+            print(f"⚠️  Extension '{extension_dir.name}' has {issues} issue(s)")
 
         total_issues += issues
 
     print("\n=== Validation Summary ===")
     if total_issues == 0:
-        print("🎉 All plugins passed validation!")
+        print("🎉 All extensions passed validation!")
     else:
-        print(f"⚠️  Found {total_issues} total issue(s) across all plugins")
+        print(f"⚠️  Found {total_issues} total issue(s) across all extensions")
 
     return total_issues == 0
 
@@ -754,13 +766,13 @@ def _get_configured_app(app_module_str: str | None, args_ns) -> App:
     if hasattr(args_ns, "config") and args_ns.config:
         app_kwargs["config_file"] = args_ns.config
 
-    if hasattr(args_ns, "plugin_dirs") and args_ns.plugin_dirs:
-        app_kwargs["plugin_dir"] = args_ns.plugin_dirs
+    if hasattr(args_ns, "extension_dirs") and args_ns.extension_dirs:
+        app_kwargs["extension_dir"] = args_ns.extension_dirs
     else:
-        # Default to ./plugins directory if it exists
-        default_plugin_dir = Path.cwd() / "plugins"
-        if default_plugin_dir.exists():
-            app_kwargs["plugin_dir"] = str(default_plugin_dir)
+        # Default to ./extensions directory if it exists
+        default_extension_dir = Path.cwd() / "extensions"
+        if default_extension_dir.exists():
+            app_kwargs["extension_dir"] = str(default_extension_dir)
 
     if hasattr(args_ns, "dev") and args_ns.dev:
         app_kwargs["dev_mode"] = True
@@ -791,47 +803,47 @@ def handle_create_listener_command(args_ns):
         else:
             logger.error("Listener name is required. Use --name to specify it.")
             return
-    plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
+    extension_name, extension_dir = _detect_extension_context(args_ns.extension)
 
-    if not plugin_name:
-        if args_ns.plugin:
-            logger.error(f"Plugin '{args_ns.plugin}' not found.")
+    if not extension_name:
+        if args_ns.extension:
+            logger.error(f"Extension '{args_ns.extension}' not found.")
             return
         elif _should_prompt_interactively(args_ns):
-            # Interactive prompt for plugin
-            plugins_dir = Path.cwd() / "plugins"
-            if plugins_dir.exists():
-                available_plugins = [
+            # Interactive prompt for extension
+            extensions_dir = Path.cwd() / "extensions"
+            if extensions_dir.exists():
+                available_extensions = [
                     d.name
-                    for d in plugins_dir.iterdir()
+                    for d in extensions_dir.iterdir()
                     if d.is_dir()
-                    and (d / "plugin.yaml").exists()
+                    and (d / "extension.yaml").exists()
                     and not d.name.startswith("_")
                 ]
-                if available_plugins:
-                    print("Available plugins:")
-                    for i, plugin in enumerate(available_plugins, 1):
-                        print(f"  {i}. {plugin}")
-                    plugin_choice = prompt_user("Select plugin (name or number)")
-                    if plugin_choice and plugin_choice.isdigit():
-                        idx = int(plugin_choice) - 1
-                        if 0 <= idx < len(available_plugins):
-                            plugin_name = available_plugins[idx]
-                            plugin_dir = plugins_dir / plugin_name
-                    elif plugin_choice in available_plugins:
-                        plugin_name = plugin_choice
-                        plugin_dir = plugins_dir / plugin_name
+                if available_extensions:
+                    print("Available extensions:")
+                    for i, extension in enumerate(available_extensions, 1):
+                        print(f"  {i}. {extension}")
+                    extension_choice = prompt_user("Select extension (name or number)")
+                    if extension_choice and extension_choice.isdigit():
+                        idx = int(extension_choice) - 1
+                        if 0 <= idx < len(available_extensions):
+                            extension_name = available_extensions[idx]
+                            extension_dir = extensions_dir / extension_name
+                    elif extension_choice in available_extensions:
+                        extension_name = extension_choice
+                        extension_dir = extensions_dir / extension_name
 
-            if not plugin_name:
-                logger.error("No plugin specified and none could be auto-detected.")
+            if not extension_name:
+                logger.error("No extension specified and none could be auto-detected.")
                 return
         else:
-            logger.error("No plugin specified and none could be auto-detected.")
+            logger.error("No extension specified and none could be auto-detected.")
             return
 
     class_name = to_pascal_case(component_name)
     file_name = f"listener_{to_snake_case(component_name)}.py"
-    file_path = plugin_dir / file_name
+    file_path = extension_dir / file_name
 
     if file_path.exists() and not args_ns.force:
         print(f"Warning: File '{file_path}' already exists. Use --force to overwrite.")
@@ -859,13 +871,15 @@ def handle_create_listener_command(args_ns):
 
         print(f"Created '{file_path}'")
 
-        # Update plugin config
+        # Update extension config
         entry_path = f"{file_name[:-3]}:{class_name}"
-        if _update_plugin_config(plugin_dir, "listeners", component_name, entry_path):
-            print("Added listener to plugin configuration")
+        if _update_extension_config(
+            extension_dir, "listeners", component_name, entry_path
+        ):
+            print("Added listener to extension configuration")
 
         print(
-            f"Listener '{component_name}' created successfully in plugin '{plugin_name}'."
+            f"Listener '{component_name}' created successfully in extension '{extension_name}'."
         )
 
     except Exception as e:
@@ -887,42 +901,42 @@ def handle_create_route_command(args_ns):
         else:
             logger.error("Route name is required. Use --name to specify it.")
             return
-    plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
+    extension_name, extension_dir = _detect_extension_context(args_ns.extension)
 
-    if not plugin_name:
-        if args_ns.plugin:
-            logger.error(f"Plugin '{args_ns.plugin}' not found.")
+    if not extension_name:
+        if args_ns.extension:
+            logger.error(f"Extension '{args_ns.extension}' not found.")
             return
         elif _should_prompt_interactively(args_ns):
-            # Interactive prompt for plugin
-            plugins_dir = Path.cwd() / "plugins"
-            if plugins_dir.exists():
-                available_plugins = [
+            # Interactive prompt for extension
+            extensions_dir = Path.cwd() / "extensions"
+            if extensions_dir.exists():
+                available_extensions = [
                     d.name
-                    for d in plugins_dir.iterdir()
+                    for d in extensions_dir.iterdir()
                     if d.is_dir()
-                    and (d / "plugin.yaml").exists()
+                    and (d / "extension.yaml").exists()
                     and not d.name.startswith("_")
                 ]
-                if available_plugins:
-                    print("Available plugins:")
-                    for i, plugin in enumerate(available_plugins, 1):
-                        print(f"  {i}. {plugin}")
-                    plugin_choice = prompt_user("Select plugin (name or number)")
-                    if plugin_choice and plugin_choice.isdigit():
-                        idx = int(plugin_choice) - 1
-                        if 0 <= idx < len(available_plugins):
-                            plugin_name = available_plugins[idx]
-                            plugin_dir = plugins_dir / plugin_name
-                    elif plugin_choice in available_plugins:
-                        plugin_name = plugin_choice
-                        plugin_dir = plugins_dir / plugin_name
+                if available_extensions:
+                    print("Available extensions:")
+                    for i, extension in enumerate(available_extensions, 1):
+                        print(f"  {i}. {extension}")
+                    extension_choice = prompt_user("Select extension (name or number)")
+                    if extension_choice and extension_choice.isdigit():
+                        idx = int(extension_choice) - 1
+                        if 0 <= idx < len(available_extensions):
+                            extension_name = available_extensions[idx]
+                            extension_dir = extensions_dir / extension_name
+                    elif extension_choice in available_extensions:
+                        extension_name = extension_choice
+                        extension_dir = extensions_dir / extension_name
 
-            if not plugin_name:
-                logger.error("No plugin specified and none could be auto-detected.")
+            if not extension_name:
+                logger.error("No extension specified and none could be auto-detected.")
                 return
         else:
-            logger.error("No plugin specified and none could be auto-detected.")
+            logger.error("No extension specified and none could be auto-detected.")
             return
 
     # Get route path
@@ -941,16 +955,16 @@ def handle_create_route_command(args_ns):
     # Get router name
     router_name = args_ns.router
     if not router_name:
-        # Check existing routers in plugin config
-        plugin_yaml_path = plugin_dir / "plugin.yaml"
+        # Check existing routers in extension config
+        extension_yaml_path = extension_dir / "extension.yaml"
         existing_routers = []
 
-        if plugin_yaml_path.exists():
+        if extension_yaml_path.exists():
             try:
-                with open(plugin_yaml_path) as f:
-                    plugin_config = yaml.safe_load(f) or {}
+                with open(extension_yaml_path) as f:
+                    extension_config = yaml.safe_load(f) or {}
 
-                routers = plugin_config.get("routers", [])
+                routers = extension_config.get("routers", [])
                 existing_routers = [
                     router.get("name") for router in routers if router.get("name")
                 ]
@@ -986,7 +1000,7 @@ def handle_create_route_command(args_ns):
 
     class_name = to_pascal_case(component_name)
     file_name = f"route_{to_snake_case(component_name)}.py"
-    file_path = plugin_dir / file_name
+    file_path = extension_dir / file_name
 
     if file_path.exists() and not args_ns.force:
         print(f"Warning: File '{file_path}' already exists. Use --force to overwrite.")
@@ -1013,7 +1027,7 @@ def handle_create_route_command(args_ns):
 
         print(f"Created '{file_path}'")
 
-        # Update plugin config with router name and path
+        # Update extension config with router name and path
         entry_path = f"{file_name[:-3]}:{class_name}"
         route_config = {
             "path": route_path,
@@ -1022,11 +1036,13 @@ def handle_create_route_command(args_ns):
             "component_name": component_name,
         }
 
-        if _update_plugin_config(plugin_dir, "routers", component_name, route_config):
-            print(f"Added route to router '{router_name}' in plugin configuration")
+        if _update_extension_config(
+            extension_dir, "routers", component_name, route_config
+        ):
+            print(f"Added route to router '{router_name}' in extension configuration")
 
         print(
-            f"Route '{component_name}' created successfully in plugin '{plugin_name}' at path '{route_path}'."
+            f"Route '{component_name}' created successfully in extension '{extension_name}' at path '{route_path}'."
         )
 
     except Exception as e:
@@ -1048,47 +1064,47 @@ def handle_create_middleware_command(args_ns):
         else:
             logger.error("Middleware name is required. Use --name to specify it.")
             return
-    plugin_name, plugin_dir = _detect_plugin_context(args_ns.plugin)
+    extension_name, extension_dir = _detect_extension_context(args_ns.extension)
 
-    if not plugin_name:
-        if args_ns.plugin:
-            logger.error(f"Plugin '{args_ns.plugin}' not found.")
+    if not extension_name:
+        if args_ns.extension:
+            logger.error(f"Extension '{args_ns.extension}' not found.")
             return
         elif _should_prompt_interactively(args_ns):
-            # Interactive prompt for plugin
-            plugins_dir = Path.cwd() / "plugins"
-            if plugins_dir.exists():
-                available_plugins = [
+            # Interactive prompt for extension
+            extensions_dir = Path.cwd() / "extensions"
+            if extensions_dir.exists():
+                available_extensions = [
                     d.name
-                    for d in plugins_dir.iterdir()
+                    for d in extensions_dir.iterdir()
                     if d.is_dir()
-                    and (d / "plugin.yaml").exists()
+                    and (d / "extension.yaml").exists()
                     and not d.name.startswith("_")
                 ]
-                if available_plugins:
-                    print("Available plugins:")
-                    for i, plugin in enumerate(available_plugins, 1):
-                        print(f"  {i}. {plugin}")
-                    plugin_choice = prompt_user("Select plugin (name or number)")
-                    if plugin_choice and plugin_choice.isdigit():
-                        idx = int(plugin_choice) - 1
-                        if 0 <= idx < len(available_plugins):
-                            plugin_name = available_plugins[idx]
-                            plugin_dir = plugins_dir / plugin_name
-                    elif plugin_choice in available_plugins:
-                        plugin_name = plugin_choice
-                        plugin_dir = plugins_dir / plugin_name
+                if available_extensions:
+                    print("Available extensions:")
+                    for i, extension in enumerate(available_extensions, 1):
+                        print(f"  {i}. {extension}")
+                    extension_choice = prompt_user("Select extension (name or number)")
+                    if extension_choice and extension_choice.isdigit():
+                        idx = int(extension_choice) - 1
+                        if 0 <= idx < len(available_extensions):
+                            extension_name = available_extensions[idx]
+                            extension_dir = extensions_dir / extension_name
+                    elif extension_choice in available_extensions:
+                        extension_name = extension_choice
+                        extension_dir = extensions_dir / extension_name
 
-            if not plugin_name:
-                logger.error("No plugin specified and none could be auto-detected.")
+            if not extension_name:
+                logger.error("No extension specified and none could be auto-detected.")
                 return
         else:
-            logger.error("No plugin specified and none could be auto-detected.")
+            logger.error("No extension specified and none could be auto-detected.")
             return
 
     middleware_name = to_snake_case(component_name)
     file_name = f"middleware_{middleware_name}.py"
-    file_path = plugin_dir / file_name
+    file_path = extension_dir / file_name
 
     if file_path.exists() and not args_ns.force:
         print(f"Warning: File '{file_path}' already exists. Use --force to overwrite.")
@@ -1126,13 +1142,15 @@ def handle_create_middleware_command(args_ns):
 
         print(f"Created '{file_path}'")
 
-        # Update plugin config
+        # Update extension config
         entry_path = f"{file_name[:-3]}:{middleware_name}_middleware"
-        if _update_plugin_config(plugin_dir, "middleware", component_name, entry_path):
-            print("Added middleware to plugin configuration")
+        if _update_extension_config(
+            extension_dir, "middleware", component_name, entry_path
+        ):
+            print("Added middleware to extension configuration")
 
         print(
-            f"Middleware '{component_name}' created successfully in plugin '{plugin_name}'."
+            f"Middleware '{component_name}' created successfully in extension '{extension_name}'."
         )
 
     except Exception as e:
@@ -1257,27 +1275,27 @@ def handle_test_command(args_ns):
     # Determine what to test
     if args_ns.test_path:
         pytest_args.append(args_ns.test_path)
-    elif args_ns.plugins:
-        # Look for plugin tests
-        plugins_dir = Path.cwd() / "plugins"
-        if plugins_dir.exists():
-            plugin_test_paths = []
-            for plugin_dir in plugins_dir.iterdir():
-                if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
-                    test_files = list(plugin_dir.glob("test_*.py")) + list(
-                        plugin_dir.glob("*_test.py")
+    elif args_ns.extensions:
+        # Look for extension tests
+        extensions_dir = Path.cwd() / "extensions"
+        if extensions_dir.exists():
+            extension_test_paths = []
+            for extension_dir in extensions_dir.iterdir():
+                if extension_dir.is_dir() and not extension_dir.name.startswith("_"):
+                    test_files = list(extension_dir.glob("test_*.py")) + list(
+                        extension_dir.glob("*_test.py")
                     )
                     if test_files:
-                        plugin_test_paths.extend(str(f) for f in test_files)
+                        extension_test_paths.extend(str(f) for f in test_files)
 
-            if plugin_test_paths:
-                pytest_args.extend(plugin_test_paths)
-                print(f"📦 Found {len(plugin_test_paths)} plugin test files")
+            if extension_test_paths:
+                pytest_args.extend(extension_test_paths)
+                print(f"📦 Found {len(extension_test_paths)} extension test files")
             else:
-                print("ℹ️  No plugin tests found")
+                print("ℹ️  No extension tests found")
                 return True
         else:
-            print("⚠️  No plugins directory found")
+            print("⚠️  No extensions directory found")
             return True
     elif args_ns.e2e:
         # Run e2e tests
@@ -1358,16 +1376,16 @@ def handle_shell_command(args_ns):
                 }
             )
 
-            # Add plugins to shell context
-            if hasattr(app, "_plugins"):
-                all_plugins = []
-                for plugin_list in app._plugins.values():
-                    all_plugins.extend(plugin_list)
-                shell_locals["plugins"] = all_plugins
-                print(f"🔌 Loaded {len(all_plugins)} plugins into context")
+            # Add extensions to shell context
+            if hasattr(app, "_extensions"):
+                all_extensions = []
+                for extension_list in app._extensions.values():
+                    all_extensions.extend(extension_list)
+                shell_locals["extensions"] = all_extensions
+                print(f"🔌 Loaded {len(all_extensions)} extensions into context")
 
             print("✅ App context loaded successfully")
-            print("Available objects: app, serv, plugins, Path, yaml")
+            print("Available objects: app, serv, extensions, Path, yaml")
 
         except Exception as e:
             logger.warning(f"Could not load app context: {e}")
@@ -1500,11 +1518,11 @@ def handle_config_validate_command(args_ns):
                 print("⚠️  Missing 'site_info.name'")
                 issues += 1
 
-        # Check plugins structure
-        if "plugins" in config:
-            plugins = config["plugins"]
-            if not isinstance(plugins, list):
-                print("❌ 'plugins' must be a list")
+        # Check extensions structure
+        if "extensions" in config:
+            extensions = config["extensions"]
+            if not isinstance(extensions, list):
+                print("❌ 'extensions' must be a list")
                 issues += 1
 
         # Check middleware structure

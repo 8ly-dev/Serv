@@ -1,0 +1,4 @@
+name: {{ extension_name }}
+description: {{ extension_description }}
+version: {{ extension_version }}
+author: {{ extension_author }} 

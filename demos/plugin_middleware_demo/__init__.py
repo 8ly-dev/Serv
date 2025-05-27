@@ -1,1 +1,0 @@
-# Plugin and middleware demo package

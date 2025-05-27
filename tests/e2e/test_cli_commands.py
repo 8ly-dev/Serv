@@ -98,10 +98,10 @@ class TestCliCommands:
             config = yaml.safe_load(f)
 
         assert "site_info" in config, "Config should have a 'site_info' section"
-        assert "plugins" in config, "Config should have a 'plugins' section"
+        assert "extensions" in config, "Config should have a 'extensions' section"
         assert "middleware" in config, "Config should have a 'middleware' section"
 
-    def test_create_plugin_command(self, clean_test_dir, monkeypatch):
+    def test_create_extension_command(self, clean_test_dir, monkeypatch):
         """Test manually creating a plugin structure."""
         # Set up a clean directory with config
         run_cli_command(
@@ -110,33 +110,33 @@ class TestCliCommands:
         )
 
         # Create plugin directory structure manually
-        plugins_dir = Path(clean_test_dir) / "plugins"
+        plugins_dir = Path(clean_test_dir) / "extensions"
         plugins_dir.mkdir(exist_ok=True)
 
-        test_plugin_dir = plugins_dir / "test_plugin"
-        test_plugin_dir.mkdir(exist_ok=True)
+        test_extension_dir = plugins_dir / "test_extension"
+        test_extension_dir.mkdir(exist_ok=True)
 
-        # Create plugin.yaml
-        plugin_yaml = {
+        # Create extension.yaml
+        extension_yaml = {
             "name": "test-plugin",
-            "display_name": "Test Plugin",
+            "display_name": "Test Extension",
             "description": "A test plugin for Serv",
             "version": "1.0.0",
             "author": "Test Author",
-            "entry": "plugins.test_plugin.main:TestPlugin",
+            "entry": "plugins.test_extension.main:TestExtension",
         }
 
-        with open(test_plugin_dir / "plugin.yaml", "w") as f:
-            yaml.dump(plugin_yaml, f)
+        with open(test_extension_dir / "extension.yaml", "w") as f:
+            yaml.dump(extension_yaml, f)
 
         # Create main.py
         plugin_code = """
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from bevy import dependency
 from serv.routing import Router
 from serv.responses import ResponseBuilder
 
-class TestPlugin(Plugin):
+class TestExtension(Extension):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._stand_alone = True
@@ -146,39 +146,41 @@ class TestPlugin(Plugin):
 
     async def _hello_handler(self, response: ResponseBuilder = dependency()):
         response.content_type("text/plain")
-        response.body("Hello from test_plugin!")
+        response.body("Hello from test_extension!")
 """
-        with open(test_plugin_dir / "main.py", "w") as f:
+        with open(test_extension_dir / "main.py", "w") as f:
             f.write(plugin_code)
 
         # Make sure plugins directory is a package
         with open(plugins_dir / "__init__.py", "w") as f:
             f.write("")
-        with open(test_plugin_dir / "__init__.py", "w") as f:
+        with open(test_extension_dir / "__init__.py", "w") as f:
             f.write("")
 
         # Check that the plugin directory was created
-        assert test_plugin_dir.exists(), "Plugin directory should have been created"
+        assert test_extension_dir.exists(), (
+            "Extension directory should have been created"
+        )
 
-        # Check for plugin.yaml
-        plugin_yaml_path = test_plugin_dir / "plugin.yaml"
-        assert plugin_yaml_path.exists(), "plugin.yaml should exist"
+        # Check for extension.yaml
+        extension_yaml_path = test_extension_dir / "extension.yaml"
+        assert extension_yaml_path.exists(), "extension.yaml should exist"
 
         # Check for main.py
-        plugin_main = test_plugin_dir / "main.py"
+        plugin_main = test_extension_dir / "main.py"
         assert plugin_main.exists(), "main.py should exist"
 
-        # Verify plugin.yaml content
-        with open(plugin_yaml_path) as f:
-            loaded_plugin_config = yaml.safe_load(f)
+        # Verify extension.yaml content
+        with open(extension_yaml_path) as f:
+            loaded_extension_config = yaml.safe_load(f)
 
-        assert loaded_plugin_config["name"] == "test-plugin", (
-            "Plugin name should match expected value"
+        assert loaded_extension_config["name"] == "test-plugin", (
+            "Extension name should match expected value"
         )
-        assert loaded_plugin_config["display_name"] == "Test Plugin", (
+        assert loaded_extension_config["display_name"] == "Test Extension", (
             "Display name should match expected value"
         )
-        assert loaded_plugin_config["version"] == "1.0.0", (
+        assert loaded_extension_config["version"] == "1.0.0", (
             "Version should match expected value"
         )
 
@@ -196,7 +198,7 @@ class TestPlugin(Plugin):
             config = yaml.safe_load(f)
 
         # Add a dummy plugin to prevent welcome plugin from being auto-loaded
-        config["plugins"] = [
+        config["extensions"] = [
             "dummy_plugin"
         ]  # This will fail to load but prevent welcome plugin
 
@@ -235,8 +237,8 @@ class TestPlugin(Plugin):
             # We don't care about the status code as long as the request completes
             assert response.status_code is not None
 
-    def test_create_plugin_command_new_syntax(self, clean_test_dir):
-        """Test the new 'serv create plugin' command."""
+    def test_create_extension_command_new_syntax(self, clean_test_dir):
+        """Test the new 'serv create extension' command."""
         # Set up a clean directory with config
         run_cli_command(
             ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
@@ -250,43 +252,43 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "My Awesome Plugin",
+                "My Awesome Extension",
                 "--force",
                 "--non-interactive",
             ],
             cwd=clean_test_dir,
         )
 
-        # Check that the plugin directory was created
-        plugin_dir = Path(clean_test_dir) / "plugins" / "my_awesome_plugin"
-        assert plugin_dir.exists(), "Plugin directory should have been created"
+        # Check that the extension directory was created
+        extension_dir = Path(clean_test_dir) / "extensions" / "my_awesome_extension"
+        assert extension_dir.exists(), "Extension directory should have been created"
 
-        # Check for plugin.yaml
-        plugin_yaml_path = plugin_dir / "plugin.yaml"
-        assert plugin_yaml_path.exists(), "plugin.yaml should exist"
+        # Check for extension.yaml
+        extension_yaml_path = extension_dir / "extension.yaml"
+        assert extension_yaml_path.exists(), "extension.yaml should exist"
 
-        # Verify plugin.yaml content
-        with open(plugin_yaml_path) as f:
-            loaded_plugin_config = yaml.safe_load(f)
+        # Verify extension.yaml content
+        with open(extension_yaml_path) as f:
+            loaded_extension_config = yaml.safe_load(f)
 
-        assert loaded_plugin_config["name"] == "My Awesome Plugin", (
-            "Plugin name should match expected value"
+        assert loaded_extension_config["name"] == "My Awesome Extension", (
+            "Extension name should match expected value"
         )
-        assert loaded_plugin_config["version"] == "1.0.0", (
+        assert loaded_extension_config["version"] == "1.0.0", (
             "Version should match expected value"
         )
 
-        # Plugin should not have listeners initially (those are added by create listener)
-        assert "entry" not in loaded_plugin_config, (
-            "Plugin should not have entry field initially"
+        # Extension should not have listeners initially (those are added by create listener)
+        assert "entry" not in loaded_extension_config, (
+            "Extension should not have entry field initially"
         )
-        assert "listeners" not in loaded_plugin_config, (
-            "Plugin should not have listeners initially"
+        assert "listeners" not in loaded_extension_config, (
+            "Extension should not have listeners initially"
         )
-        assert "entry_points" not in loaded_plugin_config, (
-            "Plugin should not have entry_points initially"
+        assert "entry_points" not in loaded_extension_config, (
+            "Extension should not have entry_points initially"
         )
 
     def test_create_listener_command(self, clean_test_dir):
@@ -304,9 +306,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin",
+                "Test Extension",
                 "--force",
                 "--non-interactive",
             ],
@@ -323,31 +325,34 @@ class TestPlugin(Plugin):
                 "listener",
                 "--name",
                 "admin_auth",
-                "--plugin",
-                "test_plugin",
+                "--extension",
+                "test_extension",
             ],
             cwd=clean_test_dir,
         )
 
         # Check that the listener file was created
         listener_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "listener_admin_auth.py"
+            Path(clean_test_dir)
+            / "extensions"
+            / "test_extension"
+            / "listener_admin_auth.py"
         )
         assert listener_path.exists(), "Listener file should have been created"
 
         # Check that the plugin config was updated
-        plugin_yaml_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        extension_yaml_path = (
+            Path(clean_test_dir) / "extensions" / "test_extension" / "extension.yaml"
         )
-        with open(plugin_yaml_path) as f:
-            plugin_config = yaml.safe_load(f)
+        with open(extension_yaml_path) as f:
+            extension_config = yaml.safe_load(f)
 
-        assert "listeners" in plugin_config, (
-            "Plugin config should have listeners section"
+        assert "listeners" in extension_config, (
+            "Extension config should have listeners section"
         )
         assert any(
             "listener_admin_auth:AdminAuth" in listener
-            for listener in plugin_config["listeners"]
+            for listener in extension_config["listeners"]
         ), "Listener should be added to config"
 
         # Verify the listener file content
@@ -372,9 +377,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin",
+                "Test Extension",
                 "--force",
                 "--non-interactive",
             ],
@@ -391,8 +396,8 @@ class TestPlugin(Plugin):
                 "route",
                 "--name",
                 "user_profile",
-                "--plugin",
-                "test_plugin",
+                "--extension",
+                "test_extension",
                 "--non-interactive",
             ],
             cwd=clean_test_dir,
@@ -400,22 +405,27 @@ class TestPlugin(Plugin):
 
         # Check that the route file was created
         route_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "route_user_profile.py"
+            Path(clean_test_dir)
+            / "extensions"
+            / "test_extension"
+            / "route_user_profile.py"
         )
         assert route_path.exists(), "Route file should have been created"
 
         # Check that the plugin config was updated
-        plugin_yaml_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        extension_yaml_path = (
+            Path(clean_test_dir) / "extensions" / "test_extension" / "extension.yaml"
         )
-        with open(plugin_yaml_path) as f:
-            plugin_config = yaml.safe_load(f)
+        with open(extension_yaml_path) as f:
+            extension_config = yaml.safe_load(f)
 
-        assert "routers" in plugin_config, "Plugin config should have routers section"
-        assert len(plugin_config["routers"]) > 0, "Should have at least one router"
+        assert "routers" in extension_config, (
+            "Extension config should have routers section"
+        )
+        assert len(extension_config["routers"]) > 0, "Should have at least one router"
         assert any(
             "route_user_profile:UserProfile" in route["handler"]
-            for router in plugin_config["routers"]
+            for router in extension_config["routers"]
             for route in router.get("routes", [])
         ), "Route should be added to config"
 
@@ -441,9 +451,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin",
+                "Test Extension",
                 "--force",
                 "--non-interactive",
             ],
@@ -460,8 +470,8 @@ class TestPlugin(Plugin):
                 "middleware",
                 "--name",
                 "auth_check",
-                "--plugin",
-                "test_plugin",
+                "--extension",
+                "test_extension",
                 "--non-interactive",
             ],
             cwd=clean_test_dir,
@@ -470,25 +480,25 @@ class TestPlugin(Plugin):
         # Check that the middleware file was created
         middleware_path = (
             Path(clean_test_dir)
-            / "plugins"
-            / "test_plugin"
+            / "extensions"
+            / "test_extension"
             / "middleware_auth_check.py"
         )
         assert middleware_path.exists(), "Middleware file should have been created"
 
         # Check that the plugin config was updated
-        plugin_yaml_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        extension_yaml_path = (
+            Path(clean_test_dir) / "extensions" / "test_extension" / "extension.yaml"
         )
-        with open(plugin_yaml_path) as f:
-            plugin_config = yaml.safe_load(f)
+        with open(extension_yaml_path) as f:
+            extension_config = yaml.safe_load(f)
 
-        assert "middleware" in plugin_config, (
-            "Plugin config should have middleware section"
+        assert "middleware" in extension_config, (
+            "Extension config should have middleware section"
         )
         assert any(
             "middleware_auth_check:auth_check_middleware" in mw["entry"]
-            for mw in plugin_config["middleware"]
+            for mw in extension_config["middleware"]
         ), "Middleware should be added to config"
 
         # Verify the middleware file content
@@ -515,9 +525,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin",
+                "Test Extension",
                 "--force",
                 "--non-interactive",
             ],
@@ -541,13 +551,16 @@ class TestPlugin(Plugin):
 
         # Check that the listener file was created in the auto-detected plugin
         listener_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "listener_auto_detect.py"
+            Path(clean_test_dir)
+            / "extensions"
+            / "test_extension"
+            / "listener_auto_detect.py"
         )
         assert listener_path.exists(), (
             "Listener file should have been created in auto-detected plugin"
         )
 
-    def test_create_listener_from_plugin_directory(self, clean_test_dir):
+    def test_create_listener_from_extension_directory(self, clean_test_dir):
         """Test that create listener works when run from within a plugin directory."""
         # Set up a clean directory with config and a plugin
         run_cli_command(
@@ -562,16 +575,16 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin",
+                "Test Extension",
                 "--force",
                 "--non-interactive",
             ],
             cwd=clean_test_dir,
         )
 
-        plugin_dir = Path(clean_test_dir) / "plugins" / "test_plugin"
+        extension_dir = Path(clean_test_dir) / "extensions" / "test_extension"
 
         # Create a listener from within the plugin directory
         return_code, stdout, stderr = run_cli_command(
@@ -582,20 +595,20 @@ class TestPlugin(Plugin):
                 "create",
                 "listener",
                 "--name",
-                "from_plugin_dir",
+                "from_extension_dir",
                 "--non-interactive",
             ],
-            cwd=str(plugin_dir),
+            cwd=str(extension_dir),
         )
 
         # Check that the listener file was created
-        listener_path = plugin_dir / "listener_from_plugin_dir.py"
+        listener_path = extension_dir / "listener_from_extension_dir.py"
         assert listener_path.exists(), (
             "Listener file should have been created when run from plugin directory"
         )
 
-    def test_plugin_list_command(self, clean_test_dir):
-        """Test the 'serv plugin list' command."""
+    def test_extension_list_command(self, clean_test_dir):
+        """Test the 'serv extension list' command."""
         # Set up a clean directory with config
         run_cli_command(
             ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
@@ -604,17 +617,17 @@ class TestPlugin(Plugin):
 
         # Test list with no plugins enabled
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "plugin", "list"],
+            ["python", "-m", "serv", "extension", "list"],
             cwd=clean_test_dir,
         )
-        assert "No plugins are currently enabled" in stdout
+        assert "No extensions are currently enabled" in stdout
 
-        # Test list available with no plugins directory
+        # Test list available with no extensions directory
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "plugin", "list", "--available"],
+            ["python", "-m", "serv", "extension", "list", "--available"],
             cwd=clean_test_dir,
         )
-        assert "No plugins directory found" in stdout
+        assert "No extensions directory found" in stdout
 
         # Create some plugins
         run_cli_command(
@@ -623,9 +636,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin One",
+                "Test Extension One",
                 "--force",
                 "--non-interactive",
             ],
@@ -638,9 +651,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin Two",
+                "Test Extension Two",
                 "--force",
                 "--non-interactive",
             ],
@@ -649,39 +662,39 @@ class TestPlugin(Plugin):
 
         # Test list available with plugins
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "plugin", "list", "--available"],
+            ["python", "-m", "serv", "extension", "list", "--available"],
             cwd=clean_test_dir,
         )
-        assert "Available plugins (2)" in stdout
-        assert "Test Plugin One" in stdout
-        assert "Test Plugin Two" in stdout
-        assert "test_plugin_one" in stdout
-        assert "test_plugin_two" in stdout
+        assert "Available extensions (2)" in stdout
+        assert "Test Extension One" in stdout
+        assert "Test Extension Two" in stdout
+        assert "test_extension_one" in stdout
+        assert "test_extension_two" in stdout
 
         # Enable one plugin
         run_cli_command(
-            ["python", "-m", "serv", "plugin", "enable", "test_plugin_one"],
+            ["python", "-m", "serv", "extension", "enable", "test_extension_one"],
             cwd=clean_test_dir,
         )
 
         # Test list enabled plugins
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "plugin", "list"],
+            ["python", "-m", "serv", "extension", "list"],
             cwd=clean_test_dir,
         )
-        assert "Enabled plugins (1)" in stdout
-        assert "Test Plugin One" in stdout
-        assert "test_plugin_one" in stdout
+        assert "Enabled extensions (1)" in stdout
+        assert "Test Extension One" in stdout
+        assert "test_extension_one" in stdout
 
-    def test_plugin_validate_command(self, clean_test_dir):
-        """Test the 'serv plugin validate' command."""
+    def test_extension_validate_command(self, clean_test_dir):
+        """Test the 'serv extension validate' command."""
         # Test with no plugins directory
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "plugin", "validate"],
+            ["python", "-m", "serv", "extension", "validate"],
             cwd=clean_test_dir,
             check=False,
         )
-        assert "No plugins directory found" in stdout
+        assert "No extensions directory found" in stdout
 
         # Set up a clean directory with config and plugins
         run_cli_command(
@@ -696,9 +709,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Valid Plugin",
+                "Valid Extension",
                 "--force",
                 "--non-interactive",
             ],
@@ -707,29 +720,29 @@ class TestPlugin(Plugin):
 
         # Test validating all plugins
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "plugin", "validate"],
+            ["python", "-m", "serv", "extension", "validate"],
             cwd=clean_test_dir,
         )
-        assert "=== Validating 1 Plugin(s) ===" in stdout
-        assert "Validating plugin: valid_plugin" in stdout
-        assert "plugin.yaml is valid YAML" in stdout
+        assert "=== Validating 1 Extension(s) ===" in stdout
+        assert "Validating extension: valid_extension" in stdout
+        assert "extension.yaml is valid YAML" in stdout
         assert "Has required field: name" in stdout
         assert "Has required field: version" in stdout
 
-        # Test validating specific plugin
+        # Test validating specific extension
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "plugin", "validate", "valid_plugin"],
+            ["python", "-m", "serv", "extension", "validate", "valid_extension"],
             cwd=clean_test_dir,
         )
-        assert "Validating plugin: valid_plugin" in stdout
+        assert "Validating extension: valid_extension" in stdout
 
         # Test validating non-existent plugin
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "plugin", "validate", "nonexistent"],
+            ["python", "-m", "serv", "extension", "validate", "nonexistent"],
             cwd=clean_test_dir,
             check=False,
         )
-        assert "Plugin 'nonexistent' not found" in stdout
+        assert "Extension 'nonexistent' not found" in stdout
 
     def test_config_show_command(self, clean_test_dir):
         """Test the 'serv config show' command."""
@@ -957,7 +970,7 @@ class TestPlugin(Plugin):
             cwd=clean_test_dir,
         )
         assert "usage: serv test" in stdout
-        assert "--plugins" in stdout
+        assert "--extensions" in stdout
         assert "--e2e" in stdout
         assert "--coverage" in stdout
         assert "--verbose" in stdout
@@ -1035,7 +1048,7 @@ class TestPlugin(Plugin):
         assert "shell" in stdout
         assert "config" in stdout
         assert "Start development server with enhanced features" in stdout
-        assert "Run tests for the application and plugins" in stdout
+        assert "Run tests for the application and extensions" in stdout
         assert "Start interactive Python shell with app context" in stdout
         assert "Configuration management commands" in stdout
 
@@ -1046,7 +1059,7 @@ class TestPlugin(Plugin):
             ["shell", "--help"],
             ["config", "--help"],
             ["config", "validate", "--help"],
-            ["plugin", "validate", "--help"],
+            ["extension", "validate", "--help"],
         ]
 
         for cmd_args in individual_commands:
@@ -1099,9 +1112,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin",
+                "Test Extension",
                 "--force",
                 "--non-interactive",
             ],
@@ -1122,30 +1135,35 @@ class TestPlugin(Plugin):
                 "/users/{id}/profile",
                 "--router",
                 "api_router",
-                "--plugin",
-                "test_plugin",
+                "--extension",
+                "test_extension",
             ],
             cwd=clean_test_dir,
         )
 
         # Check that the route file was created
         route_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "route_user_profile.py"
+            Path(clean_test_dir)
+            / "extensions"
+            / "test_extension"
+            / "route_user_profile.py"
         )
         assert route_path.exists(), "Route file should have been created"
 
         # Check that the plugin config was updated correctly
-        plugin_yaml_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        extension_yaml_path = (
+            Path(clean_test_dir) / "extensions" / "test_extension" / "extension.yaml"
         )
-        with open(plugin_yaml_path) as f:
-            plugin_config = yaml.safe_load(f)
+        with open(extension_yaml_path) as f:
+            extension_config = yaml.safe_load(f)
 
-        assert "routers" in plugin_config, "Plugin config should have routers section"
+        assert "routers" in extension_config, (
+            "Extension config should have routers section"
+        )
 
         # Find the api_router
         api_router = None
-        for router in plugin_config["routers"]:
+        for router in extension_config["routers"]:
             if router.get("name") == "api_router":
                 api_router = router
                 break
@@ -1188,9 +1206,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin",
+                "Test Extension",
                 "--force",
                 "--non-interactive",
             ],
@@ -1211,8 +1229,8 @@ class TestPlugin(Plugin):
                 "/users/{id}/profile",
                 "--router",
                 "api_router",
-                "--plugin",
-                "test_plugin",
+                "--extension",
+                "test_extension",
             ],
             cwd=clean_test_dir,
         )
@@ -1231,32 +1249,38 @@ class TestPlugin(Plugin):
                 "/users/{id}/posts",
                 "--router",
                 "api_router",
-                "--plugin",
-                "test_plugin",
+                "--extension",
+                "test_extension",
             ],
             cwd=clean_test_dir,
         )
 
         # Check that both route files were created
         profile_route_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "route_user_profile.py"
+            Path(clean_test_dir)
+            / "extensions"
+            / "test_extension"
+            / "route_user_profile.py"
         )
         posts_route_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "route_user_posts.py"
+            Path(clean_test_dir)
+            / "extensions"
+            / "test_extension"
+            / "route_user_posts.py"
         )
         assert profile_route_path.exists(), "Profile route file should exist"
         assert posts_route_path.exists(), "Posts route file should exist"
 
         # Check plugin configuration
-        plugin_yaml_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        extension_yaml_path = (
+            Path(clean_test_dir) / "extensions" / "test_extension" / "extension.yaml"
         )
-        with open(plugin_yaml_path) as f:
-            plugin_config = yaml.safe_load(f)
+        with open(extension_yaml_path) as f:
+            extension_config = yaml.safe_load(f)
 
         # Should have one router with two routes
-        assert len(plugin_config["routers"]) == 1, "Should have exactly one router"
-        api_router = plugin_config["routers"][0]
+        assert len(extension_config["routers"]) == 1, "Should have exactly one router"
+        api_router = extension_config["routers"][0]
         assert api_router["name"] == "api_router", "Router should be named api_router"
         assert len(api_router["routes"]) == 2, "Router should have two routes"
 
@@ -1280,9 +1304,9 @@ class TestPlugin(Plugin):
                 "-m",
                 "serv",
                 "create",
-                "plugin",
+                "extension",
                 "--name",
-                "Test Plugin",
+                "Test Extension",
                 "--force",
                 "--non-interactive",
             ],
@@ -1303,8 +1327,8 @@ class TestPlugin(Plugin):
                 "/api/users/{id}/profile",
                 "--router",
                 "api_router",
-                "--plugin",
-                "test_plugin",
+                "--extension",
+                "test_extension",
             ],
             cwd=clean_test_dir,
         )
@@ -1323,28 +1347,28 @@ class TestPlugin(Plugin):
                 "/admin/dashboard",
                 "--router",
                 "admin_router",
-                "--plugin",
-                "test_plugin",
+                "--extension",
+                "test_extension",
             ],
             cwd=clean_test_dir,
         )
 
         # Check plugin configuration
-        plugin_yaml_path = (
-            Path(clean_test_dir) / "plugins" / "test_plugin" / "plugin.yaml"
+        extension_yaml_path = (
+            Path(clean_test_dir) / "extensions" / "test_extension" / "extension.yaml"
         )
-        with open(plugin_yaml_path) as f:
-            plugin_config = yaml.safe_load(f)
+        with open(extension_yaml_path) as f:
+            extension_config = yaml.safe_load(f)
 
         # Should have two routers
-        assert len(plugin_config["routers"]) == 2, "Should have exactly two routers"
+        assert len(extension_config["routers"]) == 2, "Should have exactly two routers"
 
-        router_names = [router["name"] for router in plugin_config["routers"]]
+        router_names = [router["name"] for router in extension_config["routers"]]
         assert "api_router" in router_names, "Should have api_router"
         assert "admin_router" in router_names, "Should have admin_router"
 
         # Check each router has the correct route
-        for router in plugin_config["routers"]:
+        for router in extension_config["routers"]:
             if router["name"] == "api_router":
                 assert len(router["routes"]) == 1, "API router should have one route"
                 assert router["routes"][0]["path"] == "/api/users/{id}/profile"

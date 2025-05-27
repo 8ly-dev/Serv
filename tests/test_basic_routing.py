@@ -4,7 +4,7 @@ from httpx import AsyncClient
 
 from serv.app import App
 from serv.responses import ResponseBuilder
-from tests.helpers import EventWatcherPlugin, RouteAddingPlugin
+from tests.helpers import EventWatcherExtension, RouteAddingExtension
 
 
 @pytest.mark.asyncio
@@ -13,8 +13,8 @@ async def test_hello_world(app: App, client: AsyncClient):
         response.content_type("text/plain")
         response.body("Hello, World!")
 
-    plugin = RouteAddingPlugin("/hello", hello_handler, methods=["GET"])
-    app.add_plugin(plugin)
+    plugin = RouteAddingExtension("/hello", hello_handler, methods=["GET"])
+    app.add_extension(plugin)
 
     response = await client.get("/hello")
     assert plugin.was_called == 1
@@ -36,8 +36,8 @@ async def test_method_not_allowed(app: App, client: AsyncClient):
     async def post_only_handler(response: ResponseBuilder = dependency()):
         response.body("Processed POST")
 
-    plugin = RouteAddingPlugin("/restricted", post_only_handler, methods=["POST"])
-    app.add_plugin(plugin)
+    plugin = RouteAddingExtension("/restricted", post_only_handler, methods=["POST"])
+    app.add_extension(plugin)
 
     response_get = await client.get("/restricted")
     assert response_get.status_code == 405
@@ -62,12 +62,14 @@ async def test_path_parameters(app: App, client: AsyncClient):
         else:
             response.body(f"User: {user_id}")
 
-    plugin_user = RouteAddingPlugin("/users/{user_id}", user_handler, methods=["GET"])
-    plugin_user_item = RouteAddingPlugin(
+    plugin_user = RouteAddingExtension(
+        "/users/{user_id}", user_handler, methods=["GET"]
+    )
+    plugin_user_item = RouteAddingExtension(
         "/users/{user_id}/items/{item_id}", user_handler, methods=["GET"]
     )
-    app.add_plugin(plugin_user)
-    app.add_plugin(plugin_user_item)
+    app.add_extension(plugin_user)
+    app.add_extension(plugin_user_item)
 
     response1 = await client.get("/users/123")
     assert response1.status_code == 200
@@ -85,14 +87,14 @@ async def test_path_parameters(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_request_events_emitted(app: App, client: AsyncClient):
-    event_watcher = EventWatcherPlugin()
-    app.add_plugin(event_watcher)
+    event_watcher = EventWatcherExtension()
+    app.add_extension(event_watcher)
 
     async def dummy_handler(response: ResponseBuilder = dependency()):
         response.body("dummy")
 
-    route_plugin = RouteAddingPlugin("/events", dummy_handler, methods=["GET"])
-    app.add_plugin(route_plugin)
+    route_plugin = RouteAddingExtension("/events", dummy_handler, methods=["GET"])
+    app.add_extension(route_plugin)
 
     await client.get("/events")
 

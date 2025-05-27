@@ -11,7 +11,7 @@ This demo showcases how to structure a Serv application with multiple `Router` i
 *   Function-based handlers (`admin_dashboard_handler`, `admin_users_handler`).
 *   Using `Annotated` return types with `Jinja2Response` and `JsonResponse`.
 *   Serving HTML templates and JSON responses.
-*   Organizing route setup within a `Plugin`.
+*   Organizing route setup within a `Extension`.
 
 ## Files
 

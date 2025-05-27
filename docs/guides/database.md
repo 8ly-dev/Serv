@@ -6,7 +6,7 @@ Serv provides flexible database integration patterns that work with any database
 
 Serv's database integration approach:
 
-1. **Plugin-Based**: Database connections are managed within plugins
+1. **Extension-Based**: Database connections are managed within extensions
 2. **Dependency Injection**: Database connections are injected into route handlers
 3. **Flexible**: Works with any Python database library (asyncpg, SQLAlchemy, etc.)
 4. **Connection Pooling**: Efficient connection management for production
@@ -14,18 +14,18 @@ Serv's database integration approach:
 
 ## Database Setup
 
-### Creating a Database Plugin
+### Creating a Database Extension
 
-Use the CLI to create a database plugin:
+Use the CLI to create a database extension:
 
 ```bash
-# Create a database plugin
-serv create plugin --name "Database"
+# Create a database extension
+serv create extension --name "Database"
 ```
 
-### Basic Database Plugin Structure
+### Basic Database Extension Structure
 
-**plugins/database/plugin.yaml:**
+**extensions/database/extension.yaml:**
 ```yaml
 name: Database
 description: Database connection and management
@@ -38,16 +38,16 @@ settings:
   max_overflow: 20
 ```
 
-**plugins/database/database.py:**
+**extensions/database/database.py:**
 ```python
 import asyncpg
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from bevy import dependency
 
-class Database(Plugin):
+class Database(Extension):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         self.database_url = config.get("database_url", "sqlite:///app.db")
         self.pool_size = config.get("pool_size", 10)
         self.max_overflow = config.get("max_overflow", 20)
@@ -89,17 +89,17 @@ Install asyncpg:
 pip install asyncpg
 ```
 
-**plugins/database/database.py:**
+**extensions/database/database.py:**
 ```python
 import asyncpg
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from bevy import dependency
 from typing import Optional
 
-class PostgreSQLPlugin(Plugin):
+class PostgreSQLExtension(Extension):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         self.database_url = config.get("database_url")
         self.min_size = config.get("min_size", 1)
         self.max_size = config.get("max_size", 10)
@@ -160,7 +160,7 @@ class PostgreSQLPlugin(Plugin):
 
 ### Using PostgreSQL in Routes
 
-**plugins/blog/route_posts.py:**
+**extensions/blog/route_posts.py:**
 ```python
 import asyncpg
 from typing import List, Optional
@@ -275,20 +275,20 @@ async def CreatePost(
 
 ## SQLite Integration
 
-### SQLite Plugin
+### SQLite Extension
 
-**plugins/database/sqlite_plugin.py:**
+**extensions/database/sqlite_extension.py:**
 ```python
 import sqlite3
 import aiosqlite
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from bevy import dependency
 from pathlib import Path
 
-class SQLitePlugin(Plugin):
+class SQLiteExtension(Extension):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         self.database_path = config.get("database_path", "app.db")
         self.connection = None
     
@@ -350,7 +350,7 @@ class SQLitePlugin(Plugin):
 
 ### Using SQLite in Routes
 
-**plugins/blog/route_sqlite_posts.py:**
+**extensions/blog/route_sqlite_posts.py:**
 ```python
 import aiosqlite
 from serv.responses import ResponseBuilder
@@ -418,7 +418,7 @@ async def SQLiteCreatePost(
 
 ## SQLAlchemy Integration
 
-### SQLAlchemy Plugin
+### SQLAlchemy Extension
 
 Install SQLAlchemy:
 
@@ -428,13 +428,13 @@ pip install sqlalchemy[asyncio] aiopg  # For PostgreSQL
 pip install sqlalchemy[asyncio] aiosqlite  # For SQLite
 ```
 
-**plugins/database/sqlalchemy_plugin.py:**
+**extensions/database/sqlalchemy_extension.py:**
 ```python
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import String, Text, Integer, DateTime, ForeignKey
 from datetime import datetime
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from bevy import dependency
 
 class Base(DeclarativeBase):
@@ -464,10 +464,10 @@ class Post(Base):
     
     author: Mapped[User] = relationship("User", back_populates="posts")
 
-class SQLAlchemyPlugin(Plugin):
+class SQLAlchemyExtension(Extension):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        config = self.__plugin_spec__.config
+        config = self.__extension_spec__.config
         self.database_url = config.get("database_url")
         self.engine = None
         self.session_factory = None
@@ -507,7 +507,7 @@ class SQLAlchemyPlugin(Plugin):
 
 ### Using SQLAlchemy in Routes
 
-**plugins/blog/route_sqlalchemy_posts.py:**
+**extensions/blog/route_sqlalchemy_posts.py:**
 ```python
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from sqlalchemy import select
@@ -613,10 +613,10 @@ async def SQLAlchemyCreatePost(
 Create middleware to automatically handle database transactions:
 
 ```bash
-serv create middleware --name "database_transaction" --plugin "database"
+serv create middleware --name "database_transaction" --extension "database"
 ```
 
-**plugins/database/middleware_database_transaction.py:**
+**extensions/database/middleware_database_transaction.py:**
 ```python
 from typing import AsyncIterator
 import asyncpg
@@ -653,7 +653,7 @@ async def database_transaction_middleware(
 
 ### Session Middleware for SQLAlchemy
 
-**plugins/database/middleware_sqlalchemy_session.py:**
+**extensions/database/middleware_sqlalchemy_session.py:**
 ```python
 from typing import AsyncIterator
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
@@ -691,7 +691,7 @@ async def sqlalchemy_session_middleware(
 
 Create repository classes for clean data access:
 
-**plugins/blog/repositories.py:**
+**extensions/blog/repositories.py:**
 ```python
 from typing import List, Optional
 import asyncpg
@@ -812,7 +812,7 @@ class UserRepository:
 
 ### Using Repositories in Routes
 
-**plugins/blog/route_repository_posts.py:**
+**extensions/blog/route_repository_posts.py:**
 ```python
 import asyncpg
 from serv.responses import ResponseBuilder
@@ -881,7 +881,7 @@ async def RepositoryCreatePost(
 
 ### Simple Migration System
 
-**plugins/database/migrations.py:**
+**extensions/database/migrations.py:**
 ```python
 import asyncpg
 from typing import List, Callable
@@ -999,8 +999,8 @@ site_info:
   name: "My Blog App"
   description: "A blog built with Serv"
 
-plugins:
-  - plugin: database
+extensions:
+  - extension: database
     settings:
       database_url: "${DATABASE_URL:postgresql://localhost/myapp}"
       pool_size: "${DB_POOL_SIZE:10}"
@@ -1013,8 +1013,8 @@ site_info:
   name: "My Blog App"
   description: "A blog built with Serv"
 
-plugins:
-  - plugin: database
+extensions:
+  - extension: database
     settings:
       database_url: "${DATABASE_URL}"
       pool_size: 20
@@ -1022,12 +1022,12 @@ plugins:
       ssl_mode: "require"
 ```
 
-### Database Configuration Plugin
+### Database Configuration Extension
 
-**plugins/database/config.py:**
+**extensions/database/config.py:**
 ```python
 import os
-from serv.plugins import Plugin
+from serv.extensions import Extension
 
 class DatabaseConfig:
     def __init__(self, config: dict):
@@ -1130,7 +1130,7 @@ async def test_create_and_get_post(test_app_with_db, test_db_pool):
 @pytest.mark.asyncio
 async def test_repository_pattern(test_db_pool):
     """Test repository pattern"""
-    from plugins.blog.repositories import PostRepository, Post
+    from extensions.blog.repositories import PostRepository, Post
     
     repo = PostRepository(test_db_pool)
     
@@ -1251,10 +1251,10 @@ Design your database schema before implementing:
 - Plan indexes for performance
 - Consider data constraints and validation
 
-### 2. Create Database Plugin
+### 2. Create Database Extension
 
 ```bash
-serv create plugin --name "Database"
+serv create extension --name "Database"
 ```
 
 ### 3. Implement Models and Repositories

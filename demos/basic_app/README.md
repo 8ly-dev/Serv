@@ -5,7 +5,7 @@ This directory contains a basic demonstration of the Serv web framework.
 ## Features Demonstrated
 
 *   Basic application setup using `serv.app.App`.
-*   Defining a simple `serv.plugins.Plugin`.
+*   Defining a simple `serv.plugins.Extension`.
 *   Adding routes within a plugin using `router.add_route()`.
 *   Simple asynchronous request handlers.
 *   Returning plain text and HTML responses using `serv.responses.ResponseBuilder`.

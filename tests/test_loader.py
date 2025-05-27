@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from serv.plugins.importer import Importer, ImporterMetaPathFinder
+from serv.extensions.importer import Importer, ImporterMetaPathFinder
 
 logger = logging.getLogger(__name__)  # For test debugging
 
@@ -27,7 +27,7 @@ def isolate_loader_tests():
     ]
 
     # Store original modules to restore later (only for our test modules)
-    test_module_prefixes = ["test_plugins", "test_middleware"]
+    test_module_prefixes = ["test_extensions", "test_middleware"]
     original_modules = {}
     modules_to_remove = []
 
@@ -70,13 +70,13 @@ class TestServLoader:
     @pytest.fixture
     def setup_test_dirs(self, tmp_path):
         """Set up test fixtures with temporary directories."""
-        plugins_dir_path = tmp_path / "test_plugins"
+        plugins_dir_path = tmp_path / "test_extensions"
         plugins_dir_path.mkdir()
 
         middleware_dir_path = tmp_path / "test_middleware"
         middleware_dir_path.mkdir()
 
-        plugin_pkg_dir_path = plugins_dir_path / "test_plugin"
+        plugin_pkg_dir_path = plugins_dir_path / "test_extension"
         plugin_pkg_dir_path.mkdir()
         (plugin_pkg_dir_path / "__init__.py").write_text("# Test plugin package")
         (plugin_pkg_dir_path / "module1.py").write_text("VALUE = 'plugin_module1_val'")
@@ -101,7 +101,7 @@ class TestServLoader:
         return {
             "plugins_dir": plugins_dir_path,
             "middleware_dir": middleware_dir_path,
-            "plugin_pkg_dir": plugin_pkg_dir_path,  # Actual package dir for "test_plugin"
+            "plugin_pkg_dir": plugin_pkg_dir_path,  # Actual package dir for "test_extension"
             "another_plugin_pkg_dir": another_plugin_pkg_dir_path,
             "middleware_pkg_dir_inner": middleware_pkg_dir_inner_path,
             "loader": loader_instance,
@@ -110,21 +110,21 @@ class TestServLoader:
     def test_load_module(self, setup_test_dirs):
         """Test loading a module from the plugins directory."""
         loader = setup_test_dirs["loader"]
-        module = loader.load_module("test_plugin.module1")
+        module = loader.load_module("test_extension.module1")
         assert module.VALUE == "plugin_module1_val"
 
     def test_load_package(self, setup_test_dirs):
         """Test loading a package from the plugins directory."""
         loader = setup_test_dirs["loader"]
-        package = loader.load_module("test_plugin")
+        package = loader.load_module("test_extension")
         assert hasattr(package, "__package__")
-        assert package.__package__ == "test_plugins.test_plugin"
+        assert package.__package__ == "test_extensions.test_extension"
 
     def test_module_not_found(self, setup_test_dirs):
         """Test that loading a non-existent module raises an appropriate exception."""
         loader = setup_test_dirs["loader"]
         with pytest.raises(ModuleNotFoundError):
-            loader.load_module("test_plugin.non_existent_module")
+            loader.load_module("test_extension.non_existent_module")
 
     def test_package_not_found(self, setup_test_dirs):
         """Test that loading a non-existent package raises an appropriate exception."""
@@ -135,14 +135,14 @@ class TestServLoader:
     def test_cross_plugin_import(self, setup_test_dirs):
         """Test that one plugin can import another plugin's modules."""
         setup_test_dirs["plugins_dir"]
-        another_plugin_dir = setup_test_dirs["another_plugin_pkg_dir"]
+        another_extension_dir = setup_test_dirs["another_plugin_pkg_dir"]
 
-        # Create a module in another_plugin that imports from test_plugin
+        # Create a module in another_plugin that imports from test_extension
         cross_import_code = """
-from test_plugins.test_plugin.module1 import VALUE
+from test_extensions.test_extension.module1 import VALUE
 IMPORTED_VALUE = VALUE
 """
-        (another_plugin_dir / "cross_import.py").write_text(cross_import_code)
+        (another_extension_dir / "cross_import.py").write_text(cross_import_code)
 
         loader = setup_test_dirs["loader"]
         module = loader.load_module("another_plugin.cross_import")
@@ -151,16 +151,16 @@ IMPORTED_VALUE = VALUE
     def test_nested_module(self, setup_test_dirs):
         """Test loading a nested module."""
         setup_test_dirs["plugins_dir"]
-        plugin_dir = setup_test_dirs["plugin_pkg_dir"]
+        extension_dir = setup_test_dirs["plugin_pkg_dir"]
 
         # Create a nested module structure
-        nested_dir = plugin_dir / "nested"
+        nested_dir = extension_dir / "nested"
         nested_dir.mkdir()
         (nested_dir / "__init__.py").write_text("# Nested package")
         (nested_dir / "deep_module.py").write_text("NESTED_VALUE = 'nested_value'")
 
         loader = setup_test_dirs["loader"]
-        module = loader.load_module("test_plugin.nested.deep_module")
+        module = loader.load_module("test_extension.nested.deep_module")
         assert module.NESTED_VALUE == "nested_value"
 
     def test_package_without_init(self, setup_test_dirs):
@@ -182,7 +182,7 @@ IMPORTED_VALUE = VALUE
         middleware_dir = setup_test_dirs["middleware_dir"]
 
         # Load modules from the first loader first
-        plugins_module = setup_test_dirs["loader"].load_module("test_plugin.module1")
+        plugins_module = setup_test_dirs["loader"].load_module("test_extension.module1")
         assert plugins_module.VALUE == "plugin_module1_val"
 
         # Create a new loader for middleware directory after the first load is complete
@@ -198,5 +198,5 @@ IMPORTED_VALUE = VALUE
         absolute_path = plugins_dir.resolve()
 
         loader = Importer(directory=absolute_path)
-        module = loader.load_module("test_plugin.module1")
+        module = loader.load_module("test_extension.module1")
         assert module.VALUE == "plugin_module1_val"

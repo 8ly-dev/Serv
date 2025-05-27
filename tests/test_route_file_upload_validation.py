@@ -9,25 +9,25 @@ from bevy import dependency
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routing import Router
-from tests.helpers import create_test_plugin_spec
+from tests.helpers import create_test_extension_spec
 
 
-class FileUploadTestPlugin(Plugin):
+class FileUploadTestExtension(Extension):
     def __init__(self):
         # Set up the plugin spec on the module before calling super().__init__()
-        self._plugin_spec = create_test_plugin_spec(
-            name="FileUploadTestPlugin", path=Path(__file__).parent
+        self._extension_spec = create_test_extension_spec(
+            name="FileUploadTestExtension", path=Path(__file__).parent
         )
 
-        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
+        # Patch the module's __extension_spec__ for testing BEFORE super().__init__()
         import sys
 
         module = sys.modules[self.__module__]
-        module.__plugin_spec__ = self._plugin_spec
+        module.__extension_spec__ = self._extension_spec
 
         super().__init__(stand_alone=True)
         self.plugin_registered_route = False
@@ -96,8 +96,8 @@ class FileUploadTestPlugin(Plugin):
 @pytest.mark.asyncio
 async def test_file_upload_with_function_handler(app: App, client: AsyncClient):
     """Test file upload using the working function handler pattern"""
-    plugin = FileUploadTestPlugin()
-    app.add_plugin(plugin)
+    plugin = FileUploadTestExtension()
+    app.add_extension(plugin)
 
     files = {"file_upload": ("test.txt", b"Hello, World!", "text/plain")}
 
@@ -113,8 +113,8 @@ async def test_file_upload_with_function_handler(app: App, client: AsyncClient):
 @pytest.mark.asyncio
 async def test_file_upload_no_file(app: App, client: AsyncClient):
     """Test file upload endpoint with no file"""
-    plugin = FileUploadTestPlugin()
-    app.add_plugin(plugin)
+    plugin = FileUploadTestExtension()
+    app.add_extension(plugin)
 
     response = await client.post("/upload")
 

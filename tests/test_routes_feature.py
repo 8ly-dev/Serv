@@ -7,7 +7,7 @@ from bevy import dependency
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from serv.routes import (
     Form,
     GetRequest,
@@ -20,7 +20,7 @@ from serv.routes import (
 from serv.routing import (
     Router,  # For type hinting if needed, actual router comes from event
 )
-from tests.helpers import create_test_plugin_spec
+from tests.helpers import create_test_extension_spec
 
 # --- Test-specific Form and Route classes ---
 
@@ -117,21 +117,21 @@ class JinjaTupleReturnRoute(Route):
         return ("jinja_tuple_test.html", {"greeting": "Hello from Jinja via tuple"})
 
 
-# --- Test Plugin for adding Route classes ---
+# --- Test Extension for adding Route classes ---
 
 
-class RouteTestPlugin(Plugin):
+class RouteTestExtension(Extension):
     def __init__(self, path: str, route_class: type[Route]):
         # Set up the plugin spec on the module before calling super().__init__()
-        self._plugin_spec = create_test_plugin_spec(
-            name="RouteTestPlugin", path=Path(__file__).parent
+        self._extension_spec = create_test_extension_spec(
+            name="RouteTestExtension", path=Path(__file__).parent
         )
 
-        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
+        # Patch the module's __extension_spec__ for testing BEFORE super().__init__()
         import sys
 
         module = sys.modules[self.__module__]
-        module.__plugin_spec__ = self._plugin_spec
+        module.__extension_spec__ = self._extension_spec
 
         super().__init__(stand_alone=True)
         self.path = path
@@ -153,8 +153,8 @@ class RouteTestPlugin(Plugin):
 
 @pytest.mark.asyncio
 async def test_route_get_method(app: App, client: AsyncClient):
-    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_complex", ComplexTestRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_complex")
     assert response.status_code == 200
@@ -164,8 +164,8 @@ async def test_route_get_method(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_post_form_success(app: App, client: AsyncClient):
-    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_complex", ComplexTestRoute)
+    app.add_extension(plugin)
 
     response = await client.post("/test_complex", data={"name": "Alice", "age": "30"})
     assert response.status_code == 200
@@ -175,8 +175,8 @@ async def test_route_post_form_success(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_post_form_missing_field(app: App, client: AsyncClient):
-    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_complex", ComplexTestRoute)
+    app.add_extension(plugin)
 
     # This should not match SimpleForm due to missing 'age',
     # and ComplexTestRoute has no generic POST handler.
@@ -193,8 +193,8 @@ async def test_route_post_form_missing_field(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_route_post_form_wrong_type(app: App, client: AsyncClient):
-    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_complex", ComplexTestRoute)
+    app.add_extension(plugin)
 
     # Age is not an int. Should not match SimpleForm.
     response = await client.post(
@@ -214,8 +214,8 @@ async def test_route_another_form_get_method(app: App, client: AsyncClient):
     # The current `Route.__call__` prioritizes form handlers based on `matches_form_data`.
     # A GET request with query params for the form.
 
-    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_complex", ComplexTestRoute)
+    app.add_extension(plugin)
 
     response = await client.post("/test_complex", data={"item_id": "xyz123"})
     assert response.status_code == 200
@@ -239,8 +239,8 @@ async def test_route_custom_error_handler(app: App, client: AsyncClient):
     # or to modify `__init_subclass__` to register `raise_custom_error_route` to a GET path.
 
     # Simpler: Define a new Route for this specific test.
-    plugin = RouteTestPlugin("/test_raiser", CustomErrorRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_raiser", CustomErrorRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_raiser")
     assert response.status_code == 501
@@ -251,8 +251,8 @@ async def test_route_custom_error_handler(app: App, client: AsyncClient):
 @pytest.mark.asyncio
 async def test_route_unhandled_error(app: App, client: AsyncClient):
     # Similar to custom error, need a way to trigger unhandled_error_route.
-    plugin = RouteTestPlugin("/test_unhandled", UnhandledErrorRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_unhandled", UnhandledErrorRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_unhandled")
     # Expecting a generic 500 error as it's unhandled by the Route itself.
@@ -267,8 +267,8 @@ async def test_route_unhandled_error(app: App, client: AsyncClient):
 async def test_route_method_not_allowed_specific_override(
     app: App, client: AsyncClient
 ):
-    plugin = RouteTestPlugin("/test_complex", ComplexTestRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_complex", ComplexTestRoute)
+    app.add_extension(plugin)
 
     # ComplexTestRoute has GET and POST (form) handlers. Try PUT.
     # It also has `handle_method_not_allowed_override`.
@@ -285,8 +285,8 @@ async def test_route_method_not_allowed_no_override(app: App, client: AsyncClien
 
         # No custom MNA handler
 
-    plugin = RouteTestPlugin("/test_simple_get", SimpleGetRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_simple_get", SimpleGetRoute)
+    app.add_extension(plugin)
 
     response = await client.post("/test_simple_get")
     assert response.status_code == 405
@@ -306,8 +306,8 @@ async def test_route_method_not_allowed_no_override(app: App, client: AsyncClien
 
 @pytest.mark.asyncio
 async def test_annotated_json_response(app: App, client: AsyncClient):
-    plugin = RouteTestPlugin("/test_json_annotated", JsonAnnotatedRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_json_annotated", JsonAnnotatedRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_json_annotated")
     assert response.status_code == 200
@@ -321,8 +321,8 @@ async def test_annotated_json_response(app: App, client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_annotated_text_response(app: App, client: AsyncClient):
-    plugin = RouteTestPlugin("/test_text_annotated", TextAnnotatedRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_text_annotated", TextAnnotatedRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_text_annotated")
     assert response.status_code == 200
@@ -339,8 +339,8 @@ async def test_raw_dict_handler_without_response_type_errors(
     Tests that a handler returning a raw dict without an Annotated response type
     or returning a Response instance causes a 500 error.
     """
-    plugin = RouteTestPlugin("/test_raw_dict_error", RawDictRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_raw_dict_error", RawDictRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_raw_dict_error")
     assert response.status_code == 500
@@ -360,8 +360,8 @@ async def test_raw_string_handler_without_response_type_errors(
     Tests that a handler returning a raw string without an Annotated response type
     or returning a Response instance causes a 500 error.
     """
-    plugin = RouteTestPlugin("/test_raw_string_error", RawStringRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_raw_string_error", RawStringRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_raw_string_error")
     assert response.status_code == 500
@@ -374,8 +374,8 @@ async def test_raw_string_handler_without_response_type_errors(
 
 @pytest.mark.asyncio
 async def test_direct_response_instance_response(app: App, client: AsyncClient):
-    plugin = RouteTestPlugin("/test_direct_response", DirectResponseInstanceRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_direct_response", DirectResponseInstanceRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_direct_response")
     assert response.status_code == 201  # Status code from TextResponse instance
@@ -388,10 +388,10 @@ async def test_direct_response_instance_response(app: App, client: AsyncClient):
 async def test_annotated_json_response_custom_status_check(
     app: App, client: AsyncClient
 ):
-    plugin = RouteTestPlugin(
+    plugin = RouteTestExtension(
         "/test_json_annotated_custom_status", JsonAnnotatedCustomStatusRoute
     )
-    app.add_plugin(plugin)
+    app.add_extension(plugin)
 
     response = await client.get("/test_json_annotated_custom_status")
     assert response.status_code == 200  # JsonResponse default
@@ -402,8 +402,8 @@ async def test_annotated_json_response_custom_status_check(
 
 @pytest.mark.asyncio
 async def test_annotated_jinja_tuple_return(app: App, client: AsyncClient):
-    plugin = RouteTestPlugin("/test_jinja_tuple", JinjaTupleReturnRoute)
-    app.add_plugin(plugin)
+    plugin = RouteTestExtension("/test_jinja_tuple", JinjaTupleReturnRoute)
+    app.add_extension(plugin)
 
     response = await client.get("/test_jinja_tuple")
     assert response.status_code == 200

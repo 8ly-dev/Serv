@@ -21,7 +21,7 @@ The primary function for creating a test client:
 ```python
 async with create_test_client(
     app_factory=my_app_factory,
-    plugins=[MyPlugin()],
+    plugins=[MyExtension()],
     base_url="http://testserver",
     use_lifespan=True
 ) as client:
@@ -34,7 +34,7 @@ async with create_test_client(
 A builder class for creating test applications with a fluent interface:
 
 ```python
-builder = TestAppBuilder().with_plugin(MyPlugin()).with_dev_mode(True)
+builder = TestAppBuilder().with_plugin(MyExtension()).with_dev_mode(True)
 app = builder.build()
 
 # Or create a client directly:
@@ -57,7 +57,7 @@ Two pytest fixtures are available in `conftest.py`:
 ```python
 @pytest.mark.asyncio
 async def test_basic_route():
-    async with create_test_client(plugins=[MyPlugin()]) as client:
+    async with create_test_client(plugins=[MyExtension()]) as client:
         response = await client.get("/hello")
         assert response.status_code == 200
         assert response.text == "Hello, World!"
@@ -70,7 +70,7 @@ async def test_basic_route():
 async def test_with_custom_app():
     def create_my_app():
         app = App(dev_mode=True)
-        app.add_plugin(MyPlugin())
+        app.add_plugin(MyExtension())
         return app
     
     async with create_test_client(app_factory=create_my_app) as client:
@@ -85,7 +85,7 @@ async def test_with_custom_app():
 async def test_with_builder(app_builder):
     builder = (
         app_builder
-        .with_plugin(RoutePlugin("/api/users", my_handler))
+        .with_plugin(RouteExtension("/api/users", my_handler))
         .with_config({"debug": True})
     )
     
@@ -101,19 +101,19 @@ async def test_with_builder(app_builder):
 @pytest.mark.asyncio
 async def test_different_configs():
     # First configuration
-    async with create_test_client(plugins=[ConfigPlugin(debug=True)]) as debug_client:
+    async with create_test_client(plugins=[ConfigExtension(debug=True)]) as debug_client:
         debug_response = await debug_client.get("/status")
         assert "debug_info" in debug_response.json()
     
     # Second configuration
-    async with create_test_client(plugins=[ConfigPlugin(debug=False)]) as prod_client:
+    async with create_test_client(plugins=[ConfigExtension(debug=False)]) as prod_client:
         prod_response = await prod_client.get("/status")
         assert "debug_info" not in prod_response.json()
 ```
 
 ## Tips for Effective Testing
 
-1. **Create Reusable Test Plugins**: Define test-specific plugins that help set up common test scenarios.
+1. **Create Reusable Test Extensions**: Define test-specific plugins that help set up common test scenarios.
 
 2. **Test Lifespan Events**: Use `use_lifespan=True` to test that your application correctly handles startup and shutdown events.
 
@@ -123,12 +123,12 @@ async def test_different_configs():
 
 5. **Test Edge Cases**: Test error handling, unusual inputs, and boundary conditions.
 
-## Creating Test Plugins
+## Creating Test Extensions
 
 For testing, you can create simple plugins that implement specific functionality:
 
 ```python
-class TestRoutePlugin(Plugin):
+class TestRouteExtension(Extension):
     def __init__(self, path, response_text):
         self.path = path
         self.response_text = response_text

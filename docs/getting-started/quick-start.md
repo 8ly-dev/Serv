@@ -24,48 +24,48 @@ This creates a basic project structure:
 ```
 my-first-app/
 ├── serv.config.yaml    # Application configuration
-├── plugins/            # Plugin directory
+├── extensions/            # Extension directory
 └── templates/          # Template directory (optional)
 ```
 
-### 2. Create Your First Plugin
+### 2. Create Your First Extension
 
-Create a plugin to handle your routes:
+Create a extension to handle your routes:
 
 ```bash
-serv create plugin --name "Hello World"
+serv create extension --name "Hello World"
 ```
 
 This creates:
 
 ```
-plugins/
+extensions/
 └── hello_world/
     ├── __init__.py
-    ├── plugin.yaml
+    ├── extension.yaml
     └── hello_world.py
 ```
 
-### 3. Add Routes to Your Plugin
+### 3. Add Routes to Your Extension
 
 Add some routes using the CLI:
 
 ```bash
 # Create a home page route
-serv create route --name "home" --path "/" --plugin "hello_world"
+serv create route --name "home" --path "/" --extension "hello_world"
 
 # Create a greeting route with a parameter
-serv create route --name "greet" --path "/greet/{name}" --plugin "hello_world"
+serv create route --name "greet" --path "/greet/{name}" --extension "hello_world"
 
 # Create an API route
-serv create route --name "api_hello" --path "/api/hello" --plugin "hello_world"
+serv create route --name "api_hello" --path "/api/hello" --extension "hello_world"
 ```
 
 ### 4. Implement Your Route Handlers
 
 Edit the generated route files to add your logic:
 
-**plugins/hello_world/route_home.py:**
+**extensions/hello_world/route_home.py:**
 ```python
 from serv.responses import ResponseBuilder
 from bevy import dependency
@@ -83,7 +83,7 @@ async def Home(response: ResponseBuilder = dependency(), **path_params):
     """)
 ```
 
-**plugins/hello_world/route_greet.py:**
+**extensions/hello_world/route_greet.py:**
 ```python
 from serv.responses import ResponseBuilder
 from bevy import dependency
@@ -98,7 +98,7 @@ async def Greet(name: str, response: ResponseBuilder = dependency()):
     """)
 ```
 
-**plugins/hello_world/route_api_hello.py:**
+**extensions/hello_world/route_api_hello.py:**
 ```python
 from typing import Annotated
 from serv.routes import JsonResponse
@@ -113,12 +113,12 @@ async def ApiHello() -> Annotated[dict, JsonResponse]:
     }
 ```
 
-### 5. Enable Your Plugin
+### 5. Enable Your Extension
 
-Enable the plugin in your application:
+Enable the extension in your application:
 
 ```bash
-serv plugin enable hello_world
+serv extension enable hello_world
 ```
 
 ### 6. Run Your Application
@@ -147,12 +147,12 @@ Open your browser and visit:
 
 Let's explore what the CLI created for you:
 
-### Plugin Configuration
+### Extension Configuration
 
-**plugins/hello_world/plugin.yaml:**
+**extensions/hello_world/extension.yaml:**
 ```yaml
 name: Hello World
-description: A cool Serv plugin.
+description: A cool Serv extension.
 version: 0.1.0
 author: Your Name
 
@@ -168,28 +168,28 @@ routers:
 ```
 
 This declarative configuration:
-- Defines your plugin metadata
+- Defines your extension metadata
 - Maps URL paths to handler functions
 - Automatically wires everything together
 
-### Plugin Class (Event Handling Only)
+### Extension Class (Event Handling Only)
 
-**plugins/hello_world/hello_world.py:**
+**extensions/hello_world/hello_world.py:**
 ```python
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from bevy import dependency
 
-class HelloWorld(Plugin):
+class HelloWorld(Extension):
     async def on_app_startup(self):
         """Called when the application starts up"""
-        print("Hello World plugin starting up")
+        print("Hello World extension starting up")
     
     async def on_app_shutdown(self):
         """Called when the application shuts down"""
-        print("Hello World plugin shutting down")
+        print("Hello World extension shutting down")
 ```
 
-The plugin class only handles events - routes are defined declaratively in `plugin.yaml`.
+The extension class only handles events - routes are defined declaratively in `extension.yaml`.
 
 ### Application Configuration
 
@@ -199,28 +199,28 @@ site_info:
   name: "My First App"
   description: "A Serv application"
 
-plugins:
-  - plugin: hello_world
+extensions:
+  - extension: hello_world
 ```
 
 ## Adding More Features
 
-### Create an API Plugin
+### Create an API Extension
 
-Let's add a dedicated API plugin:
+Let's add a dedicated API extension:
 
 ```bash
-# Create an API plugin
-serv create plugin --name "API"
+# Create an API extension
+serv create extension --name "API"
 
 # Add API routes
-serv create route --name "users" --path "/users" --router "api_router" --plugin "api"
-serv create route --name "user_detail" --path "/users/{id}" --router "api_router" --plugin "api"
+serv create route --name "users" --path "/users" --router "api_router" --extension "api"
+serv create route --name "user_detail" --path "/users/{id}" --router "api_router" --extension "api"
 ```
 
-Update the API plugin configuration to mount at `/api/v1`:
+Update the API extension configuration to mount at `/api/v1`:
 
-**plugins/api/plugin.yaml:**
+**extensions/api/extension.yaml:**
 ```yaml
 name: API
 description: REST API endpoints
@@ -241,7 +241,7 @@ routers:
 
 ### Implement API Handlers
 
-**plugins/api/route_users.py:**
+**extensions/api/route_users.py:**
 ```python
 from typing import Annotated
 from serv.routes import GetRequest, PostRequest, JsonResponse
@@ -279,10 +279,10 @@ async def CreateUser(request: PostRequest, response: ResponseBuilder = dependenc
 Add authentication middleware to your API:
 
 ```bash
-serv create middleware --name "auth_check" --plugin "api"
+serv create middleware --name "auth_check" --extension "api"
 ```
 
-**plugins/api/middleware_auth_check.py:**
+**extensions/api/middleware_auth_check.py:**
 ```python
 from typing import AsyncIterator
 from serv.requests import Request
@@ -310,9 +310,9 @@ async def auth_check_middleware(
     yield  # Continue processing
 ```
 
-Update the API plugin configuration:
+Update the API extension configuration:
 
-**plugins/api/plugin.yaml:**
+**extensions/api/extension.yaml:**
 ```yaml
 name: API
 description: REST API endpoints
@@ -334,10 +334,10 @@ routers:
         methods: ["GET"]
 ```
 
-### Enable the API Plugin
+### Enable the API Extension
 
 ```bash
-serv plugin enable api
+serv extension enable api
 ```
 
 Now test the API with authentication:
@@ -361,21 +361,21 @@ serv app details               # Show project information
 serv app check                 # Validate project health
 ```
 
-### Plugin Management
+### Extension Management
 ```bash
-serv create plugin --name "Name"              # Create new plugin
-serv plugin enable <plugin>                   # Enable plugin
-serv plugin disable <plugin>                  # Disable plugin
-serv plugin list                               # List enabled plugins
-serv plugin list --available                  # List all available plugins
-serv plugin validate <plugin>                 # Validate plugin
+serv create extension --name "Name"              # Create new extension
+serv extension enable <extension>                   # Enable extension
+serv extension disable <extension>                  # Disable extension
+serv extension list                               # List enabled extensions
+serv extension list --available                  # List all available extensions
+serv extension validate <extension>                 # Validate extension
 ```
 
 ### Component Creation
 ```bash
-serv create route --name "name" --path "/path" --plugin "plugin"
-serv create middleware --name "name" --plugin "plugin"
-serv create listener --name "name" --plugin "plugin"
+serv create route --name "name" --path "/path" --extension "extension"
+serv create middleware --name "name" --extension "extension"
+serv create listener --name "name" --extension "extension"
 ```
 
 ### Development
@@ -402,26 +402,26 @@ Always use CLI commands to create components:
 
 ```bash
 # Good
-serv create plugin --name "Blog"
-serv create route --name "blog_home" --path "/blog" --plugin "blog"
+serv create extension --name "Blog"
+serv create route --name "blog_home" --path "/blog" --extension "blog"
 
 # Avoid manual file creation
 ```
 
 ### 2. Organize by Feature
 
-Create plugins for each major feature:
+Create extensions for each major feature:
 
 ```bash
-serv create plugin --name "User Management"
-serv create plugin --name "Blog"
-serv create plugin --name "API"
-serv create plugin --name "Admin"
+serv create extension --name "User Management"
+serv create extension --name "Blog"
+serv create extension --name "API"
+serv create extension --name "Admin"
 ```
 
 ### 3. Use Declarative Configuration
 
-Define routes in `plugin.yaml`, not in code:
+Define routes in `extension.yaml`, not in code:
 
 ```yaml
 # Good: Declarative routing
@@ -431,16 +431,16 @@ routers:
       - path: /blog
         handler: route_blog_home:BlogHome
 
-# Avoid: Programmatic routing in plugin classes
+# Avoid: Programmatic routing in extension classes
 ```
 
-### 4. Keep Plugin Classes Event-Only
+### 4. Keep Extension Classes Event-Only
 
-Use plugin classes only for event handling:
+Use extension classes only for event handling:
 
 ```python
 # Good: Events only
-class MyPlugin(Plugin):
+class MyExtension(Extension):
     async def on_app_startup(self):
         # Initialize resources
         pass
@@ -449,7 +449,7 @@ class MyPlugin(Plugin):
         # Handle custom events
         pass
 
-# Avoid: Route registration in plugin classes
+# Avoid: Route registration in extension classes
 ```
 
 ## Next Steps
@@ -459,7 +459,7 @@ Congratulations! You've created your first Serv application using the CLI-first 
 ### Learn Core Concepts
 
 - **[Routing](../guides/routing.md)** - Master declarative routing patterns
-- **[Plugins](../guides/plugins.md)** - Build powerful, reusable plugins
+- **[Extensions](../guides/extensions.md)** - Build powerful, reusable extensions
 - **[Middleware](../guides/middleware.md)** - Add cross-cutting concerns
 - **[Dependency Injection](../guides/dependency-injection.md)** - Master the DI system
 
@@ -478,19 +478,19 @@ Congratulations! You've created your first Serv application using the CLI-first 
 
 ### Common Issues
 
-**Plugin not found:**
+**Extension not found:**
 ```bash
-# Make sure the plugin is enabled
-serv plugin enable my_plugin
+# Make sure the extension is enabled
+serv extension enable my_extension
 
-# Check plugin status
-serv plugin list
+# Check extension status
+serv extension list
 ```
 
 **Route not working:**
 ```bash
-# Validate your plugin configuration
-serv plugin validate my_plugin
+# Validate your extension configuration
+serv extension validate my_extension
 
 # Check application health
 serv app check
@@ -511,7 +511,7 @@ serv config show
 # Get help for any command
 serv --help
 serv create --help
-serv plugin --help
+serv extension --help
 
 # Check application status
 serv app details

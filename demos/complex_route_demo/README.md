@@ -8,14 +8,14 @@ This directory demonstrates more advanced routing capabilities in Serv, includin
 *   Using `Annotated` return types for responses (e.g., `Jinja2Response`, `HtmlResponse`).
 *   Automatic request form data parsing into dataclasses (e.g., `serv.routes.Form`).
 *   Organizing routes and handlers in separate files (`demo.py`).
-*   Registering routes via a Plugin (`plugins.py`).
+*   Registering routes via a Extension (`plugins.py`).
 *   Using Jinja2 templates for rendering HTML.
 *   Running the application using Uvicorn with the factory pattern.
 
 ## Files
 
 *   `main.py`: Entry point to run the demo application using Uvicorn.
-*   `plugins.py`: Contains `DemoRoutesPlugin` which registers the class-based routes.
+*   `plugins.py`: Contains `DemoRoutesExtension` which registers the class-based routes.
 *   `demo.py`: Defines the `HomeRoute` (using Jinja2) and `SubmitRoute` (processing a form).
 *   `templates/home.html`: A Jinja2 template for the homepage, including a form.
 *   `__init__.py`: Makes the demo directory a package if needed for imports.

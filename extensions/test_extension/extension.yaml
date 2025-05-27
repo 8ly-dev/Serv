@@ -1,0 +1,6 @@
+name: Test Extension
+description: Test plugin that adds a /test-route route
+version: 1.0.0
+author: Test Author
+entry_points:
+- main:TestExtensionExtension 

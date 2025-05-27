@@ -3,7 +3,7 @@ from typing import Annotated, Any
 from bevy import dependency
 
 from serv.app import App
-from serv.plugins import Listener
+from serv.extensions import Listener
 from serv.routes import GetRequest, Jinja2Response, JsonResponse, Route
 from serv.routing import Router
 
@@ -66,7 +66,7 @@ async def admin_users_handler(
     return "admin/users.html", {"request": request}
 
 
-class MountDemoPlugin(Listener):
+class MountDemoExtension(Listener):
     def __init__(self):
         super().__init__()
         self.main_router = Router()
@@ -97,7 +97,7 @@ class MountDemoPlugin(Listener):
 
 # Create the app
 app = App(dev_mode=True)
-app.add_plugin(MountDemoPlugin())  # Add the plugin instance
+app.add_extension(MountDemoExtension())  # Add the plugin instance
 
 # Start the app
 if __name__ == "__main__":

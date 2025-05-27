@@ -10,7 +10,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient  # Import ASGITransport
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from tests.e2e.helpers import AppBuilder
 
 
@@ -87,7 +87,7 @@ async def client(app: App) -> AsyncClient:
 @asynccontextmanager
 async def create_test_client(
     app_factory: Callable[[], App] = None,
-    plugins: list[Plugin] = None,
+    plugins: list[Extension] = None,
     config: dict[str, Any] = None,
     base_url: str = "http://testserver",
     use_lifespan: bool = True,
@@ -116,7 +116,7 @@ async def create_test_client(
         # Add plugins if provided
         if plugins:
             for plugin in plugins:
-                app.add_plugin(plugin)
+                app.add_extension(plugin)
 
         # Configure the app if configuration provided
         # This is left as a placeholder for future implementation if needed
@@ -150,7 +150,7 @@ async def app_test_client():
         ```
         @pytest.mark.asyncio
         async def test_custom_app(app_test_client):
-            async with app_test_client(plugins=[MyPlugin()]) as client:
+            async with app_test_client(plugins=[MyExtension()]) as client:
                 response = await client.get("/my-endpoint")
                 assert response.status_code == 200
         ```
@@ -169,7 +169,7 @@ def app_builder():
         ```
         @pytest.mark.asyncio
         async def test_with_builder(app_builder):
-            builder = app_builder.with_plugin(MyPlugin())
+            builder = app_builder.with_plugin(MyExtension())
 
             # Use as a factory for app instance
             app = builder.build()
@@ -184,10 +184,10 @@ def app_builder():
 
 
 @pytest.fixture(autouse=True)
-def mock_find_plugin_spec():
-    """Mock find_plugin_spec to prevent hanging during Route tests."""
+def mock_find_extension_spec():
+    """Mock find_extension_spec to prevent hanging during Route tests."""
     with (
-        patch("serv.plugins.loader.find_plugin_spec", return_value=None),
-        patch("serv.app.App._enable_welcome_plugin"),
+        patch("serv.extensions.loader.find_extension_spec", return_value=None),
+        patch("serv.app.App._enable_welcome_extension"),
     ):
         yield

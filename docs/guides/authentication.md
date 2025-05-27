@@ -1,13 +1,13 @@
 # Authentication
 
-Authentication is a critical aspect of web applications. Serv provides flexible authentication patterns through middleware, plugins, and dependency injection. This guide covers how to implement various authentication strategies in Serv applications.
+Authentication is a critical aspect of web applications. Serv provides flexible authentication patterns through middleware, extensions, and dependency injection. This guide covers how to implement various authentication strategies in Serv applications.
 
 ## Overview
 
 Serv's authentication approach:
 
 1. **Middleware-Based**: Authentication logic implemented as middleware
-2. **Plugin-Organized**: Authentication components organized within plugins
+2. **Extension-Organized**: Authentication components organized within extensions
 3. **Flexible**: Support for multiple authentication strategies
 4. **Session Management**: Built-in support for cookies and sessions
 5. **Dependency Injection**: Easy access to user information in route handlers
@@ -32,26 +32,26 @@ Integration with third-party OAuth providers.
 
 ## Setting Up Authentication
 
-### Creating an Authentication Plugin
+### Creating an Authentication Extension
 
-Use the CLI to create an authentication plugin:
+Use the CLI to create an authentication extension:
 
 ```bash
-# Create an authentication plugin
-serv create plugin --name "Auth"
+# Create an authentication extension
+serv create extension --name "Auth"
 
 # Create authentication middleware
-serv create middleware --name "auth_check" --plugin "auth"
+serv create middleware --name "auth_check" --extension "auth"
 
 # Create authentication routes
-serv create route --name "login" --path "/login" --plugin "auth"
-serv create route --name "logout" --path "/logout" --plugin "auth"
-serv create route --name "register" --path "/register" --plugin "auth"
+serv create route --name "login" --path "/login" --extension "auth"
+serv create route --name "logout" --path "/logout" --extension "auth"
+serv create route --name "register" --path "/register" --extension "auth"
 ```
 
-### Basic Plugin Structure
+### Basic Extension Structure
 
-**plugins/auth/plugin.yaml:**
+**extensions/auth/extension.yaml:**
 ```yaml
 name: Auth
 description: Authentication and authorization
@@ -87,7 +87,7 @@ middleware:
 
 ### User Model and Storage
 
-**plugins/auth/models.py:**
+**extensions/auth/models.py:**
 ```python
 from dataclasses import dataclass
 from datetime import datetime
@@ -158,7 +158,7 @@ user_storage = UserStorage()
 
 ### Session Management
 
-**plugins/auth/sessions.py:**
+**extensions/auth/sessions.py:**
 ```python
 import secrets
 from datetime import datetime, timedelta
@@ -232,7 +232,7 @@ session_manager = SessionManager()
 
 ### Login Route
 
-**plugins/auth/route_login.py:**
+**extensions/auth/route_login.py:**
 ```python
 from dataclasses import dataclass
 from serv.routes import GetRequest, PostRequest
@@ -326,7 +326,7 @@ async def LoginPage(
 
 ### Logout Route
 
-**plugins/auth/route_logout.py:**
+**extensions/auth/route_logout.py:**
 ```python
 from serv.routes import PostRequest
 from serv.responses import ResponseBuilder
@@ -361,7 +361,7 @@ async def LogoutPage(
 
 ### Registration Route
 
-**plugins/auth/route_register.py:**
+**extensions/auth/route_register.py:**
 ```python
 from dataclasses import dataclass
 from serv.routes import GetRequest, PostRequest
@@ -473,7 +473,7 @@ async def RegisterPage(
 
 ### Authentication Middleware
 
-**plugins/auth/middleware_auth_check.py:**
+**extensions/auth/middleware_auth_check.py:**
 ```python
 from typing import AsyncIterator
 from serv.requests import Request
@@ -543,7 +543,7 @@ async def auth_check_middleware(
 
 ### JWT Token Authentication
 
-**plugins/auth/jwt_auth.py:**
+**extensions/auth/jwt_auth.py:**
 ```python
 import jwt
 import secrets
@@ -604,7 +604,7 @@ jwt_manager = JWTManager(secret_key="your-secret-key-change-in-production")
 
 ### API Token Authentication
 
-**plugins/auth/api_auth.py:**
+**extensions/auth/api_auth.py:**
 ```python
 import secrets
 from datetime import datetime
@@ -667,7 +667,7 @@ api_key_manager = APIKeyManager()
 
 ### JWT Authentication Middleware
 
-**plugins/auth/middleware_jwt_auth.py:**
+**extensions/auth/middleware_jwt_auth.py:**
 ```python
 from typing import AsyncIterator
 from serv.requests import Request
@@ -723,7 +723,7 @@ async def jwt_auth_middleware(
 
 ### API Key Authentication Middleware
 
-**plugins/auth/middleware_api_key.py:**
+**extensions/auth/middleware_api_key.py:**
 ```python
 from typing import AsyncIterator
 from serv.requests import Request
@@ -783,7 +783,7 @@ async def api_key_middleware(
 
 ### Accessing Current User
 
-**plugins/dashboard/route_dashboard.py:**
+**extensions/dashboard/route_dashboard.py:**
 ```python
 from serv.routes import GetRequest
 from serv.responses import ResponseBuilder
@@ -846,7 +846,7 @@ async def Dashboard(
 
 ### API Endpoints with Authentication
 
-**plugins/api/route_user_profile.py:**
+**extensions/api/route_user_profile.py:**
 ```python
 from serv.routes import GetRequest
 from serv.responses import ResponseBuilder
@@ -884,7 +884,7 @@ async def UserProfile(
 
 ### Role System
 
-**plugins/auth/roles.py:**
+**extensions/auth/roles.py:**
 ```python
 from enum import Enum
 from typing import Set, Dict
@@ -962,7 +962,7 @@ role_manager = RoleManager()
 
 ### Authorization Middleware
 
-**plugins/auth/middleware_authorization.py:**
+**extensions/auth/middleware_authorization.py:**
 ```python
 from typing import AsyncIterator
 from serv.requests import Request
@@ -1023,7 +1023,7 @@ async def authorization_middleware(
 
 ### OAuth Provider Setup
 
-**plugins/auth/oauth.py:**
+**extensions/auth/oauth.py:**
 ```python
 import secrets
 import urllib.parse
@@ -1103,7 +1103,7 @@ github_oauth = OAuthProvider(OAuthConfig(
 
 ### OAuth Routes
 
-**plugins/auth/route_oauth.py:**
+**extensions/auth/route_oauth.py:**
 ```python
 from serv.routes import GetRequest
 from serv.responses import ResponseBuilder
@@ -1192,9 +1192,9 @@ async def GitHubCallback(
 ```python
 import pytest
 from unittest.mock import Mock
-from plugins.auth.models import UserStorage
-from plugins.auth.sessions import SessionManager
-from plugins.auth.jwt_auth import JWTManager
+from extensions.auth.models import UserStorage
+from extensions.auth.sessions import SessionManager
+from extensions.auth.jwt_auth import JWTManager
 
 def test_user_creation():
     """Test user creation and password hashing"""
@@ -1242,7 +1242,7 @@ def test_jwt_tokens():
 @pytest.mark.asyncio
 async def test_auth_middleware():
     """Test authentication middleware"""
-    from plugins.auth.middleware_auth_check import auth_check_middleware
+    from extensions.auth.middleware_auth_check import auth_check_middleware
     
     # Mock request without session
     request = Mock()
@@ -1440,11 +1440,11 @@ Choose the appropriate authentication method:
 - OAuth for third-party integration
 - API keys for service-to-service communication
 
-### 2. Create Authentication Plugin
+### 2. Create Authentication Extension
 
 ```bash
-serv create plugin --name "Auth"
-serv create middleware --name "auth_check" --plugin "auth"
+serv create extension --name "Auth"
+serv create middleware --name "auth_check" --extension "auth"
 ```
 
 ### 3. Implement User Management

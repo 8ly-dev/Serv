@@ -9,7 +9,7 @@ Serv's testing approach:
 1. **Pytest Integration**: Built on pytest with async support
 2. **Test Fixtures**: Pre-configured fixtures for common testing scenarios
 3. **HTTP Client Testing**: HTTPX AsyncClient for end-to-end testing
-4. **Plugin Testing**: Isolated testing of plugins and components
+4. **Extension Testing**: Isolated testing of extensions and components
 5. **Mocking Support**: Easy mocking of dependencies and external services
 
 ## Testing Architecture
@@ -21,7 +21,7 @@ Serv supports multiple levels of testing:
 - **Unit Tests**: Test individual functions and classes
 - **Integration Tests**: Test component interactions
 - **End-to-End Tests**: Test complete request/response cycles
-- **Plugin Tests**: Test plugin functionality in isolation
+- **Extension Tests**: Test extension functionality in isolation
 - **Middleware Tests**: Test middleware behavior
 
 ### Test Structure
@@ -41,10 +41,10 @@ tests/
 │   ├── conftest.py
 │   ├── test_user_journey.py
 │   └── test_complete_flows.py
-└── plugins/                 # Plugin-specific tests
-    ├── test_auth_plugin.py
-    ├── test_blog_plugin.py
-    └── test_api_plugin.py
+└── extensions/                 # Extension-specific tests
+    ├── test_auth_extension.py
+    ├── test_blog_extension.py
+    └── test_api_extension.py
 ```
 
 ## Setting Up Testing
@@ -90,7 +90,7 @@ from typing import AsyncGenerator, Callable, Any
 from unittest.mock import patch
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.extensions import Extension
 
 
 @pytest.fixture(scope="session")
@@ -122,7 +122,7 @@ async def client(app: App) -> AsyncClient:
 @asynccontextmanager
 async def create_test_client(
     app_factory: Callable[[], App] = None,
-    plugins: list[Plugin] = None,
+    extensions: list[Extension] = None,
     config: dict[str, Any] = None,
     base_url: str = "http://testserver",
     use_lifespan: bool = True,
@@ -133,7 +133,7 @@ async def create_test_client(
     
     Args:
         app_factory: Optional function that returns a fully configured App instance
-        plugins: Optional list of plugins to add to the app
+        extensions: Optional list of extensions to add to the app
         config: Optional configuration to use when creating the app
         base_url: Base URL to use for requests
         use_lifespan: Whether to use the app's lifespan context
@@ -148,10 +148,10 @@ async def create_test_client(
     else:
         app = App(dev_mode=True)
         
-        # Add plugins if provided
-        if plugins:
-            for plugin in plugins:
-                app.add_plugin(plugin)
+        # Add extensions if provided
+        if extensions:
+            for extension in extensions:
+                app.add_extension(extension)
     
     # Set up the transport
     transport = ASGITransport(app=app)
@@ -183,7 +183,7 @@ async def app_test_client():
     Usage:
         @pytest.mark.asyncio
         async def test_custom_app(app_test_client):
-            async with app_test_client(plugins=[MyPlugin()]) as client:
+            async with app_test_client(extensions=[MyExtension()]) as client:
                 response = await client.get("/my-endpoint")
                 assert response.status_code == 200
     """
@@ -244,7 +244,7 @@ class LifespanManager:
 ```python
 import pytest
 from datetime import datetime
-from plugins.blog.models import BlogPost, BlogStorage
+from extensions.blog.models import BlogPost, BlogStorage
 
 def test_blog_post_creation():
     """Test BlogPost data class creation."""
@@ -306,7 +306,7 @@ def test_blog_post_string_conversion():
 **tests/unit/test_utils.py:**
 ```python
 import pytest
-from plugins.auth.utils import hash_password, verify_password, validate_email
+from extensions.auth.utils import hash_password, verify_password, validate_email
 
 def test_password_hashing():
     """Test password hashing and verification."""
@@ -354,7 +354,7 @@ def test_email_validation_parametrized(email, expected):
 ```python
 import pytest
 from dataclasses import dataclass
-from plugins.auth.validators import validate_registration_form, ValidationError
+from extensions.auth.validators import validate_registration_form, ValidationError
 
 @dataclass
 class MockRegistrationForm:
@@ -430,13 +430,13 @@ def test_multiple_validation_errors():
 import pytest
 from httpx import AsyncClient
 from serv.app import App
-from plugins.blog.blog_plugin import BlogPlugin
+from extensions.blog.blog_extension import BlogExtension
 
 @pytest.mark.asyncio
 async def test_blog_homepage():
     """Test blog homepage route."""
     app = App(dev_mode=True)
-    app.add_plugin(BlogPlugin())
+    app.add_extension(BlogExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/")
@@ -449,7 +449,7 @@ async def test_blog_homepage():
 async def test_blog_post_detail():
     """Test individual blog post route."""
     app = App(dev_mode=True)
-    app.add_plugin(BlogPlugin())
+    app.add_extension(BlogExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Test valid post ID
@@ -468,7 +468,7 @@ async def test_blog_post_detail():
 async def test_api_posts_endpoint():
     """Test API posts endpoint."""
     app = App(dev_mode=True)
-    app.add_plugin(BlogPlugin())
+    app.add_extension(BlogExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/api/posts")
@@ -496,13 +496,13 @@ async def test_api_posts_endpoint():
 import pytest
 from httpx import AsyncClient
 from serv.app import App
-from plugins.blog.blog_plugin import BlogPlugin
+from extensions.blog.blog_extension import BlogExtension
 
 @pytest.mark.asyncio
 async def test_create_post_form():
     """Test blog post creation form."""
     app = App(dev_mode=True)
-    app.add_plugin(BlogPlugin())
+    app.add_extension(BlogExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Test GET request (show form)
@@ -528,7 +528,7 @@ async def test_create_post_form():
 async def test_form_validation():
     """Test form validation errors."""
     app = App(dev_mode=True)
-    app.add_plugin(BlogPlugin())
+    app.add_extension(BlogExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Test with missing required fields
@@ -546,7 +546,7 @@ async def test_form_validation():
 async def test_file_upload():
     """Test file upload handling."""
     app = App(dev_mode=True)
-    app.add_plugin(BlogPlugin())
+    app.add_extension(BlogExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Create a test file
@@ -571,13 +571,13 @@ async def test_file_upload():
 import pytest
 from httpx import AsyncClient
 from serv.app import App
-from plugins.auth.auth_plugin import AuthPlugin
+from extensions.auth.auth_extension import AuthExtension
 
 @pytest.mark.asyncio
 async def test_login_flow():
     """Test complete login flow."""
     app = App(dev_mode=True)
-    app.add_plugin(AuthPlugin())
+    app.add_extension(AuthExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Test login page
@@ -606,7 +606,7 @@ async def test_login_flow():
 async def test_login_with_invalid_credentials():
     """Test login with invalid credentials."""
     app = App(dev_mode=True)
-    app.add_plugin(AuthPlugin())
+    app.add_extension(AuthExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         login_data = {
@@ -622,7 +622,7 @@ async def test_login_with_invalid_credentials():
 async def test_logout_flow():
     """Test logout flow."""
     app = App(dev_mode=True)
-    app.add_plugin(AuthPlugin())
+    app.add_extension(AuthExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Login first
@@ -647,7 +647,7 @@ async def test_logout_flow():
 async def test_registration_flow():
     """Test user registration flow."""
     app = App(dev_mode=True)
-    app.add_plugin(AuthPlugin())
+    app.add_extension(AuthExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Test registration page
@@ -684,8 +684,8 @@ async def test_registration_flow():
 import pytest
 from httpx import AsyncClient
 from tests.conftest import create_test_client
-from plugins.blog.blog_plugin import BlogPlugin
-from plugins.auth.auth_plugin import AuthPlugin
+from extensions.blog.blog_extension import BlogExtension
+from extensions.auth.auth_extension import AuthExtension
 
 @pytest.mark.asyncio
 async def test_complete_blog_user_journey():
@@ -693,8 +693,8 @@ async def test_complete_blog_user_journey():
     
     def create_blog_app():
         app = App(dev_mode=True)
-        app.add_plugin(AuthPlugin())
-        app.add_plugin(BlogPlugin())
+        app.add_extension(AuthExtension())
+        app.add_extension(BlogExtension())
         return app
     
     async with create_test_client(app_factory=create_blog_app) as client:
@@ -752,8 +752,8 @@ async def test_api_user_journey():
     
     def create_api_app():
         app = App(dev_mode=True)
-        app.add_plugin(AuthPlugin())
-        app.add_plugin(BlogPlugin())
+        app.add_extension(AuthExtension())
+        app.add_extension(BlogExtension())
         return app
     
     async with create_test_client(app_factory=create_api_app) as client:
@@ -807,12 +807,12 @@ async def test_api_user_journey():
 import pytest
 from httpx import AsyncClient
 from tests.conftest import create_test_client
-from plugins.blog.blog_plugin import BlogPlugin
+from extensions.blog.blog_extension import BlogExtension
 
 @pytest.mark.asyncio
 async def test_404_handling():
     """Test 404 error handling."""
-    async with create_test_client(plugins=[BlogPlugin()]) as client:
+    async with create_test_client(extensions=[BlogExtension()]) as client:
         response = await client.get("/nonexistent-page")
         assert response.status_code == 404
         assert "not found" in response.text.lower()
@@ -820,22 +820,22 @@ async def test_404_handling():
 @pytest.mark.asyncio
 async def test_500_error_handling():
     """Test 500 error handling."""
-    # Create a plugin that raises an error
-    class ErrorPlugin(Plugin):
+    # Create a extension that raises an error
+    class ErrorExtension(Extension):
         async def on_app_request_begin(self, router):
             router.add_route("/error", self.error_handler)
         
         async def error_handler(self, response):
             raise Exception("Test error")
     
-    async with create_test_client(plugins=[ErrorPlugin()]) as client:
+    async with create_test_client(extensions=[ErrorExtension()]) as client:
         response = await client.get("/error")
         assert response.status_code == 500
 
 @pytest.mark.asyncio
 async def test_malformed_request_handling():
     """Test handling of malformed requests."""
-    async with create_test_client(plugins=[BlogPlugin()]) as client:
+    async with create_test_client(extensions=[BlogExtension()]) as client:
         # Test with invalid JSON
         response = await client.post(
             "/api/posts",
@@ -847,7 +847,7 @@ async def test_malformed_request_handling():
 @pytest.mark.asyncio
 async def test_large_request_handling():
     """Test handling of large requests."""
-    async with create_test_client(plugins=[BlogPlugin()]) as client:
+    async with create_test_client(extensions=[BlogExtension()]) as client:
         # Create a very large payload
         large_content = "x" * (10 * 1024 * 1024)  # 10MB
         
@@ -864,47 +864,47 @@ async def test_large_request_handling():
         assert response.status_code in [200, 413, 400]
 ```
 
-## Plugin Testing
+## Extension Testing
 
-### Testing Plugin Functionality
+### Testing Extension Functionality
 
-**tests/plugins/test_blog_plugin.py:**
+**tests/extensions/test_blog_extension.py:**
 ```python
 import pytest
 from serv.app import App
-from plugins.blog.blog_plugin import BlogPlugin
-from plugins.blog.models import BlogStorage
+from extensions.blog.blog_extension import BlogExtension
+from extensions.blog.models import BlogStorage
 
 @pytest.mark.asyncio
-async def test_blog_plugin_initialization():
-    """Test blog plugin initialization."""
-    plugin = BlogPlugin()
+async def test_blog_extension_initialization():
+    """Test blog extension initialization."""
+    extension = BlogExtension()
     
-    assert hasattr(plugin, 'storage')
-    assert isinstance(plugin.storage, BlogStorage)
-    assert len(plugin.storage.get_all_posts()) > 0  # Has sample data
+    assert hasattr(extension, 'storage')
+    assert isinstance(extension.storage, BlogStorage)
+    assert len(extension.storage.get_all_posts()) > 0  # Has sample data
 
 @pytest.mark.asyncio
-async def test_blog_plugin_routes():
-    """Test that blog plugin registers routes correctly."""
+async def test_blog_extension_routes():
+    """Test that blog extension registers routes correctly."""
     app = App(dev_mode=True)
-    plugin = BlogPlugin()
-    app.add_plugin(plugin)
+    extension = BlogExtension()
+    app.add_extension(extension)
     
     # Test that routes are registered
     # This would require access to app's router, which might need
     # additional testing utilities
 
 @pytest.mark.asyncio
-async def test_blog_plugin_with_custom_storage():
-    """Test blog plugin with custom storage."""
+async def test_blog_extension_with_custom_storage():
+    """Test blog extension with custom storage."""
     custom_storage = BlogStorage()
     custom_storage.add_post("Custom Post", "Custom content", "Custom Author")
     
-    plugin = BlogPlugin()
-    plugin.storage = custom_storage
+    extension = BlogExtension()
+    extension.storage = custom_storage
     
-    posts = plugin.storage.get_all_posts()
+    posts = extension.storage.get_all_posts()
     custom_post = next(
         (p for p in posts if p.title == "Custom Post"), 
         None
@@ -912,15 +912,15 @@ async def test_blog_plugin_with_custom_storage():
     assert custom_post is not None
     assert custom_post.content == "Custom content"
 
-class TestBlogPluginIntegration:
-    """Integration tests for blog plugin."""
+class TestBlogExtensionIntegration:
+    """Integration tests for blog extension."""
     
     @pytest.mark.asyncio
-    async def test_plugin_with_app(self, app_test_client):
-        """Test blog plugin integrated with app."""
-        plugin = BlogPlugin()
+    async def test_extension_with_app(self, app_test_client):
+        """Test blog extension integrated with app."""
+        extension = BlogExtension()
         
-        async with app_test_client(plugins=[plugin]) as client:
+        async with app_test_client(extensions=[extension]) as client:
             # Test homepage
             response = await client.get("/")
             assert response.status_code == 200
@@ -933,11 +933,11 @@ class TestBlogPluginIntegration:
             assert len(posts) > 0
     
     @pytest.mark.asyncio
-    async def test_plugin_post_creation(self, app_test_client):
-        """Test post creation through plugin."""
-        plugin = BlogPlugin()
+    async def test_extension_post_creation(self, app_test_client):
+        """Test post creation through extension."""
+        extension = BlogExtension()
         
-        async with app_test_client(plugins=[plugin]) as client:
+        async with app_test_client(extensions=[extension]) as client:
             # Create a post
             post_data = {
                 "title": "Integration Test Post",
@@ -959,42 +959,42 @@ class TestBlogPluginIntegration:
             assert test_post is not None
 ```
 
-### Testing Plugin Dependencies
+### Testing Extension Dependencies
 
-**tests/plugins/test_plugin_dependencies.py:**
+**tests/extensions/test_extension_dependencies.py:**
 ```python
 import pytest
 from serv.app import App
-from plugins.auth.auth_plugin import AuthPlugin
-from plugins.blog.blog_plugin import BlogPlugin
+from extensions.auth.auth_extension import AuthExtension
+from extensions.blog.blog_extension import BlogExtension
 
 @pytest.mark.asyncio
-async def test_plugins_work_together():
-    """Test that multiple plugins work together correctly."""
+async def test_extensions_work_together():
+    """Test that multiple extensions work together correctly."""
     app = App(dev_mode=True)
     
-    # Add plugins in order
-    auth_plugin = AuthPlugin()
-    blog_plugin = BlogPlugin()
+    # Add extensions in order
+    auth_extension = AuthExtension()
+    blog_extension = BlogExtension()
     
-    app.add_plugin(auth_plugin)
-    app.add_plugin(blog_plugin)
+    app.add_extension(auth_extension)
+    app.add_extension(blog_extension)
     
-    # Test that both plugins are active
+    # Test that both extensions are active
     # This would require testing the actual functionality
 
 @pytest.mark.asyncio
-async def test_plugin_middleware_interaction():
-    """Test plugin middleware interactions."""
+async def test_extension_middleware_interaction():
+    """Test extension middleware interactions."""
     app = App(dev_mode=True)
     
-    # Add auth plugin (provides auth middleware)
-    auth_plugin = AuthPlugin()
-    app.add_plugin(auth_plugin)
+    # Add auth extension (provides auth middleware)
+    auth_extension = AuthExtension()
+    app.add_extension(auth_extension)
     
-    # Add blog plugin (uses auth middleware)
-    blog_plugin = BlogPlugin()
-    app.add_plugin(blog_plugin)
+    # Add blog extension (uses auth middleware)
+    blog_extension = BlogExtension()
+    app.add_extension(blog_extension)
     
     # Test that auth middleware protects blog routes
     async with AsyncClient(app=app, base_url="http://test") as client:
@@ -1047,14 +1047,14 @@ async def test_middleware_adds_headers():
     app.add_middleware(test_middleware)
     
     # Add a simple route
-    class SimplePlugin(Plugin):
+    class SimpleExtension(Extension):
         async def on_app_request_begin(self, router):
             router.add_route("/test", self.handler)
         
         async def handler(self, response: ResponseBuilder = dependency()):
             response.body("OK")
     
-    app.add_plugin(SimplePlugin())
+    app.add_extension(SimpleExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/test")
@@ -1082,14 +1082,14 @@ async def test_middleware_error_handling():
     app.add_middleware(error_middleware)
     
     # Add a route that raises an error
-    class ErrorPlugin(Plugin):
+    class ErrorExtension(Extension):
         async def on_app_request_begin(self, router):
             router.add_route("/error", self.error_handler)
         
         async def error_handler(self, response: ResponseBuilder = dependency()):
             raise ValueError("Test error")
     
-    app.add_plugin(ErrorPlugin())
+    app.add_extension(ErrorExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/error")
@@ -1123,7 +1123,7 @@ async def test_middleware_order():
     app.add_middleware(middleware_2)
     
     # Add a simple route
-    class SimplePlugin(Plugin):
+    class SimpleExtension(Extension):
         async def on_app_request_begin(self, router):
             router.add_route("/test", self.handler)
         
@@ -1131,7 +1131,7 @@ async def test_middleware_order():
             execution_order.append("handler")
             response.body("OK")
     
-    app.add_plugin(SimplePlugin())
+    app.add_extension(SimpleExtension())
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/test")
@@ -1155,17 +1155,17 @@ import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from httpx import AsyncClient
 from serv.app import App
-from plugins.email.email_plugin import EmailPlugin
+from extensions.email.email_extension import EmailExtension
 
 @pytest.mark.asyncio
 async def test_email_service_mock():
     """Test mocking external email service."""
     
-    with patch('plugins.email.email_service.send_email') as mock_send:
+    with patch('extensions.email.email_service.send_email') as mock_send:
         mock_send.return_value = {"status": "sent", "id": "12345"}
         
         app = App(dev_mode=True)
-        app.add_plugin(EmailPlugin())
+        app.add_extension(EmailExtension())
         
         async with AsyncClient(app=app, base_url="http://test") as client:
             email_data = {
@@ -1189,9 +1189,9 @@ async def test_database_mock():
         {"id": 1, "title": "Mocked Post", "content": "Mocked content"}
     ]
     
-    with patch('plugins.blog.models.get_database', return_value=mock_db):
+    with patch('extensions.blog.models.get_database', return_value=mock_db):
         app = App(dev_mode=True)
-        app.add_plugin(BlogPlugin())
+        app.add_extension(BlogExtension())
         
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/api/posts")
@@ -1208,9 +1208,9 @@ async def test_async_service_mock():
     async def mock_async_operation():
         return {"result": "mocked"}
     
-    with patch('plugins.api.external_service.fetch_data', new=mock_async_operation):
+    with patch('extensions.api.external_service.fetch_data', new=mock_async_operation):
         app = App(dev_mode=True)
-        app.add_plugin(APIPlugin())
+        app.add_extension(APIExtension())
         
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/api/external-data")
@@ -1224,7 +1224,7 @@ class TestMockingWithFixtures:
     
     @pytest.fixture
     def mock_email_service(self):
-        with patch('plugins.email.email_service.EmailService') as mock:
+        with patch('extensions.email.email_service.EmailService') as mock:
             mock_instance = Mock()
             mock_instance.send_email = AsyncMock(return_value={"status": "sent"})
             mock.return_value = mock_instance
@@ -1234,7 +1234,7 @@ class TestMockingWithFixtures:
     async def test_with_mock_fixture(self, mock_email_service):
         """Test using mock fixture."""
         app = App(dev_mode=True)
-        app.add_plugin(EmailPlugin())
+        app.add_extension(EmailExtension())
         
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post("/send-email", json={
@@ -1345,7 +1345,7 @@ import asyncio
 import time
 from httpx import AsyncClient
 from tests.conftest import create_test_client
-from plugins.blog.blog_plugin import BlogPlugin
+from extensions.blog.blog_extension import BlogExtension
 
 @pytest.mark.slow
 @pytest.mark.asyncio
@@ -1363,7 +1363,7 @@ async def test_concurrent_requests():
             "path": path
         }
     
-    async with create_test_client(plugins=[BlogPlugin()]) as client:
+    async with create_test_client(extensions=[BlogExtension()]) as client:
         # Make 50 concurrent requests
         tasks = []
         for i in range(50):
@@ -1397,7 +1397,7 @@ async def test_memory_usage():
     process = psutil.Process(os.getpid())
     initial_memory = process.memory_info().rss
     
-    async with create_test_client(plugins=[BlogPlugin()]) as client:
+    async with create_test_client(extensions=[BlogExtension()]) as client:
         # Make many requests to test for memory leaks
         for i in range(100):
             response = await client.get("/")
@@ -1433,7 +1433,7 @@ addopts =
     --strict-markers
     --disable-warnings
     --cov=serv
-    --cov=plugins
+    --cov=extensions
     --cov-report=html
     --cov-report=term-missing
 markers =
@@ -1549,7 +1549,7 @@ class TestBlogAPIPatterns:
     @pytest.mark.asyncio
     async def test_crud_pattern(self, app_test_client):
         """Test CRUD operations pattern."""
-        async with app_test_client(plugins=[BlogPlugin()]) as client:
+        async with app_test_client(extensions=[BlogExtension()]) as client:
             helper = APITestHelper(client)
             await helper.login()
             
@@ -1576,7 +1576,7 @@ class TestBlogAPIPatterns:
     @pytest.mark.asyncio
     async def test_authentication_pattern(self, app_test_client):
         """Test authentication pattern."""
-        async with app_test_client(plugins=[AuthPlugin(), BlogPlugin()]) as client:
+        async with app_test_client(extensions=[AuthExtension(), BlogExtension()]) as client:
             helper = APITestHelper(client)
             
             # Test unauthenticated access
@@ -1600,7 +1600,7 @@ class TestBlogAPIPatterns:
     @pytest.mark.asyncio
     async def test_error_handling_pattern(self, app_test_client):
         """Test error handling pattern."""
-        async with app_test_client(plugins=[BlogPlugin()]) as client:
+        async with app_test_client(extensions=[BlogExtension()]) as client:
             # Test 404
             response = await client.get("/nonexistent")
             assert response.status_code == 404
@@ -1662,7 +1662,7 @@ def test_login():
 async def test_blog_post_creation():
     # Arrange
     app = App(dev_mode=True)
-    app.add_plugin(BlogPlugin())
+    app.add_extension(BlogExtension())
     post_data = {
         "title": "Test Post",
         "content": "Test content",
@@ -1684,7 +1684,7 @@ async def test_blog_post_creation():
 # Good: Use fixtures for repeated setup
 @pytest.fixture
 async def authenticated_client(app_test_client):
-    async with app_test_client(plugins=[AuthPlugin()]) as client:
+    async with app_test_client(extensions=[AuthExtension()]) as client:
         await client.post("/login", data={
             "username": "admin",
             "password": "admin123"
@@ -1721,7 +1721,7 @@ async def test_post_creation_with_special_characters():
 
 ```python
 # Good: Mock external services
-@patch('plugins.email.email_service.send_email')
+@patch('extensions.email.email_service.send_email')
 @pytest.mark.asyncio
 async def test_user_registration_sends_welcome_email(mock_send_email):
     mock_send_email.return_value = {"status": "sent"}
@@ -1743,8 +1743,8 @@ Serv provides a built-in test command that integrates with your application:
 # Run all tests
 serv test
 
-# Run only plugin tests
-serv test --plugins
+# Run only extension tests
+serv test --extensions
 
 # Run only end-to-end tests
 serv test --e2e
@@ -1776,7 +1776,7 @@ pytest -m integration
 pytest -m e2e
 
 # Run tests with coverage
-pytest --cov=serv --cov=plugins
+pytest --cov=serv --cov=extensions
 
 # Run tests in parallel
 pytest -n auto

@@ -10,7 +10,7 @@ from bevy import dependency
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.plugins import Plugin
+from serv.extensions import Extension
 from serv.requests import FileUpload
 from serv.routes import Form, Response, Route, TextResponse
 from serv.routing import Router
@@ -65,20 +65,20 @@ class MultipartRoute(Route):
         return TextResponse("\n".join(response_parts))
 
 
-class MultipartTestRoutePlugin(Plugin):
+class MultipartTestRouteExtension(Extension):
     def __init__(self, path: str, route_class: type[Route]):
         # Set up the plugin spec on the module before calling super().__init__()
-        from tests.helpers import create_test_plugin_spec
+        from tests.helpers import create_test_extension_spec
 
-        self._plugin_spec = create_test_plugin_spec(
-            name="MultipartTestRoutePlugin", path=Path(__file__).parent
+        self._extension_spec = create_test_extension_spec(
+            name="MultipartTestRouteExtension", path=Path(__file__).parent
         )
 
-        # Patch the module's __plugin_spec__ for testing BEFORE super().__init__()
+        # Patch the module's __extension_spec__ for testing BEFORE super().__init__()
         import sys
 
         module = sys.modules[self.__module__]
-        module.__plugin_spec__ = self._plugin_spec
+        module.__extension_spec__ = self._extension_spec
 
         super().__init__(stand_alone=True)
         self.path = path
@@ -93,8 +93,8 @@ class MultipartTestRoutePlugin(Plugin):
 
 @pytest.mark.asyncio
 async def test_multipart_form_submission_single_file(app: App, client: AsyncClient):
-    plugin = MultipartTestRoutePlugin("/upload", MultipartRoute)
-    app.add_plugin(plugin)
+    plugin = MultipartTestRouteExtension("/upload", MultipartRoute)
+    app.add_extension(plugin)
 
     files = {"file_upload": ("testfile.txt", b"Hello, world!", "text/plain")}
     data = {"text_field": "Some text", "num_field": "123"}
@@ -115,8 +115,8 @@ File Content Length: 13"""
 async def test_multipart_form_submission_with_optional_file(
     app: App, client: AsyncClient
 ):
-    plugin = MultipartTestRoutePlugin("/upload_opt", MultipartRoute)
-    app.add_plugin(plugin)
+    plugin = MultipartTestRouteExtension("/upload_opt", MultipartRoute)
+    app.add_extension(plugin)
 
     files = {
         "file_upload": ("main.jpg", b"<jpeg data>", "image/jpeg"),
@@ -144,8 +144,8 @@ async def test_multipart_form_submission_with_optional_file(
 async def test_multipart_form_submission_optional_file_not_provided(
     app: App, client: AsyncClient
 ):
-    plugin = MultipartTestRoutePlugin("/upload_no_opt", MultipartRoute)
-    app.add_plugin(plugin)
+    plugin = MultipartTestRouteExtension("/upload_no_opt", MultipartRoute)
+    app.add_extension(plugin)
 
     files = {"file_upload": ("another.txt", b"Only main file.", "text/plain")}
     data = {"text_field": "No Opt File", "num_field": "789"}

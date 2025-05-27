@@ -29,10 +29,10 @@ from jinja2 import Environment, FileSystemLoader
 
 from serv.config import load_raw_config
 from serv.exceptions import HTTPMethodNotAllowedException, ServException
+from serv.extensions import Listener
+from serv.extensions.importer import Importer
+from serv.extensions.loader import ExtensionLoader
 from serv.injectors import inject_request_object
-from serv.plugins import Listener
-from serv.plugins.importer import Importer
-from serv.plugins.loader import PluginLoader
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routing import HTTPNotFoundException, Router
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 class EventEmitter:
-    """Event emission system for plugin communication.
+    """Event emission system for extension communication.
 
     The EventEmitter manages the broadcasting of events to all registered listeners
     in the application. It provides both synchronous and asynchronous event emission
@@ -73,11 +73,11 @@ class EventEmitter:
         ```
 
     Args:
-        plugins: Dictionary mapping plugin paths to lists of listener instances.
+        extensions: Dictionary mapping extension paths to lists of listener instances.
     """
 
-    def __init__(self, plugins: dict[Path, list[Listener]]):
-        self.plugins = plugins
+    def __init__(self, extensions: dict[Path, list[Listener]]):
+        self.extensions = extensions
 
     def emit_sync(
         self, event: str, *, container: Container = dependency(), **kwargs
@@ -88,24 +88,24 @@ class EventEmitter:
 
     async def emit(self, event: str, *, container: Container = dependency(), **kwargs):
         async with asyncio.TaskGroup() as tg:
-            for plugin in chain(*self.plugins.values()):
-                tg.create_task(container.call(plugin.on, event, **kwargs))
+            for extension in chain(*self.extensions.values()):
+                tg.create_task(container.call(extension.on, event, **kwargs))
 
 
 class App:
     """The main ASGI application class for Serv web framework.
 
     This class serves as the central orchestrator for your web application, handling
-    incoming HTTP requests, managing plugins, middleware, routing, and dependency injection.
+    incoming HTTP requests, managing extensions, middleware, routing, and dependency injection.
     It implements the ASGI (Asynchronous Server Gateway Interface) specification.
 
     The App class provides:
-    - Plugin system for extensible functionality
+    - Extension system for extensible functionality
     - Middleware stack for request/response processing
     - Dependency injection container
     - Error handling and custom error pages
     - Template rendering capabilities
-    - Event emission system for plugin communication
+    - Event emission system for extension communication
 
     Examples:
         Basic application setup:
@@ -119,8 +119,8 @@ class App:
         # Create app with custom config
         app = App(config="./config/production.yaml")
 
-        # Create app with custom plugin directory
-        app = App(plugin_dir="./my_plugins")
+        # Create app with custom extension directory
+        app = App(extension_dir="./my_extensions")
 
         # Development mode with enhanced debugging
         app = App(dev_mode=True)
@@ -141,7 +141,7 @@ class App:
         ```python
         app = App(
             config="./config/production.yaml",
-            plugin_dir="./plugins",
+            extension_dir="./extensions",
             dev_mode=False
         )
 
@@ -165,21 +165,22 @@ class App:
         self,
         *,
         config: str = "./serv.config.yaml",
-        plugin_dir: str = "./plugins",
+        extension_dir: str = "./extensions",
         dev_mode: bool = False,
     ):
         """Initialize a new Serv application instance.
 
         Creates and configures a new ASGI application with the specified settings.
-        This includes setting up the dependency injection container, loading plugins,
+        This includes setting up the dependency injection container, loading extensions,
         configuring middleware, and preparing the routing system.
 
         Args:
             config: Path to the YAML configuration file. The config file defines
-                site information, enabled plugins, middleware stack, and other
+                site information, enabled extensions, middleware stack, and other
                 application settings. Defaults to "./serv.config.yaml".
-            plugin_dir: Directory path where plugins are located. Plugins in this
-                directory will be available for loading. Defaults to "./plugins".
+            extension_dir: Directory path where extensions are located. Extensions in this
+                directory will be available for loading. Defaults to "./extensions".
+            extension_dir: Legacy parameter name for extension_dir (backward compatibility).
             dev_mode: Enable development mode features including enhanced error
                 reporting, debug logging, and development-specific behaviors.
                 Should be False in production. Defaults to False.
@@ -187,8 +188,8 @@ class App:
         Raises:
             ServConfigError: If the configuration file cannot be loaded or contains
                 invalid YAML/configuration structure.
-            ImportError: If required dependencies for plugins cannot be imported.
-            ValueError: If plugin_dir path is invalid or inaccessible.
+            ImportError: If required dependencies for extensions cannot be imported.
+            ValueError: If extension_dir path is invalid or inaccessible.
 
         Examples:
             Basic initialization:
@@ -200,8 +201,8 @@ class App:
             # Custom config file
             app = App(config="config/production.yaml")
 
-            # Custom plugin directory
-            app = App(plugin_dir="src/plugins")
+            # Custom extension directory
+            app = App(extension_dir="src/extensions")
 
             # Development mode
             app = App(dev_mode=True)
@@ -212,7 +213,7 @@ class App:
             ```python
             app = App(
                 config="/etc/myapp/config.yaml",
-                plugin_dir="/opt/myapp/plugins",
+                extension_dir="/opt/myapp/extensions",
                 dev_mode=False
             )
             ```
@@ -222,14 +223,14 @@ class App:
             ```python
             app = App(
                 config="dev.config.yaml",
-                plugin_dir="./dev_plugins",
+                extension_dir="./dev_extensions",
                 dev_mode=True
             )
             ```
 
         Note:
-            The application will automatically load the welcome plugin if no other
-            plugins are configured, providing a default landing page for new projects.
+            The application will automatically load the welcome extension if no other
+            extensions are configured, providing a default landing page for new projects.
         """
         self._config = self._load_config(config)
         self._dev_mode = dev_mode
@@ -241,27 +242,31 @@ class App:
         ] = {}
         self._middleware = []
 
-        self._plugin_loader = Importer(plugin_dir)
-        self._plugins: dict[Path, list[Listener]] = defaultdict(list)
+        # Handle backward compatibility for extension_dir parameter
+        actual_extension_dir = extension_dir if extension_dir is None else extension_dir
+        self._extension_loader = Importer(actual_extension_dir)
+        self._extensions: dict[Path, list[Listener]] = defaultdict(list)
 
-        # Initialize the plugin loader
-        self._plugin_loader_instance = PluginLoader(self, self._plugin_loader)
+        # Initialize the extension loader
+        self._extension_loader_instance = ExtensionLoader(self, self._extension_loader)
 
-        self._emit = EventEmitter(self._plugins)
+        self._emit = EventEmitter(self._extensions)
 
         self._init_container()
         self._register_default_error_handlers()
-        self._init_plugins(self._config.get("plugins", []))
+        self._init_extensions(
+            self._config.get("extensions", self._config.get("extensions", []))
+        )
 
     def _load_config(self, config_path: str) -> dict[str, Any]:
         return load_raw_config(config_path)
 
-    def _init_plugins(self, plugins_config: list[dict[str, Any]]):
-        loaded_plugins, loaded_middleware = self._plugin_loader_instance.load_plugins(
-            plugins_config
+    def _init_extensions(self, extensions_config: list[dict[str, Any]]):
+        loaded_extensions, loaded_middleware = (
+            self._extension_loader_instance.load_extensions(extensions_config)
         )
-        if not loaded_plugins and not loaded_middleware:
-            self._enable_welcome_plugin()
+        if not loaded_extensions and not loaded_middleware:
+            self._enable_welcome_extension()
 
     def _init_container(self):
         # Register hooks for injection
@@ -441,140 +446,41 @@ class App:
         """
         self._middleware.append(middleware)
 
-    def add_plugin(self, plugin: Listener):
-        if plugin.__plugin_spec__:
-            spec = plugin.__plugin_spec__
-        elif hasattr(plugin, "_stand_alone") and plugin._stand_alone:
+    def add_extension(self, extension: Listener):
+        if extension.__extension_spec__:
+            spec = extension.__extension_spec__
+        elif hasattr(extension, "_stand_alone") and extension._stand_alone:
             # For stand-alone listeners, use a default path
             spec = type("MockSpec", (), {"path": Path("__stand_alone__")})()
         else:
-            module = sys.modules[plugin.__module__]
-            spec = module.__plugin_spec__
+            module = sys.modules[extension.__module__]
+            spec = module.__extension_spec__
 
-        self._plugins[spec.path].append(plugin)
+        self._extensions[spec.path].append(extension)
 
-    def get_plugin(self, path: Path) -> Listener | None:
-        return self._plugins.get(path, [None])[0]
+    def get_extension(self, path: Path) -> Listener | None:
+        return self._extensions.get(path, [None])[0]
 
-    def _load_plugins(self, plugins_config: list[dict[str, Any]]):
-        """Legacy method, delegates to _load_plugins_from_config."""
-        return self._load_plugins_from_config(plugins_config)
+    def _load_extensions(self, extensions_config: list[dict[str, Any]]):
+        """Legacy method, delegates to _init_extensions."""
+        return self._init_extensions(extensions_config)
 
-    def _enable_welcome_plugin(self):
-        """Enable the bundled welcome plugin if no other plugins are registered."""
-        plugin_spec, exceptions = self._plugin_loader_instance.load_plugin(
-            "serv.bundled.plugins.welcome"
+    def _enable_welcome_extension(self):
+        """Enable the bundled welcome extension if no other extensions are registered."""
+        extension_spec, exceptions = self._extension_loader_instance.load_extension(
+            "serv.bundled.extensions.welcome"
         )
         if exceptions:
             raise ExceptionGroup(
-                "Exceptions raised while loading welcome plugin", exceptions
+                "Exceptions raised while loading welcome extension", exceptions
             )
 
         return True
 
-    # Backward compatibility methods
-    def _load_plugin_entry_point(self, entry_point_config: dict[str, Any]) -> Listener:
-        """Backward compatibility method that delegates to PluginLoader."""
-        return self._plugin_loader_instance._load_plugin_entry_point(entry_point_config)
+    # Backward compatibility methods removed - use ExtensionLoader directly
 
-    def _load_middleware_entry_point(
-        self, middleware_config: dict[str, Any]
-    ) -> Callable[[], AsyncIterator[None]]:
-        """Backward compatibility method that delegates to PluginLoader."""
-        return self._plugin_loader_instance._load_middleware_entry_point(
-            middleware_config
-        )
-
-    def _load_plugin_from_config(self, config: dict[str, Any]) -> Listener:
-        # This method is now primarily for backward compatibility if an old-style config is encountered.
-        # The main loading path is via _load_plugins_from_config and PluginLoader.
-        if not isinstance(config, dict):
-            raise ValueError(f"Invalid plugin config: {config!r}")
-
-        entry = config.get("entry")
-        if not entry:
-            raise ValueError(f"Plugin config missing 'entry': {config!r}")
-
-        plugin_config = config.get("config", {})
-        return self._load_plugin_entry_point({"entry": entry, "config": plugin_config})
-
-    def load_plugin(self, package_name: str, namespace: str = None) -> bool:
-        """Load a plugin from a package name.
-
-        Args:
-            package_name: The name of the package to load
-            namespace: Optional namespace to restrict search
-
-        Returns:
-            True if the plugin was loaded successfully
-        """
-        success, plugin = self._plugin_loader_instance.load_plugin(
-            package_name, namespace
-        )
-        if success and plugin:
-            self.add_plugin(plugin)
-            return True
-        return False
-
-    def load_middleware(self, package_name: str, namespace: str = None) -> bool:
-        """Load middleware from a package name.
-
-        Args:
-            package_name: The name of the package to load
-            namespace: Optional namespace to restrict search
-
-        Returns:
-            True if the middleware was loaded successfully
-        """
-        success, middleware_factory = (
-            self._plugin_loader_instance.load_middleware_from_package(
-                package_name, namespace
-            )
-        )
-        if success and middleware_factory:
-            self.add_middleware(middleware_factory)
-            return True
-        return False
-
-    def load_plugins(self) -> int:
-        """Load all plugins from the plugin directories.
-
-        Returns:
-            Number of plugins loaded
-        """
-        plugins_count = 0
-        plugins_dir = Path(self._plugin_loader.plugin_dir)
-
-        if not plugins_dir.exists():
-            logger.warning(f"Plugin directory {plugins_dir} does not exist.")
-            return 0
-
-        for plugin_dir in plugins_dir.iterdir():
-            if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
-                if self.load_plugin(plugin_dir.name):
-                    plugins_count += 1
-
-        return plugins_count
-
-    def load_middleware_packages(self) -> int:
-        """Load all middleware packages from the plugin directories.
-
-        Returns:
-            Number of middleware packages loaded
-        """
-        middleware_count = 0
-        plugins_dir = Path(self._plugin_loader.plugin_dir)
-
-        if not plugins_dir.exists():
-            logger.warning(f"Plugin directory {plugins_dir} does not exist.")
-            return 0
-
-        for plugin_dir in plugins_dir.iterdir():
-            if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
-                if self.load_middleware(plugin_dir.name):
-                    middleware_count += 1
-
-        return middleware_count
+    # Extension loading methods removed - extensions are now loaded via configuration
+    # Use the extensions: key in serv.config.yaml to specify extensions to load
 
     def emit(
         self, event: str, *, container: Container = dependency(), **kwargs

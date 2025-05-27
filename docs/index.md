@@ -5,15 +5,15 @@
 
 **Tired of boilerplate? Craving flexibility? Say hello to Serv!**
 
-Serv is a powerful and intuitive ASGI web framework for Python, designed for ultimate extensibility while being opinionated only when necessary. It aims to make building web applications and APIs a breeze, even allowing you to construct entire sites with out-of-the-box plugins, minimizing the need to write custom code.
+Serv is a powerful and intuitive ASGI web framework for Python, designed for ultimate extensibility while being opinionated only when necessary. It aims to make building web applications and APIs a breeze, even allowing you to construct entire sites with out-of-the-box extensions, minimizing the need to write custom code.
 
 ## ✨ Key Features
 
 - **🚀 ASGI Native**: Built from the ground up for asynchronous Python
 - **🔧 Extensible & Minimally Opinionated**: Designed for flexibility, providing guidance where it counts
-- **⚡ Codeless Site Building**: Includes out-of-the-box plugins to get sites up and running quickly
+- **⚡ Codeless Site Building**: Includes out-of-the-box extensions to get sites up and running quickly
 - **💉 Dependency Injection**: Leverages `bevy` for clean, testable code
-- **🔌 Plugin Architecture**: Easily extend and customize framework behavior beyond the defaults
+- **🔌 Extension Architecture**: Easily extend and customize framework behavior beyond the defaults
 - **🛡️ Middleware Support**: Integrate custom processing steps into the request/response lifecycle
 - **🗺️ Flexible Routing**: Define routes with ease using functions or classes
 - **🚨 Comprehensive Error Handling**: Robust mechanisms for managing exceptions
@@ -27,14 +27,14 @@ Creating a Serv app is incredibly simple with the CLI! Here's how to build a "He
 # Create a new Serv application
 serv create app
 
-# Create a hello plugin
-serv create plugin --name hello
+# Create a hello extension
+serv create extension --name hello
 
 # Add a route
-serv create route --name hello --path /hello --plugin hello
+serv create route --name hello --path /hello --extension hello
 
-# Enable the plugin
-serv plugin enable hello
+# Enable the extension
+serv extension enable hello
 
 # Launch your app
 serv launch
@@ -53,14 +53,14 @@ serv create route --name greet --path "/greet/{name}"
 
 Serv is built around several core concepts:
 
-### 🏗️ Plugin System
-Everything in Serv is a plugin. Routes, middleware, and even core functionality are implemented as plugins, making the framework incredibly modular and extensible.
+### 🏗️ Extension System
+Everything in Serv is a extension. Routes, middleware, and even core functionality are implemented as extensions, making the framework incredibly modular and extensible.
 
 ### 💉 Dependency Injection
 Using the `bevy` library, Serv provides powerful dependency injection capabilities that make your code clean, testable, and maintainable.
 
 ### 🔄 Event-Driven
-Serv uses an event system that allows plugins to respond to application lifecycle events, enabling loose coupling between components.
+Serv uses an event system that allows extensions to respond to application lifecycle events, enabling loose coupling between components.
 
 ### 🛣️ Flexible Routing
 Support for both functional and class-based routing, with automatic parameter injection and multiple response types.

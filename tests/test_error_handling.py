@@ -6,7 +6,7 @@ from serv.app import App
 from serv.exceptions import ServException
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from tests.helpers import EventWatcherPlugin, RouteAddingPlugin
+from tests.helpers import EventWatcherExtension, RouteAddingExtension
 
 
 # Custom exceptions for testing
@@ -43,8 +43,8 @@ async def test_custom_error_handler_invoked(app: App, client: AsyncClient):
     async def route_that_raises(request: Request = dependency()):
         raise MyCustomError("Something custom went wrong")
 
-    plugin = RouteAddingPlugin("/custom_error", route_that_raises, methods=["GET"])
-    app.add_plugin(plugin)
+    plugin = RouteAddingExtension("/custom_error", route_that_raises, methods=["GET"])
+    app.add_extension(plugin)
 
     response = await client.get("/custom_error")
     assert response.status_code == 418
@@ -62,10 +62,10 @@ async def test_default_handler_for_serv_exception_subclass(
     async def route_that_raises_another(request: Request = dependency()):
         raise AnotherCustomError("This is another custom error")
 
-    plugin = RouteAddingPlugin(
+    plugin = RouteAddingExtension(
         "/another_custom_error", route_that_raises_another, methods=["GET"]
     )
-    app.add_plugin(plugin)
+    app.add_extension(plugin)
 
     response = await client.get("/another_custom_error")
     assert response.status_code == 419  # Status from the exception itself
@@ -80,10 +80,10 @@ async def test_default_handler_for_generic_exception(app: App, client: AsyncClie
     async def route_that_raises_generic(request: Request = dependency()):
         raise YetAnotherError("A generic problem")
 
-    plugin = RouteAddingPlugin(
+    plugin = RouteAddingExtension(
         "/generic_error", route_that_raises_generic, methods=["GET"]
     )
-    app.add_plugin(plugin)
+    app.add_extension(plugin)
 
     response = await client.get("/generic_error")
     assert response.status_code == 500  # Default for non-ServException
@@ -108,10 +108,10 @@ async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncCl
     async def route_that_raises(request: Request = dependency()):
         raise MyCustomError(original_error_message)
 
-    plugin = RouteAddingPlugin(
+    plugin = RouteAddingExtension(
         "/faulty_handler_error", route_that_raises, methods=["GET"]
     )
-    app.add_plugin(plugin)
+    app.add_extension(plugin)
 
     response = await client.get("/faulty_handler_error")
     assert error_handler_one_called
@@ -124,8 +124,8 @@ async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncCl
 
 @pytest.mark.asyncio
 async def test_request_end_event_on_handled_error(app: App, client: AsyncClient):
-    event_watcher = EventWatcherPlugin()
-    app.add_plugin(event_watcher)
+    event_watcher = EventWatcherExtension()
+    app.add_extension(event_watcher)
 
     custom_error_message = "Test handled error event"
 
@@ -135,10 +135,10 @@ async def test_request_end_event_on_handled_error(app: App, client: AsyncClient)
     # No custom handler for MyCustomError, so _default_error_handler will be used via fallback
     # for ServException subclasses, but it will use MyCustomError.status_code (418)
 
-    plugin = RouteAddingPlugin(
+    plugin = RouteAddingExtension(
         "/error_event", route_that_raises_my_error, methods=["GET"]
     )
-    app.add_plugin(plugin)
+    app.add_extension(plugin)
 
     await client.get("/error_event")
 
