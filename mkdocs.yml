@@ -1,0 +1,116 @@
+site_name: Serv Documentation
+site_description: A powerful, extensible, and minimally opinionated ASGI web framework for Python
+site_url: https://docs.getserv.ing
+repo_url: https://github.com/8ly-dev/Serv
+repo_name: 8ly-dev/Serv
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+    - Your First App: getting-started/first-app.md
+    - Configuration: getting-started/configuration.md
+  - Guides:
+    - Routing: guides/routing.md
+    - Dependency Injection: guides/dependency-injection.md
+    - Plugins: guides/plugins.md
+    - Middleware: guides/middleware.md
+    - Request Handling: guides/requests.md
+    - Response Building: guides/responses.md
+    - Error Handling: guides/error-handling.md
+    - Templates: guides/templates.md
+    - Forms and File Uploads: guides/forms.md
+    - Events: guides/events.md
+    - Testing: guides/testing.md
+    - Deployment: guides/deployment.md
+  - API Reference: reference/
+  - Examples:
+    - Basic App: examples/basic-app.md
+    - Plugin Development: examples/plugin-development.md
+    - Advanced Routing: examples/advanced-routing.md
+    - Authentication: examples/authentication.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/8ly-dev/Serv
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/getserving/
+    - icon: fontawesome/solid/globe
+      link: https://getserv.ing
+
+copyright: Copyright &copy; 2024 Serv Contributors 
