@@ -94,6 +94,8 @@ nav:
     - Error Handling: guides/error-handling.md
     - Templates: guides/templates.md
     - Forms and File Uploads: guides/forms.md
+    - Authentication: guides/authentication.md
+    - Database Integration: guides/database.md
     - Events: guides/events.md
     - Testing: guides/testing.md
     - Deployment: guides/deployment.md
