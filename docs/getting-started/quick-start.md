@@ -1,6 +1,6 @@
 # Quick Start
 
-Get up and running with Serv in just a few minutes! This guide will walk you through creating your first Serv application.
+Get up and running with Serv in just a few minutes! This guide will walk you through creating your first Serv application using the CLI-first approach.
 
 ## Prerequisites
 
@@ -8,221 +8,514 @@ Make sure you have Serv installed. If not, check out the [Installation](installa
 
 ## Your First Serv App
 
-Let's create a simple "Hello World" application:
+Let's create a simple "Hello World" application using Serv's CLI tools:
 
-### 1. Create the Application File
+### 1. Initialize a New Project
 
-Create a new file called `app.py`:
+Create a new Serv project:
 
+```bash
+serv app init my-first-app
+cd my-first-app
+```
+
+This creates a basic project structure:
+
+```
+my-first-app/
+├── serv.config.yaml    # Application configuration
+├── plugins/            # Plugin directory
+└── templates/          # Template directory (optional)
+```
+
+### 2. Create Your First Plugin
+
+Create a plugin to handle your routes:
+
+```bash
+serv create plugin --name "Hello World"
+```
+
+This creates:
+
+```
+plugins/
+└── hello_world/
+    ├── __init__.py
+    ├── plugin.yaml
+    └── hello_world.py
+```
+
+### 3. Add Routes to Your Plugin
+
+Add some routes using the CLI:
+
+```bash
+# Create a home page route
+serv create route --name "home" --path "/" --plugin "hello_world"
+
+# Create a greeting route with a parameter
+serv create route --name "greet" --path "/greet/{name}" --plugin "hello_world"
+
+# Create an API route
+serv create route --name "api_hello" --path "/api/hello" --plugin "hello_world"
+```
+
+### 4. Implement Your Route Handlers
+
+Edit the generated route files to add your logic:
+
+**plugins/hello_world/route_home.py:**
 ```python
-from serv import App
 from serv.responses import ResponseBuilder
-from serv.plugins import Plugin
-from serv.plugins.routing import Router
 from bevy import dependency
 
-async def hello_world(response: ResponseBuilder = dependency()):
-    response.content_type("text/plain")
-    response.body("Hello, World from Serv!")
-
-async def greet_user(name: str, response: ResponseBuilder = dependency()):
+async def Home(response: ResponseBuilder = dependency(), **path_params):
+    """Handle requests to /"""
     response.content_type("text/html")
-    response.body(f"<h1>Hello, {name}!</h1><p>Welcome to Serv!</p>")
-
-class HelloPlugin(Plugin):
-    async def on_app_request_begin(self, router: Router = dependency()):
-        router.add_route("/", hello_world)
-        router.add_route("/greet/{name}", greet_user)
-
-# Create the app and add our plugin
-app = App()
-app.add_plugin(HelloPlugin())
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    response.body("""
+    <h1>Hello, World from Serv!</h1>
+    <p>Welcome to your first Serv application!</p>
+    <ul>
+        <li><a href="/greet/YourName">Personalized Greeting</a></li>
+        <li><a href="/api/hello">JSON API</a></li>
+    </ul>
+    """)
 ```
 
-### 2. Run the Application
+**plugins/hello_world/route_greet.py:**
+```python
+from serv.responses import ResponseBuilder
+from bevy import dependency
 
-Run your application:
+async def Greet(name: str, response: ResponseBuilder = dependency()):
+    """Handle requests to /greet/{name}"""
+    response.content_type("text/html")
+    response.body(f"""
+    <h1>Hello, {name}!</h1>
+    <p>Welcome to Serv!</p>
+    <p><a href="/">← Back to Home</a></p>
+    """)
+```
+
+**plugins/hello_world/route_api_hello.py:**
+```python
+from typing import Annotated
+from serv.routes import JsonResponse
+
+async def ApiHello() -> Annotated[dict, JsonResponse]:
+    """Handle requests to /api/hello"""
+    return {
+        "message": "Hello from Serv API!",
+        "framework": "Serv",
+        "version": "0.1.0",
+        "status": "success"
+    }
+```
+
+### 5. Enable Your Plugin
+
+Enable the plugin in your application:
 
 ```bash
-python app.py
+serv plugin enable hello_world
 ```
 
-Or using uvicorn directly:
+### 6. Run Your Application
+
+Start the development server:
 
 ```bash
-uvicorn app:app --reload
+serv dev
 ```
 
-### 3. Test Your Application
+Or use the standard launch command:
+
+```bash
+serv launch
+```
+
+### 7. Test Your Application
 
 Open your browser and visit:
 
-- `http://localhost:8000/` - See the hello world message
+- `http://localhost:8000/` - See the hello world page
 - `http://localhost:8000/greet/YourName` - See a personalized greeting
+- `http://localhost:8000/api/hello` - See the JSON API response
 
-## Understanding the Code
+## Understanding the Generated Structure
 
-Let's break down what's happening in this simple application:
+Let's explore what the CLI created for you:
 
-### The Plugin System
+### Plugin Configuration
 
-```python
-class HelloPlugin(Plugin):
-    async def on_app_request_begin(self, router: Router = dependency()):
-        router.add_route("/", hello_world)
-        router.add_route("/greet/{name}", greet_user)
+**plugins/hello_world/plugin.yaml:**
+```yaml
+name: Hello World
+description: A cool Serv plugin.
+version: 0.1.0
+author: Your Name
+
+routers:
+  - name: main_router
+    routes:
+      - path: /
+        handler: route_home:Home
+      - path: /greet/{name}
+        handler: route_greet:Greet
+      - path: /api/hello
+        handler: route_api_hello:ApiHello
 ```
 
-- **Plugins** are the building blocks of Serv applications
-- The `on_app_request_begin` event is called for every request
-- We use dependency injection to get the `Router` instance
-- Routes are added using `router.add_route()`
+This declarative configuration:
+- Defines your plugin metadata
+- Maps URL paths to handler functions
+- Automatically wires everything together
 
-### Dependency Injection
+### Plugin Class (Event Handling Only)
 
+**plugins/hello_world/hello_world.py:**
 ```python
-async def hello_world(response: ResponseBuilder = dependency()):
-    response.content_type("text/plain")
-    response.body("Hello, World from Serv!")
+from serv.plugins import Plugin
+from bevy import dependency
+
+class HelloWorld(Plugin):
+    async def on_app_startup(self):
+        """Called when the application starts up"""
+        print("Hello World plugin starting up")
+    
+    async def on_app_shutdown(self):
+        """Called when the application shuts down"""
+        print("Hello World plugin shutting down")
 ```
 
-- Serv uses the `bevy` library for dependency injection
-- `ResponseBuilder` is automatically injected into your handler functions
-- No need to manually pass objects around!
+The plugin class only handles events - routes are defined declaratively in `plugin.yaml`.
 
-### Path Parameters
+### Application Configuration
 
-```python
-async def greet_user(name: str, response: ResponseBuilder = dependency()):
-    # The 'name' parameter is extracted from the URL path
+**serv.config.yaml:**
+```yaml
+site_info:
+  name: "My First App"
+  description: "A Serv application"
+
+plugins:
+  - plugin: hello_world
 ```
 
-- Path parameters are defined using `{parameter_name}` in the route
-- They're automatically passed to your handler function
+## Adding More Features
 
-## Adding JSON Responses
+### Create an API Plugin
 
-Let's add an API endpoint that returns JSON:
+Let's add a dedicated API plugin:
 
+```bash
+# Create an API plugin
+serv create plugin --name "API"
+
+# Add API routes
+serv create route --name "users" --path "/users" --router "api_router" --plugin "api"
+serv create route --name "user_detail" --path "/users/{id}" --router "api_router" --plugin "api"
+```
+
+Update the API plugin configuration to mount at `/api/v1`:
+
+**plugins/api/plugin.yaml:**
+```yaml
+name: API
+description: REST API endpoints
+version: 1.0.0
+author: Your Name
+
+routers:
+  - name: api_router
+    mount: /api/v1
+    routes:
+      - path: /users
+        handler: route_users:Users
+        methods: ["GET", "POST"]
+      - path: /users/{id}
+        handler: route_user_detail:UserDetail
+        methods: ["GET", "PUT", "DELETE"]
+```
+
+### Implement API Handlers
+
+**plugins/api/route_users.py:**
 ```python
-import json
+from typing import Annotated
+from serv.routes import GetRequest, PostRequest, JsonResponse
+from serv.responses import ResponseBuilder
+from bevy import dependency
 
-async def api_hello(response: ResponseBuilder = dependency()):
-    response.content_type("application/json")
-    data = {
-        "message": "Hello from Serv API!",
-        "framework": "Serv",
-        "version": "0.1.0"
+async def Users(request: GetRequest) -> Annotated[dict, JsonResponse]:
+    """Handle GET /api/v1/users"""
+    return {
+        "users": [
+            {"id": 1, "name": "Alice", "email": "alice@example.com"},
+            {"id": 2, "name": "Bob", "email": "bob@example.com"}
+        ]
     }
-    response.body(json.dumps(data))
 
-# Add this route in your plugin:
-router.add_route("/api/hello", api_hello)
+# For POST requests, create a separate handler or use method detection
+async def CreateUser(request: PostRequest, response: ResponseBuilder = dependency()):
+    """Handle POST /api/v1/users"""
+    form_data = await request.form()
+    
+    # In a real app, you'd save to a database
+    new_user = {
+        "id": 3,
+        "name": form_data.get("name"),
+        "email": form_data.get("email")
+    }
+    
+    response.content_type("application/json")
+    response.set_status(201)
+    response.body(f'{{"user": {new_user}, "message": "User created"}}')
 ```
 
-## Using the CLI
+### Add Middleware
 
-Serv comes with a powerful CLI for scaffolding and managing projects:
-
-### Create a New Project
+Add authentication middleware to your API:
 
 ```bash
-serv project create my-awesome-app
-cd my-awesome-app
+serv create middleware --name "auth_check" --plugin "api"
 ```
 
-### Create a Plugin
+**plugins/api/middleware_auth_check.py:**
+```python
+from typing import AsyncIterator
+from serv.requests import Request
+from serv.responses import ResponseBuilder
+from bevy import dependency
+
+async def auth_check_middleware(
+    request: Request = dependency(),
+    response: ResponseBuilder = dependency()
+) -> AsyncIterator[None]:
+    """Simple API key authentication"""
+    
+    # Only check auth for API routes
+    if not request.path.startswith("/api/"):
+        yield
+        return
+    
+    api_key = request.headers.get("X-API-Key")
+    if not api_key or api_key != "demo-api-key":
+        response.set_status(401)
+        response.content_type("application/json")
+        response.body('{"error": "Invalid or missing API key"}')
+        return
+    
+    yield  # Continue processing
+```
+
+Update the API plugin configuration:
+
+**plugins/api/plugin.yaml:**
+```yaml
+name: API
+description: REST API endpoints
+version: 1.0.0
+author: Your Name
+
+middleware:
+  - entry: middleware_auth_check:auth_check_middleware
+
+routers:
+  - name: api_router
+    mount: /api/v1
+    routes:
+      - path: /users
+        handler: route_users:Users
+        methods: ["GET"]
+      - path: /users/{id}
+        handler: route_user_detail:UserDetail
+        methods: ["GET"]
+```
+
+### Enable the API Plugin
 
 ```bash
-serv plugin create my-plugin
+serv plugin enable api
 ```
 
-### Run the Development Server
+Now test the API with authentication:
 
 ```bash
-serv launch --dev
+# This will fail (401 Unauthorized)
+curl http://localhost:8000/api/v1/users
+
+# This will succeed
+curl -H "X-API-Key: demo-api-key" http://localhost:8000/api/v1/users
 ```
 
-## Configuration with YAML
+## CLI Commands Reference
 
-For more complex applications, you can use YAML configuration. Create a `serv.config.yaml` file:
+Here are the essential CLI commands you'll use:
+
+### Project Management
+```bash
+serv app init <name>           # Initialize new project
+serv app details               # Show project information
+serv app check                 # Validate project health
+```
+
+### Plugin Management
+```bash
+serv create plugin --name "Name"              # Create new plugin
+serv plugin enable <plugin>                   # Enable plugin
+serv plugin disable <plugin>                  # Disable plugin
+serv plugin list                               # List enabled plugins
+serv plugin list --available                  # List all available plugins
+serv plugin validate <plugin>                 # Validate plugin
+```
+
+### Component Creation
+```bash
+serv create route --name "name" --path "/path" --plugin "plugin"
+serv create middleware --name "name" --plugin "plugin"
+serv create entrypoint --name "name" --plugin "plugin"
+```
+
+### Development
+```bash
+serv dev                       # Start development server
+serv launch                    # Start production server
+serv test                      # Run tests
+serv shell                     # Interactive shell
+```
+
+### Configuration
+```bash
+serv config show               # Show current configuration
+serv config validate           # Validate configuration
+serv config get <key>          # Get configuration value
+serv config set <key> <value>  # Set configuration value
+```
+
+## Best Practices
+
+### 1. Use the CLI for Everything
+
+Always use CLI commands to create components:
+
+```bash
+# Good
+serv create plugin --name "Blog"
+serv create route --name "blog_home" --path "/blog" --plugin "blog"
+
+# Avoid manual file creation
+```
+
+### 2. Organize by Feature
+
+Create plugins for each major feature:
+
+```bash
+serv create plugin --name "User Management"
+serv create plugin --name "Blog"
+serv create plugin --name "API"
+serv create plugin --name "Admin"
+```
+
+### 3. Use Declarative Configuration
+
+Define routes in `plugin.yaml`, not in code:
 
 ```yaml
-plugins:
-  - plugin: my_plugin
-    settings:
-      debug: true
-      api_key: "your-api-key"
+# Good: Declarative routing
+routers:
+  - name: blog_router
+    routes:
+      - path: /blog
+        handler: route_blog_home:BlogHome
+
+# Avoid: Programmatic routing in plugin classes
 ```
 
-Then load it in your app:
+### 4. Keep Plugin Classes Event-Only
+
+Use plugin classes only for event handling:
 
 ```python
-app = App(config="./serv.config.yaml")
+# Good: Events only
+class MyPlugin(Plugin):
+    async def on_app_startup(self):
+        # Initialize resources
+        pass
+    
+    async def on_user_created(self, user_id: int):
+        # Handle custom events
+        pass
+
+# Avoid: Route registration in plugin classes
 ```
 
 ## Next Steps
 
-Congratulations! You've created your first Serv application. Here's what to explore next:
+Congratulations! You've created your first Serv application using the CLI-first approach. Here's what to explore next:
 
-### Learn More About Core Concepts
+### Learn Core Concepts
 
-- **[Routing](../guides/routing.md)** - Advanced routing patterns and techniques
-- **[Dependency Injection](../guides/dependency-injection.md)** - Master the DI system
+- **[Routing](../guides/routing.md)** - Master declarative routing patterns
 - **[Plugins](../guides/plugins.md)** - Build powerful, reusable plugins
+- **[Middleware](../guides/middleware.md)** - Add cross-cutting concerns
+- **[Dependency Injection](../guides/dependency-injection.md)** - Master the DI system
 
 ### Build a Complete Application
 
-- **[Your First App](first-app.md)** - Step-by-step tutorial for a complete web application
-- **[Configuration](configuration.md)** - Learn about advanced configuration options
+- **[Configuration](configuration.md)** - Advanced configuration techniques
+- **[Testing](../guides/testing.md)** - Test your applications effectively
 
-### Explore Examples
+### Explore Advanced Features
 
-- **[Basic App](../examples/basic-app.md)** - More detailed basic application examples
-- **[Plugin Development](../examples/plugin-development.md)** - Learn to build custom plugins
-- **[Advanced Routing](../examples/advanced-routing.md)** - Complex routing scenarios
+- **[Forms and Validation](../guides/forms.md)** - Handle complex form processing
+- **[Database Integration](../guides/database.md)** - Connect to databases
+- **[Authentication](../guides/authentication.md)** - Implement user authentication
 
-## Common Patterns
+## Troubleshooting
 
-### Error Handling
+### Common Issues
 
-```python
-from serv.exceptions import HTTPNotFoundException
+**Plugin not found:**
+```bash
+# Make sure the plugin is enabled
+serv plugin enable my_plugin
 
-async def not_found_handler(response: ResponseBuilder = dependency()):
-    response.set_status(404)
-    response.content_type("text/html")
-    response.body("<h1>Page Not Found</h1>")
-
-# Add custom error handlers
-app.add_error_handler(HTTPNotFoundException, not_found_handler)
+# Check plugin status
+serv plugin list
 ```
 
-### Middleware
+**Route not working:**
+```bash
+# Validate your plugin configuration
+serv plugin validate my_plugin
 
-```python
-from typing import AsyncIterator
-
-async def logging_middleware() -> AsyncIterator[None]:
-    print("Request started")
-    yield
-    print("Request finished")
-
-app.add_middleware(logging_middleware)
+# Check application health
+serv app check
 ```
 
-### Multiple HTTP Methods
+**Configuration errors:**
+```bash
+# Validate configuration
+serv config validate
 
-```python
-async def handle_post(response: ResponseBuilder = dependency()):
-    response.body("POST request received")
-
-# Add route with specific HTTP method
-router.add_route("/submit", handle_post, methods=["POST"])
+# Check current configuration
+serv config show
 ```
 
-Ready to dive deeper? Continue with [Your First App](first-app.md) for a comprehensive tutorial! 
+### Getting Help
+
+```bash
+# Get help for any command
+serv --help
+serv create --help
+serv plugin --help
+
+# Check application status
+serv app details
+serv app check
+```
+
+You're now ready to build amazing applications with Serv! 🚀 

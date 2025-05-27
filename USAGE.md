@@ -164,7 +164,7 @@ Plugins are the primary way to organize and extend Serv applications. They can d
 
 *   **Plugin Configuration (`plugin.yaml`):**
     Plugins can have their own `plugin.yaml` file in their directory. This file can define metadata (name, version, entry point) and plugin-specific configuration.
-    The `Plugin.config()` method can be used to access this configuration, though specific mechanisms for DI of this config into handlers might vary or be evolving. The CLI (`serv plugin create`) scaffolds this file.
+    The `Plugin.config()` method can be used to access this configuration, though specific mechanisms for DI of this config into handlers might vary or be evolving. The CLI (`serv create plugin --name "Plugin Name"`) scaffolds this file.
 
 *   **Loading Plugins:**
     Plugins are typically added to the `App` instance or configured via `serv.config.yaml`.
@@ -253,12 +253,12 @@ Key commands (discovered from `serv/cli.py` and `serv/bundled_plugins/welcome/te
     - `--config`: Path to `serv.config.yaml` (default: `serv.config.yaml` in CWD or `SERV_CONFIG_PATH` env var).
     - `--factory`: Treat `app_module` as an application factory.
 
-*   **`serv plugin create`**:
+*   **`serv create plugin`**:
     Scaffolds a new plugin structure, creating a directory (usually under `./plugins/`), a `plugin.yaml` definition file, and a `main.py` template for your plugin class.
     ```bash
-    serv plugin create
+    serv create plugin --name "My Plugin Name"
     ```
-    You'll be prompted for plugin details (name, author, etc.).
+    You'll be prompted for plugin details (author, description, version, etc.).
 
 *   **`serv plugin enable <plugin_identifier>`**:
     Enables a plugin by adding its entry to the `serv.config.yaml` file.

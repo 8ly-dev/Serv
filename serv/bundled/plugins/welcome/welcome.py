@@ -72,7 +72,7 @@ class WelcomeRoute(Route):
 
         ```python
         class MyRoute(Route):
-            async def handle_get(self, request: GetRequest) -> Annotated[tuple[str, dict], Jinja2Response]:
+            async def handle_get(self, request: GetRequest) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
                 context = {"user": "John", "message": "Hello!"}
                 return ("my_template.html", context)
         ```

@@ -1,641 +1,790 @@
 # Plugins
 
-Plugins are the heart of Serv's extensibility. They allow you to modularize your application, share functionality, and build reusable components. This guide covers everything you need to know about creating and using plugins in Serv.
+Plugins are the foundation of Serv's modular architecture. They provide a clean way to organize your application into reusable, configurable components. This guide covers everything you need to know about creating and using plugins in Serv.
 
 ## What are Plugins?
 
-Plugins in Serv are Python classes that extend the `Plugin` base class and respond to application events. They can:
+In Serv, plugins are:
 
-- Add routes to your application
-- Register middleware
-- Handle application lifecycle events
-- Provide reusable functionality
-- Be configured via YAML files
+1. **Event-driven components** that respond to application lifecycle events
+2. **Configuration containers** that define routes, middleware, and settings declaratively
+3. **Modular packages** that can be easily shared and reused
+4. **CLI-managed entities** that are created and maintained using Serv's command-line tools
 
-## Basic Plugin Structure
+## Plugin Architecture
 
-### Simple Plugin
+### Core Principles
 
-Here's the simplest possible plugin:
+Serv plugins follow these key principles:
 
-```python
-from serv.plugins import Plugin
+- **Declarative Configuration**: Routes and middleware are defined in `plugin.yaml` files
+- **Event-Only Code**: Plugin classes only handle events, not route definitions
+- **CLI-First Development**: Use CLI commands to create and manage plugins
+- **Automatic Wiring**: Serv automatically connects configuration to functionality
 
-class MyPlugin(Plugin):
-    async def on_app_startup(self):
-        print("My plugin is starting up!")
-    
-    async def on_app_shutdown(self):
-        print("My plugin is shutting down!")
+### Plugin Structure
+
+A typical plugin has this structure:
+
+```
+plugins/
+└── my_plugin/
+    ├── __init__.py
+    ├── plugin.yaml          # Plugin configuration and metadata
+    ├── my_plugin.py         # Main plugin class (event handlers only)
+    ├── route_*.py           # Route handler files
+    ├── middleware_*.py      # Middleware files
+    └── templates/           # Optional: Jinja2 templates
+        └── *.html
 ```
 
-### Plugin with Routes
+## Creating Plugins
 
-Most plugins will add routes to your application:
+### Using the CLI
 
+The recommended way to create plugins is using the Serv CLI:
+
+```bash
+# Create a new plugin
+serv create plugin --name "User Management"
+
+# This creates:
+# - plugins/user_management/ directory
+# - plugin.yaml with basic configuration
+# - user_management.py with plugin class
+```
+
+### Generated Plugin Structure
+
+After running the command above, you'll have:
+
+**plugins/user_management/plugin.yaml:**
+```yaml
+name: User Management
+description: A cool Serv plugin.
+version: 0.1.0
+author: Your Name
+
+# Routes will be added here when you create them
+routers: []
+
+# Middleware will be added here when you create them
+middleware: []
+
+# Entry points for additional plugin classes
+entry_points: []
+```
+
+**plugins/user_management/user_management.py:**
 ```python
 from serv.plugins import Plugin
-from serv.plugins.routing import Router
+from bevy import dependency
+
+class UserManagement(Plugin):
+    async def on_app_startup(self):
+        """Called when the application starts up"""
+        print("User Management plugin starting up")
+    
+    async def on_app_shutdown(self):
+        """Called when the application shuts down"""
+        print("User Management plugin shutting down")
+```
+
+## Adding Routes to Plugins
+
+### Using the CLI
+
+Add routes to your plugin using the CLI:
+
+```bash
+# Add a route to the plugin
+serv create route --name "user_list" --path "/users" --plugin "user_management"
+
+# Add another route with a parameter
+serv create route --name "user_detail" --path "/users/{id}" --plugin "user_management"
+
+# Add an API route to a specific router
+serv create route --name "api_users" --path "/users" --router "api_router" --plugin "user_management"
+```
+
+### Updated Plugin Configuration
+
+After adding routes, your `plugin.yaml` will be updated:
+
+```yaml
+name: User Management
+description: A cool Serv plugin.
+version: 0.1.0
+author: Your Name
+
+routers:
+  - name: main_router
+    routes:
+      - path: /users
+        handler: route_user_list:UserList
+      - path: /users/{id}
+        handler: route_user_detail:UserDetail
+  
+  - name: api_router
+    mount: /api/v1
+    routes:
+      - path: /users
+        handler: route_api_users:ApiUsers
+```
+
+### Generated Route Handlers
+
+The CLI creates route handler files:
+
+**plugins/user_management/route_user_list.py:**
+```python
 from serv.responses import ResponseBuilder
 from bevy import dependency
 
-class HelloPlugin(Plugin):
-    async def on_app_request_begin(self, router: Router = dependency()):
-        router.add_route("/hello", self.hello_handler)
-        router.add_route("/hello/{name}", self.hello_name_handler)
-    
-    async def hello_handler(self, response: ResponseBuilder = dependency()):
-        response.content_type("text/plain")
-        response.body("Hello from my plugin!")
-    
-    async def hello_name_handler(self, name: str, response: ResponseBuilder = dependency()):
-        response.content_type("text/plain")
-        response.body(f"Hello, {name}!")
+async def UserList(response: ResponseBuilder = dependency(), **path_params):
+    """Handle requests to /users"""
+    response.content_type("text/html")
+    response.body("<h1>User List</h1>")
+```
+
+**plugins/user_management/route_user_detail.py:**
+```python
+from serv.responses import ResponseBuilder
+from bevy import dependency
+
+async def UserDetail(user_id: str, response: ResponseBuilder = dependency()):
+    """Handle requests to /users/{id}"""
+    response.content_type("text/html")
+    response.body(f"<h1>User {user_id}</h1>")
 ```
 
 ## Plugin Events
 
-Plugins respond to various application events. Here are the most common ones:
+Plugin classes are used exclusively for handling application events. Here are the key events:
 
 ### Lifecycle Events
 
 ```python
-class LifecyclePlugin(Plugin):
+from serv.plugins import Plugin
+from bevy import dependency
+
+class MyPlugin(Plugin):
     async def on_app_startup(self):
         """Called when the application starts"""
         print("Application is starting up")
-        # Initialize databases, connections, etc.
+        # Initialize databases, external connections, etc.
+        self.database = await connect_to_database()
     
     async def on_app_shutdown(self):
         """Called when the application shuts down"""
         print("Application is shutting down")
         # Clean up resources, close connections, etc.
+        if hasattr(self, 'database'):
+            await self.database.close()
 ```
 
 ### Request Events
 
 ```python
-class RequestPlugin(Plugin):
-    async def on_app_request_begin(self, router: Router = dependency()):
+class RequestLoggingPlugin(Plugin):
+    async def on_app_request_begin(self, request = dependency()):
         """Called at the beginning of each request"""
-        # Add routes, modify router, etc.
-        router.add_route("/my-route", self.my_handler)
+        print(f"Request started: {request.method} {request.path}")
     
-    async def on_app_request_before_router(self, request: Request = dependency()):
+    async def on_app_request_before_router(self, request = dependency()):
         """Called before routing happens"""
-        # Log requests, modify headers, etc.
+        # Log requests, add headers, etc.
         print(f"Processing {request.method} {request.path}")
     
-    async def on_app_request_after_router(self, request: Request = dependency(), error=None):
+    async def on_app_request_after_router(self, request = dependency(), error=None):
         """Called after routing (whether successful or not)"""
         if error:
             print(f"Request failed: {error}")
         else:
             print(f"Request completed successfully")
     
-    async def on_app_request_end(self, request: Request = dependency(), error=None):
+    async def on_app_request_end(self, request = dependency(), error=None):
         """Called at the end of each request"""
-        # Final cleanup, logging, etc.
         print(f"Request finished: {request.method} {request.path}")
+```
+
+### Custom Events
+
+You can emit and handle custom events:
+
+```python
+class UserPlugin(Plugin):
+    async def on_user_created(self, user_id: int, email: str):
+        """Handle custom user_created event"""
+        print(f"User {user_id} created with email {email}")
+        # Send welcome email, create user directory, etc.
+    
+    async def on_user_deleted(self, user_id: int):
+        """Handle custom user_deleted event"""
+        print(f"User {user_id} deleted")
+        # Clean up user data, send notifications, etc.
+
+# Emit custom events from your route handlers
+async def CreateUser(request: PostRequest, app = dependency()):
+    # Create user logic here
+    user_id = create_user_in_database()
+    
+    # Emit custom event
+    await app.emit("user_created", user_id=user_id, email=user_email)
+```
+
+## Adding Middleware to Plugins
+
+### Using the CLI
+
+Add middleware to your plugin:
+
+```bash
+serv create middleware --name "auth_check" --plugin "user_management"
+```
+
+This updates your `plugin.yaml`:
+
+```yaml
+name: User Management
+# ... other configuration ...
+
+middleware:
+  - entry: middleware_auth_check:auth_check_middleware
+    config:
+      timeout: 30
+```
+
+And creates **plugins/user_management/middleware_auth_check.py:**
+
+```python
+from typing import AsyncIterator
+from serv.requests import Request
+from serv.responses import ResponseBuilder
+from bevy import dependency
+
+async def auth_check_middleware(
+    request: Request = dependency(),
+    response: ResponseBuilder = dependency()
+) -> AsyncIterator[None]:
+    """Authentication middleware"""
+    
+    # Check authentication before request
+    auth_header = request.headers.get("authorization")
+    if not auth_header and request.path.startswith("/admin"):
+        response.set_status(401)
+        response.body("Authentication required")
+        return
+    
+    yield  # Continue to next middleware/handler
+    
+    # Code here runs after the request is handled
+    print("Auth check completed")
 ```
 
 ## Plugin Configuration
 
-### Plugin YAML File
+### Basic Configuration
 
-Create a `plugin.yaml` file to define your plugin's metadata and configuration:
+Define plugin settings in `plugin.yaml`:
 
 ```yaml
-name: My Awesome Plugin
-description: A plugin that does awesome things
+name: User Management
+description: Handles user authentication and management
 version: 1.0.0
 author: Your Name
-entry: my_plugin.main:MyPlugin
 
-# Default settings
+# Plugin settings with defaults
 settings:
-  debug: false
-  api_key: ""
-  max_items: 100
+  database_url: "sqlite:///users.db"
+  session_timeout: 3600
+  enable_registration: true
+  admin_email: "admin@example.com"
 
-# Additional entry points
-entry_points:
-  - entry: my_plugin.admin:AdminPlugin
-    config:
-      admin_only: true
+routers:
+  - name: main_router
+    routes:
+      - path: /login
+        handler: route_login:LoginPage
+      - path: /register
+        handler: route_register:RegisterPage
 
-# Middleware provided by this plugin
 middleware:
-  - entry: my_plugin.middleware:LoggingMiddleware
+  - entry: middleware_auth:auth_middleware
     config:
-      log_level: "INFO"
+      timeout: 30
 ```
 
-### Accessing Configuration
-
-Access plugin configuration in your plugin code:
+### Accessing Configuration in Plugin Code
 
 ```python
-class ConfigurablePlugin(Plugin):
-    def __init__(self):
+class UserManagementPlugin(Plugin):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         # Access plugin configuration
-        self.config = self.get_config()
-        self.debug = self.config.get('debug', False)
-        self.api_key = self.config.get('api_key', '')
+        config = self.__plugin_spec__.config
+        self.database_url = config.get("database_url", "sqlite:///users.db")
+        self.session_timeout = config.get("session_timeout", 3600)
+        self.enable_registration = config.get("enable_registration", True)
     
     async def on_app_startup(self):
-        if self.debug:
-            print(f"Plugin starting with API key: {self.api_key}")
+        """Initialize plugin with configuration"""
+        print(f"Connecting to database: {self.database_url}")
+        self.db = await connect_database(self.database_url)
+        
+        if self.enable_registration:
+            print("User registration is enabled")
 ```
 
-### Application Configuration Override
+### Application-Level Configuration Override
 
 Users can override plugin settings in their `serv.config.yaml`:
 
 ```yaml
+site_info:
+  name: "My Application"
+  description: "A Serv application"
+
 plugins:
-  - plugin: my_plugin
+  - plugin: user_management
     settings:
-      debug: true
-      api_key: "secret-key-123"
-      max_items: 50
+      database_url: "postgresql://localhost/myapp"
+      session_timeout: 7200
+      enable_registration: false
+      admin_email: "admin@mycompany.com"
 ```
 
 ## Advanced Plugin Patterns
 
-### Plugin with Database
+### Plugin with Database Integration
 
 ```python
-import sqlite3
-from contextlib import asynccontextmanager
+import asyncpg
+from serv.plugins import Plugin
 
 class DatabasePlugin(Plugin):
-    def __init__(self):
-        self.db_path = self.get_config().get('db_path', 'app.db')
-        self.connection = None
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        config = self.__plugin_spec__.config
+        self.database_url = config.get("database_url")
+        self.pool = None
     
     async def on_app_startup(self):
-        """Initialize database connection"""
-        self.connection = sqlite3.connect(self.db_path)
-        self._create_tables()
+        """Initialize database connection pool"""
+        self.pool = await asyncpg.create_pool(self.database_url)
+        print(f"Database pool created: {self.database_url}")
+        
+        # Make pool available to route handlers
+        from serv.app import get_current_app
+        app = get_current_app()
+        app._container.instances[asyncpg.Pool] = self.pool
     
     async def on_app_shutdown(self):
-        """Close database connection"""
-        if self.connection:
-            self.connection.close()
-    
-    def _create_tables(self):
-        """Create necessary database tables"""
-        self.connection.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL
-            )
-        """)
-        self.connection.commit()
-    
-    async def on_app_request_begin(self, router: Router = dependency()):
-        router.add_route("/users", self.list_users)
-        router.add_route("/users/{user_id}", self.get_user)
-    
-    async def list_users(self, response: ResponseBuilder = dependency()):
-        cursor = self.connection.execute("SELECT * FROM users")
-        users = cursor.fetchall()
-        response.content_type("application/json")
-        response.body(json.dumps(users))
-    
-    async def get_user(self, user_id: str, response: ResponseBuilder = dependency()):
-        cursor = self.connection.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        user = cursor.fetchone()
-        if user:
-            response.content_type("application/json")
-            response.body(json.dumps(user))
-        else:
-            response.set_status(404)
-            response.body("User not found")
+        """Close database connections"""
+        if self.pool:
+            await self.pool.close()
+            print("Database pool closed")
 ```
 
-### Plugin with Services
-
-Create reusable services that can be injected into other parts of your application:
+### Plugin with External Service Integration
 
 ```python
-from bevy import dependency
-
-class EmailService:
-    def __init__(self, smtp_host: str, smtp_port: int):
-        self.smtp_host = smtp_host
-        self.smtp_port = smtp_port
-    
-    async def send_email(self, to: str, subject: str, body: str):
-        # Implementation for sending emails
-        print(f"Sending email to {to}: {subject}")
+import httpx
+from serv.plugins import Plugin
 
 class EmailPlugin(Plugin):
-    async def on_app_startup(self, container: Container = dependency()):
-        """Register the email service"""
-        config = self.get_config()
-        email_service = EmailService(
-            smtp_host=config.get('smtp_host', 'localhost'),
-            smtp_port=config.get('smtp_port', 587)
-        )
-        container.instances[EmailService] = email_service
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        config = self.__plugin_spec__.config
+        self.api_key = config.get("api_key")
+        self.base_url = config.get("base_url", "https://api.emailservice.com")
+        self.client = None
     
-    async def on_app_request_begin(self, router: Router = dependency()):
-        router.add_route("/send-email", self.send_email_handler)
-    
-    async def send_email_handler(
-        self, 
-        email_service: EmailService = dependency(),
-        response: ResponseBuilder = dependency()
-    ):
-        await email_service.send_email(
-            to="user@example.com",
-            subject="Hello",
-            body="Hello from Serv!"
+    async def on_app_startup(self):
+        """Initialize HTTP client for email service"""
+        self.client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {self.api_key}"}
         )
-        response.body("Email sent!")
+        print("Email service client initialized")
+    
+    async def on_app_shutdown(self):
+        """Close HTTP client"""
+        if self.client:
+            await self.client.aclose()
+    
+    async def on_user_created(self, user_id: int, email: str):
+        """Send welcome email when user is created"""
+        if self.client:
+            await self.client.post("/send", json={
+                "to": email,
+                "template": "welcome",
+                "data": {"user_id": user_id}
+            })
 ```
 
-### Plugin with Middleware
-
-Plugins can register middleware:
+### Plugin with Scheduled Tasks
 
 ```python
-from typing import AsyncIterator
+import asyncio
+from serv.plugins import Plugin
 
-class SecurityPlugin(Plugin):
-    async def on_app_startup(self, app: App = dependency()):
-        """Register security middleware"""
-        app.add_middleware(self.security_middleware)
+class SchedulerPlugin(Plugin):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.tasks = []
     
-    async def security_middleware(
-        self,
-        request: Request = dependency(),
-        response: ResponseBuilder = dependency()
-    ) -> AsyncIterator[None]:
-        """Add security headers to all responses"""
-        # Before request processing
-        if not self._is_secure_request(request):
-            response.set_status(403)
-            response.body("Forbidden")
-            return
-        
-        yield  # Process the request
-        
-        # After request processing
-        response.add_header("X-Content-Type-Options", "nosniff")
-        response.add_header("X-Frame-Options", "DENY")
-        response.add_header("X-XSS-Protection", "1; mode=block")
+    async def on_app_startup(self):
+        """Start background tasks"""
+        # Start a cleanup task that runs every hour
+        task = asyncio.create_task(self._cleanup_task())
+        self.tasks.append(task)
+        print("Scheduler plugin started background tasks")
     
-    def _is_secure_request(self, request: Request) -> bool:
-        # Implement your security logic
-        return True
-```
-
-## Plugin Organization
-
-### Directory Structure
-
-Organize your plugins in a clear directory structure:
-
-```
-plugins/
-├── auth/
-│   ├── __init__.py
-│   ├── main.py          # Main plugin class
-│   ├── models.py        # Data models
-│   ├── handlers.py      # Route handlers
-│   ├── middleware.py    # Middleware
-│   └── plugin.yaml      # Plugin configuration
-├── blog/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── models.py
-│   └── plugin.yaml
-└── api/
-    ├── __init__.py
-    ├── main.py
-    ├── v1/
-    │   ├── __init__.py
-    │   └── handlers.py
-    └── plugin.yaml
-```
-
-### Multi-File Plugins
-
-For larger plugins, split functionality across multiple files:
-
-```python
-# plugins/blog/main.py
-from .handlers import BlogHandlers
-from .models import BlogStorage
-
-class BlogPlugin(Plugin):
-    def __init__(self):
-        self.storage = BlogStorage()
-        self.handlers = BlogHandlers(self.storage)
+    async def on_app_shutdown(self):
+        """Cancel background tasks"""
+        for task in self.tasks:
+            task.cancel()
+        await asyncio.gather(*self.tasks, return_exceptions=True)
+        print("Scheduler plugin stopped background tasks")
     
-    async def on_app_request_begin(self, router: Router = dependency()):
-        self.handlers.register_routes(router)
-
-# plugins/blog/handlers.py
-class BlogHandlers:
-    def __init__(self, storage):
-        self.storage = storage
+    async def _cleanup_task(self):
+        """Background task that runs periodically"""
+        while True:
+            try:
+                print("Running cleanup task...")
+                # Perform cleanup operations
+                await self._perform_cleanup()
+                await asyncio.sleep(3600)  # Wait 1 hour
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Cleanup task error: {e}")
+                await asyncio.sleep(60)  # Wait 1 minute on error
     
-    def register_routes(self, router):
-        router.add_route("/blog", self.list_posts)
-        router.add_route("/blog/{post_id}", self.get_post)
-    
-    async def list_posts(self, response: ResponseBuilder = dependency()):
-        # Implementation
-        pass
-    
-    async def get_post(self, post_id: str, response: ResponseBuilder = dependency()):
-        # Implementation
+    async def _perform_cleanup(self):
+        """Actual cleanup logic"""
+        # Clean up temporary files, expired sessions, etc.
         pass
 ```
 
-## Plugin Loading
+## Plugin Management
 
-### Automatic Loading
+### Enabling and Disabling Plugins
 
-Serv can automatically load plugins from directories:
+Use the CLI to manage plugins:
 
-```python
-from serv import App
+```bash
+# Enable a plugin
+serv plugin enable user_management
 
-# Load plugins from the ./plugins directory
-app = App(plugin_dir="./plugins")
+# Disable a plugin
+serv plugin disable user_management
+
+# List all plugins
+serv plugin list
+
+# List available plugins
+serv plugin list --available
+
+# Validate plugin configuration
+serv plugin validate user_management
+
+# Validate all plugins
+serv plugin validate --all
 ```
 
-### Manual Loading
+### Plugin Dependencies
 
-You can also load plugins manually:
-
-```python
-from serv import App
-from my_plugins import MyPlugin
-
-app = App()
-app.add_plugin(MyPlugin())
-```
-
-### Configuration-Based Loading
-
-Load plugins via configuration:
+Define dependencies between plugins in `plugin.yaml`:
 
 ```yaml
-# serv.config.yaml
-plugins:
-  - plugin: auth
-    settings:
-      secret_key: "your-secret-key"
-  - plugin: blog
-    settings:
-      posts_per_page: 10
-  - entry: external_package.plugin:ExternalPlugin
+name: Blog
+description: Blog functionality
+version: 1.0.0
+dependencies:
+  - user_management  # Requires user management for authentication
+  - email_service    # Requires email service for notifications
+
+routers:
+  - name: blog_router
+    routes:
+      - path: /blog
+        handler: route_blog_home:BlogHome
+      - path: /blog/new
+        handler: route_create_post:CreatePost  # Uses user auth
+```
+
+### Plugin Entry Points
+
+Define multiple entry points for complex plugins:
+
+```yaml
+name: Admin Panel
+description: Administrative interface
+version: 1.0.0
+
+# Main plugin class
+entry: admin_panel:AdminPanelPlugin
+
+# Additional entry points
+entry_points:
+  - entry: admin_auth:AdminAuthPlugin
     config:
-      api_url: "https://api.example.com"
-```
+      require_2fa: true
+  - entry: admin_logging:AdminLoggingPlugin
+    config:
+      log_level: "DEBUG"
 
-## Plugin Dependencies
-
-### Plugin Ordering
-
-Sometimes plugins need to load in a specific order:
-
-```python
-class DatabasePlugin(Plugin):
-    priority = 100  # Load early
-    
-    async def on_app_startup(self):
-        # Set up database
-        pass
-
-class UserPlugin(Plugin):
-    priority = 50  # Load after database
-    depends_on = ['database']
-    
-    async def on_app_startup(self):
-        # Use database set up by DatabasePlugin
-        pass
-```
-
-### Service Dependencies
-
-Use dependency injection to share services between plugins:
-
-```python
-class DatabasePlugin(Plugin):
-    async def on_app_startup(self, container: Container = dependency()):
-        db = Database()
-        container.instances[Database] = db
-
-class UserPlugin(Plugin):
-    async def on_app_request_begin(
-        self, 
-        router: Router = dependency(),
-        db: Database = dependency()
-    ):
-        # Use the database service
-        router.add_route("/users", lambda: self.list_users(db))
+routers:
+  - name: admin_router
+    mount: /admin
+    routes:
+      - path: /dashboard
+        handler: route_dashboard:AdminDashboard
 ```
 
 ## Testing Plugins
 
-### Unit Testing
-
-Test plugin functionality in isolation:
+### Unit Testing Plugin Events
 
 ```python
 import pytest
-from unittest.mock import Mock
-from my_plugin import MyPlugin
+from unittest.mock import Mock, AsyncMock
+from plugins.user_management.user_management import UserManagementPlugin
 
 @pytest.mark.asyncio
 async def test_plugin_startup():
-    plugin = MyPlugin()
+    """Test plugin startup event"""
+    plugin = UserManagementPlugin()
     
-    # Mock dependencies
-    container = Mock()
+    # Mock the database connection
+    plugin.connect_database = AsyncMock()
     
-    await plugin.on_app_startup(container=container)
+    await plugin.on_app_startup()
     
-    # Assert expected behavior
-    assert container.instances[SomeService] is not None
+    plugin.connect_database.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_user_created_event():
+    """Test custom user created event"""
+    plugin = UserManagementPlugin()
+    plugin.send_welcome_email = AsyncMock()
+    
+    await plugin.on_user_created(user_id=123, email="test@example.com")
+    
+    plugin.send_welcome_email.assert_called_once_with("test@example.com")
 ```
 
 ### Integration Testing
 
-Test plugins within a full application:
-
 ```python
 import pytest
-import httpx
-from serv import App
-from my_plugin import MyPlugin
-
-@pytest.fixture
-def app():
-    app = App()
-    app.add_plugin(MyPlugin())
-    return app
+from httpx import AsyncClient
+from serv.app import App
 
 @pytest.mark.asyncio
-async def test_plugin_routes(app):
-    async with httpx.AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.get("/my-route")
+async def test_plugin_routes():
+    """Test that plugin routes work correctly"""
+    app = App(config="test_config.yaml")
+    
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        # Test user list route
+        response = await client.get("/users")
         assert response.status_code == 200
+        assert "User List" in response.text
+        
+        # Test user detail route
+        response = await client.get("/users/123")
+        assert response.status_code == 200
+        assert "User 123" in response.text
+```
+
+### Testing Plugin Configuration
+
+```python
+def test_plugin_configuration():
+    """Test plugin configuration loading"""
+    from plugins.user_management.user_management import UserManagementPlugin
+    
+    # Mock plugin spec with configuration
+    mock_spec = Mock()
+    mock_spec.config = {
+        "database_url": "postgresql://test",
+        "session_timeout": 1800
+    }
+    
+    plugin = UserManagementPlugin(plugin_spec=mock_spec)
+    
+    assert plugin.database_url == "postgresql://test"
+    assert plugin.session_timeout == 1800
 ```
 
 ## Best Practices
 
-### 1. Single Responsibility
+### 1. Use CLI for All Plugin Operations
 
-Each plugin should have a single, well-defined purpose:
+```bash
+# Good: Use CLI commands
+serv create plugin --name "My Feature"
+serv create route --name "feature_api" --plugin "my_feature"
+serv plugin enable my_feature
 
-```python
-# Good: Focused on authentication
-class AuthPlugin(Plugin):
-    pass
-
-# Good: Focused on blog functionality  
-class BlogPlugin(Plugin):
-    pass
-
-# Bad: Too many responsibilities
-class EverythingPlugin(Plugin):
-    pass
+# Avoid: Manual file creation and configuration
 ```
 
-### 2. Configuration
-
-Make your plugins configurable:
+### 2. Keep Plugin Classes Event-Only
 
 ```python
+# Good: Plugin class only handles events
 class MyPlugin(Plugin):
-    def __init__(self):
-        config = self.get_config()
-        self.enabled = config.get('enabled', True)
-        self.debug = config.get('debug', False)
+    async def on_app_startup(self):
+        # Initialize resources
+        pass
     
-    async def on_app_request_begin(self, router: Router = dependency()):
-        if not self.enabled:
-            return
-        
-        # Add routes only if enabled
-        router.add_route("/my-route", self.handler)
+    async def on_user_created(self, user_id: int):
+        # Handle custom event
+        pass
+
+# Avoid: Adding routes in plugin class
+class BadPlugin(Plugin):
+    async def on_app_request_begin(self, router = dependency()):
+        # Don't do this - use declarative routing instead
+        router.add_route("/bad", self.bad_handler)
 ```
 
-### 3. Error Handling
+### 3. Use Declarative Configuration
 
-Handle errors gracefully in your plugins:
+```yaml
+# Good: Define routes in plugin.yaml
+routers:
+  - name: api_router
+    mount: /api/v1
+    routes:
+      - path: /users
+        handler: route_users:UserList
+        methods: ["GET", "POST"]
+
+# Avoid: Programmatic route registration
+```
+
+### 4. Organize by Feature
+
+```
+plugins/
+├── user_management/     # User-related functionality
+├── blog/               # Blog functionality  
+├── api/                # API endpoints
+├── admin/              # Admin interface
+└── email/              # Email service integration
+```
+
+### 5. Handle Errors Gracefully
 
 ```python
 class RobustPlugin(Plugin):
     async def on_app_startup(self):
         try:
-            # Initialize external service
-            self.service = ExternalService()
+            self.service = await initialize_external_service()
         except Exception as e:
-            logger.error(f"Failed to initialize service: {e}")
-            # Provide fallback or disable functionality
+            print(f"Failed to initialize service: {e}")
             self.service = None
     
-    async def my_handler(self, response: ResponseBuilder = dependency()):
+    async def on_user_created(self, user_id: int, email: str):
         if not self.service:
-            response.set_status(503)
-            response.body("Service unavailable")
+            print("Service not available, skipping user notification")
             return
         
-        # Use the service
-        result = await self.service.do_something()
-        response.body(result)
+        try:
+            await self.service.send_notification(email)
+        except Exception as e:
+            print(f"Failed to send notification: {e}")
 ```
 
-### 4. Documentation
-
-Document your plugins well:
-
-```python
-class WellDocumentedPlugin(Plugin):
-    """
-    A plugin that provides user authentication functionality.
-    
-    Configuration:
-        secret_key (str): Secret key for JWT tokens
-        token_expiry (int): Token expiry time in seconds (default: 3600)
-        
-    Events:
-        - Responds to app.startup to initialize JWT handler
-        - Responds to app.request.begin to add auth routes
-        
-    Routes:
-        - POST /auth/login: User login
-        - POST /auth/logout: User logout
-        - GET /auth/profile: Get user profile
-    """
-    
-    async def on_app_startup(self):
-        """Initialize JWT handler with configured secret key."""
-        pass
-```
-
-### 5. Versioning
-
-Version your plugins for compatibility:
+### 6. Document Your Plugins
 
 ```yaml
 # plugin.yaml
-name: My Plugin
-version: 2.1.0
-serv_version: ">=0.1.0,<0.2.0"
+name: User Management
+description: |
+  Comprehensive user management system with authentication,
+  authorization, and user profile management.
+  
+  Features:
+  - User registration and login
+  - Password reset functionality
+  - Role-based access control
+  - User profile management
+  
+  Configuration:
+  - database_url: Database connection string
+  - session_timeout: Session timeout in seconds
+  - enable_registration: Allow new user registration
+
+version: 1.0.0
+author: Your Name
 ```
 
-## Publishing Plugins
+## Development Workflow
 
-### Package Structure
+### 1. Plan Your Plugin
 
-Structure your plugin as a Python package:
+Define what your plugin will do:
+- What routes will it provide?
+- What events will it handle?
+- What configuration options will it need?
+- What dependencies does it have?
 
-```
-my-serv-plugin/
-├── setup.py
-├── README.md
-├── my_serv_plugin/
-│   ├── __init__.py
-│   ├── plugin.py
-│   └── handlers.py
-└── tests/
-    └── test_plugin.py
+### 2. Create the Plugin
+
+```bash
+serv create plugin --name "My Feature"
 ```
 
-### Setup.py
+### 3. Add Routes
+
+```bash
+serv create route --name "feature_home" --path "/feature" --plugin "my_feature"
+serv create route --name "feature_api" --path "/api/feature" --router "api_router" --plugin "my_feature"
+```
+
+### 4. Add Middleware (if needed)
+
+```bash
+serv create middleware --name "feature_auth" --plugin "my_feature"
+```
+
+### 5. Implement Event Handlers
+
+Edit the plugin class to handle events:
 
 ```python
-from setuptools import setup, find_packages
+class MyFeaturePlugin(Plugin):
+    async def on_app_startup(self):
+        # Initialize plugin
+        pass
+    
+    async def on_feature_event(self, data):
+        # Handle custom events
+        pass
+```
 
-setup(
-    name="my-serv-plugin",
-    version="1.0.0",
-    packages=find_packages(),
-    install_requires=[
-        "getserving>=0.1.0",
-    ],
-    entry_points={
-        "serv.plugins": [
-            "my_plugin = my_serv_plugin.plugin:MyPlugin",
-        ],
-    },
-)
+### 6. Configure and Test
+
+```bash
+# Enable the plugin
+serv plugin enable my_feature
+
+# Validate configuration
+serv plugin validate my_feature
+
+# Test the application
+serv dev
 ```
 
 ## Next Steps
 
-- **[Middleware](middleware.md)** - Learn about middleware development
-- **[Dependency Injection](dependency-injection.md)** - Master the DI system
-- **[Events](events.md)** - Understand the event system
-- **[Testing](testing.md)** - Test your plugins effectively 
+- **[Routing](routing.md)** - Learn about declarative routing configuration
+- **[Middleware](middleware.md)** - Add cross-cutting concerns to your application
+- **[Dependency Injection](dependency-injection.md)** - Master dependency injection patterns
+- **[Configuration](../getting-started/configuration.md)** - Advanced configuration techniques 

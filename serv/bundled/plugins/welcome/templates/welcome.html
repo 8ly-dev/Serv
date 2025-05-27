@@ -306,8 +306,8 @@
                         </div>
                         <div class="card-body">
                             <p>To quickly create the basic file structure for a new plugin (including a <code>plugin.yaml</code> definition file and a main Python file), use:</p>
-                            <pre><code class="language-bash">serv plugin create</code></pre>
-                            <p>You'll be prompted for the plugin's name, author, description, and version. This information will populate the generated files. Plugins are typically created in a <code>./plugins/</code> directory.</p>
+                            <pre><code class="language-bash">serv create plugin --name "My Plugin Name"</code></pre>
+                            <p>You'll be prompted for the plugin's author, description, and version. This information will populate the generated files. Plugins are typically created in a <code>./plugins/</code> directory.</p>
                             <p>A typical plugin might define routes. For example, in your plugin's <code>main.py</code>:</p>
                             <pre><code class="language-python">from serv import Route, Plugin, ResponseBuilder
 
@@ -352,8 +352,8 @@ description: An awesome sample plugin</code></pre>
                         </div>
                         <div class="card-body">
                             <p>Serv helps you get started with new middleware by creating a template:</p>
-                            <pre><code class="language-bash">serv middleware create</code></pre>
-                            <p>You'll be prompted for the middleware's name and a brief description. This creates a new directory (e.g., <code>./middleware/my_custom_middleware/</code>) with an <code>__init__.py</code> and a <code>main.py</code> containing a class that inherits from <code>serv.middleware.ServMiddleware</code>.</p>
+                            <pre><code class="language-bash">serv create middleware --name "My Middleware"</code></pre>
+                            <p>You'll be prompted for the plugin to add the middleware to and a brief description. This creates a new middleware file in the specified plugin directory containing a class that inherits from <code>serv.middleware.ServMiddleware</code>.</p>
                             <p>The generated middleware class includes stubs for <code>enter</code>, <code>leave</code>, and <code>on_error</code> hooks, demonstrating how to use Bevy for dependency injection:</p>
                             <pre><code class="language-python">from serv import ServMiddleware, Request, ResponseBuilder
 from bevy import dependency
@@ -378,14 +378,21 @@ class MyCustomMiddleware(ServMiddleware):
 
                     <div class="card mb-4">
                         <div class="card-header">
-                           Enable &amp; Disable Middleware
+                           Configure Middleware
                         </div>
                         <div class="card-body">
-                            <p>To add your middleware to the application's processing pipeline, enable it via the CLI:</p>
-                            <pre><code class="language-bash">serv middleware enable &lt;middleware_entry_string&gt;</code></pre>
-                            <p>The <code>&lt;middleware_entry_string&gt;</code> should be the Python import path to your middleware class, e.g., <code>middleware.my_custom_middleware.main:MyCustomMiddleware</code>.</p>
-                            <p>To remove it:</p>
-                            <pre><code class="language-bash">serv middleware disable &lt;middleware_entry_string&gt;</code></pre>
+                            <p>Once you've created middleware, you need to configure it in your plugin's <code>plugin.yaml</code> file. Add the middleware to the plugin configuration:</p>
+                            <pre><code class="language-yaml">name: My Plugin
+description: A plugin with middleware
+version: 0.1.0
+author: Your Name
+entry: my_plugin.main:MyPlugin
+
+middleware:
+  - entry: middleware_auth_check:auth_check_middleware
+    config:
+      timeout: 30</code></pre>
+                            <p>The middleware will be automatically loaded when the plugin is enabled. You can also add middleware directly in your plugin's code using <code>app.add_middleware()</code> during plugin initialization.</p>
                         </div>
                     </div>
                 </section>

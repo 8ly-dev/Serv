@@ -7,8 +7,8 @@ This document outlines the approach to end-to-end testing of the Serv Command Li
 The Serv CLI provides various commands to manage Serv applications:
 - `serv app init` - Initialize a new Serv project
 - `serv app details` - Display application configuration 
-- `serv plugin create/enable/disable` - Manage plugins
-- `serv middleware create/enable/disable` - Manage middleware
+- `serv plugin enable/disable/list/validate` - Manage plugins
+- `serv create plugin/middleware/route/entrypoint` - Create components
 - `serv launch` - Start the application server
 
 End-to-end testing of the CLI ensures these commands work correctly and produce expected side effects.
