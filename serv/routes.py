@@ -24,6 +24,7 @@ from serv.exceptions import HTTPMethodNotAllowedException
 from serv.extensions import Listener
 from serv.requests import Request
 from serv.responses import ResponseBuilder
+from serv.injectors import Header, Cookie, Query
 
 
 class Response:
@@ -305,29 +306,46 @@ class Route:
     handling, and dependency injection.
 
     The Route class automatically discovers handler methods based on their
-    signatures and annotations:
-    - Methods with Request subclass parameters become HTTP method handlers
+    naming patterns and signatures:
+    - Methods named `handle_<method>` become HTTP method handlers (e.g., `handle_get`, `handle_post`)
     - Methods with Form subclass parameters become form handlers
     - Methods with Exception parameters become error handlers
     - Return type annotations determine response wrapper classes
+    - Handler selection is based on signature matching with request data
 
     Examples:
         Basic route with HTTP method handlers:
 
         ```python
-        from serv.routes import Route, GetRequest, PostRequest
+        from serv.routes import Route
         from serv.responses import JsonResponse, TextResponse
+        from serv.injectors import Query, Header
         from typing import Annotated
 
         class UserRoute(Route):
-            async def handle_get(self, request: GetRequest) -> Annotated[dict, JsonResponse]:
-                user_id = request.path_params.get("id")
+            async def handle_get(self, user_id: Annotated[str, Query("id")]) -> Annotated[dict, JsonResponse]:
                 return {"id": user_id, "name": "John Doe"}
 
-            async def handle_post(self, request: PostRequest) -> Annotated[str, TextResponse]:
-                data = await request.json()
+            async def handle_post(self, data: dict) -> Annotated[str, TextResponse]:
                 # Create user logic here
                 return "User created successfully"
+        ```
+
+        Route with multiple GET handlers based on parameters:
+
+        ```python
+        class ProductRoute(Route):
+            # Handler for requests with 'id' query parameter
+            async def handle_get(self, product_id: Annotated[str, Query("id")]) -> Annotated[dict, JsonResponse]:
+                return {"id": product_id, "name": "Product Name"}
+            
+            # Handler for requests with 'category' query parameter
+            async def handle_get_by_category(self, category: Annotated[str, Query("category")]) -> Annotated[list, JsonResponse]:
+                return [{"id": 1, "name": "Product 1"}, {"id": 2, "name": "Product 2"}]
+            
+            # Handler for requests with no specific parameters (fallback)
+            async def handle_get_all(self) -> Annotated[list, JsonResponse]:
+                return [{"id": 1, "name": "All Products"}]
         ```
 
         Route with form handling:
@@ -343,7 +361,7 @@ class Route:
             message: str
 
         class ContactRoute(Route):
-            async def handle_get(self, request: GetRequest) -> Annotated[str, HtmlResponse]:
+            async def handle_get(self) -> Annotated[str, HtmlResponse]:
                 return '''
                 <form method="post">
                     <input name="name" placeholder="Name" required>
@@ -359,83 +377,29 @@ class Route:
                 return "<h1>Thank you! Your message has been sent.</h1>"
         ```
 
-        Route with error handling:
+        Route with header and cookie injection:
 
         ```python
-        from serv.routes import Route
-        from serv.responses import JsonResponse
-        from typing import Annotated
-
-        class ValidationError(Exception):
-            def __init__(self, message: str):
-                self.message = message
-
-        class ApiRoute(Route):
-            async def handle_post(self, request: PostRequest) -> Annotated[dict, JsonResponse]:
-                data = await request.json()
-                if not data.get("email"):
-                    raise ValidationError("Email is required")
-                return {"status": "success"}
-
-            async def handle_validation_error(self, error: ValidationError) -> Annotated[dict, JsonResponse]:
-                return {"error": error.message, "status": "validation_failed"}
-        ```
-
-        Route with dependency injection:
-
-        ```python
-        from bevy import dependency
-        from serv.app import App
-
-        class DatabaseRoute(Route):
-            async def handle_get(
-                self,
-                request: GetRequest,
-                app: App = dependency()
-            ) -> Annotated[dict, JsonResponse]:
-                # Access app instance and its services
-                extension = app.get_extension("database")
-                data = await extension.fetch_data()
-                return {"data": data}
-        ```
-
-        Advanced route with multiple forms:
-
-        ```python
-        class LoginForm(Form):
-            username: str
-            password: str
-
-        class RegisterForm(Form):
-            __form_method__ = "POST"
-            username: str
-            email: str
-            password: str
-            confirm_password: str
+        from serv.injectors import Header, Cookie
 
         class AuthRoute(Route):
-            async def handle_login_form(self, form: LoginForm) -> Annotated[str, HtmlResponse]:
-                if self.authenticate(form.username, form.password):
-                    return "<h1>Login successful!</h1>"
-                else:
-                    return "<h1>Invalid credentials</h1>"
-
-            async def handle_register_form(self, form: RegisterForm) -> Annotated[str, HtmlResponse]:
-                if form.password != form.confirm_password:
-                    return "<h1>Passwords don't match</h1>"
-
-                await self.create_user(form.username, form.email, form.password)
-                return "<h1>Registration successful!</h1>"
+            async def handle_get(
+                self, 
+                auth_token: Annotated[str, Header("Authorization")],
+                session_id: Annotated[str, Cookie("session_id")]
+            ) -> Annotated[dict, JsonResponse]:
+                # Validate token and session
+                return {"authenticated": True, "user": "john_doe"}
         ```
 
     Note:
         Route classes are automatically instantiated by the router when a matching
-        request is received. They can access extension configuration and services
-        through dependency injection, and their methods can return Response objects
-        or use annotated return types for automatic response wrapping.
+        request is received. Handler methods are selected based on the best match
+        between the request data and the method's parameter signature. Methods with
+        more specific parameter requirements will be preferred over generic handlers.
     """
 
-    __method_handlers__: dict[str, str]
+    __method_handlers__: dict[str, list[dict]]
     __error_handlers__: dict[type[Exception], list[str]]
     __form_handlers__: dict[str, dict[type[Form], list[str]]]
     __annotated_response_wrappers__: dict[str, type[Response]]
@@ -443,7 +407,7 @@ class Route:
     _extension: "Listener | None"
 
     def __init_subclass__(cls) -> None:
-        cls.__method_handlers__ = {}
+        cls.__method_handlers__ = defaultdict(list)
         cls.__error_handlers__ = defaultdict(list)
         cls.__form_handlers__ = defaultdict(lambda: defaultdict(list))
         cls.__annotated_response_wrappers__ = {}
@@ -467,35 +431,44 @@ class Route:
             if not params:
                 continue
 
+            # Handle method naming pattern (handle_<method>)
+            if name.startswith('handle_'):
+                method_part = name[7:]  # Remove 'handle_' prefix
+                
+                # Check if it's a standard HTTP method
+                http_method = method_part.upper()
+                if http_method in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD']:
+                    cls.__method_handlers__[http_method].append({
+                        'name': name,
+                        'method': member,
+                        'signature': sig
+                    })
+                    
+                    # Store response wrapper if annotated
+                    try:
+                        handler_type_hints = get_type_hints(member, include_extras=True)
+                        return_annotation = handler_type_hints.get("return")
+                    except Exception:
+                        return_annotation = None
+
+                    if (
+                        return_annotation
+                        and get_origin(return_annotation) is Annotated
+                    ):
+                        args = get_args(return_annotation)
+                        if (
+                            len(args) == 2
+                            and isinstance(args[1], type)
+                            and issubclass(args[1], Response)
+                        ):
+                            cls.__annotated_response_wrappers__[name] = args[1]
+                    continue
+
+            # Handle form handlers and error handlers (existing logic)
             if len(params) > 1:
                 second_arg_annotation = params[1].annotation
+                
                 if isinstance(second_arg_annotation, type) and issubclass(
-                    second_arg_annotation, Request
-                ):
-                    method = MethodMapping.get(second_arg_annotation)
-                    if method:
-                        cls.__method_handlers__[method] = name
-                        try:
-                            handler_type_hints = get_type_hints(
-                                member, include_extras=True
-                            )
-                            return_annotation = handler_type_hints.get("return")
-                        except Exception:
-                            return_annotation = None
-
-                        if (
-                            return_annotation
-                            and get_origin(return_annotation) is Annotated
-                        ):
-                            args = get_args(return_annotation)
-                            if (
-                                len(args) == 2
-                                and isinstance(args[1], type)
-                                and issubclass(args[1], Response)
-                            ):
-                                cls.__annotated_response_wrappers__[name] = args[1]
-
-                elif isinstance(second_arg_annotation, type) and issubclass(
                     second_arg_annotation, Form
                 ):
                     form_type = second_arg_annotation
@@ -543,12 +516,143 @@ class Route:
 
         return self._extension
 
+    def _analyze_handler_signature(self, handler_sig, request: Request) -> dict:
+        """Analyze a handler's signature and determine what parameters it needs."""
+        params = list(handler_sig.parameters.values())[1:]  # Skip 'self'
+        analysis = {
+            'required_params': [],
+            'optional_params': [],
+            'injectable_params': [],
+            'score': 0
+        }
+        
+        try:
+            type_hints = get_type_hints(handler_sig, include_extras=True)
+        except Exception:
+            type_hints = {}
+        
+        for param in params:
+            param_info = {
+                'name': param.name,
+                'annotation': param.annotation,
+                'default': param.default,
+                'has_default': param.default != param.empty
+            }
+            
+            # Check if parameter is annotated with injection markers
+            annotation = type_hints.get(param.name, param.annotation)
+            if get_origin(annotation) is Annotated:
+                args = get_args(annotation)
+                if len(args) >= 2:
+                    marker = args[1]
+                    if isinstance(marker, (Header, Cookie, Query)):
+                        param_info['injection_marker'] = marker
+                        analysis['injectable_params'].append(param_info)
+                        
+                        # Check if the required data is available in the request
+                        if isinstance(marker, Header) and marker.name in request.headers:
+                            analysis['score'] += 10
+                        elif isinstance(marker, Cookie) and marker.name in request.cookies:
+                            analysis['score'] += 10
+                        elif isinstance(marker, Query) and marker.name in request.query_params:
+                            analysis['score'] += 10
+                        elif marker.default is not None:
+                            analysis['score'] += 5  # Has default value
+                        elif param_info['has_default']:
+                            analysis['score'] += 5  # Parameter has default
+                        else:
+                            analysis['score'] -= 5  # Required but not available
+                        continue
+            
+            # Regular parameter handling
+            if param_info['has_default']:
+                analysis['optional_params'].append(param_info)
+                analysis['score'] += 1
+            else:
+                analysis['required_params'].append(param_info)
+                analysis['score'] -= 2  # Penalize required non-injectable params
+        
+        return analysis
+
+    def _score_handler_compatibility(self, handler_info: dict, request: Request) -> int:
+        """Score how well a handler matches the current request."""
+        analysis = self._analyze_handler_signature(handler_info['signature'], request)
+        base_score = analysis['score']
+        
+        # Bonus for having injectable parameters that match request data
+        injectable_matches = len([
+            p for p in analysis['injectable_params'] 
+            if self._can_inject_parameter(p, request)
+        ])
+        
+        # Penalty for having required non-injectable parameters
+        required_non_injectable = len(analysis['required_params'])
+        
+        final_score = base_score + (injectable_matches * 5) - (required_non_injectable * 10)
+        
+        return final_score
+
+    def _can_inject_parameter(self, param_info: dict, request: Request) -> bool:
+        """Check if a parameter can be injected from the request."""
+        if 'injection_marker' not in param_info:
+            return False
+            
+        marker = param_info['injection_marker']
+        
+        if isinstance(marker, Header):
+            return marker.name in request.headers or marker.default is not None
+        elif isinstance(marker, Cookie):
+            return marker.name in request.cookies or marker.default is not None
+        elif isinstance(marker, Query):
+            return marker.name in request.query_params or marker.default is not None
+            
+        return False
+
+    async def _extract_handler_parameters(self, handler_info: dict, request: Request, container: Container) -> list:
+        """Extract and prepare parameters for handler invocation."""
+        analysis = self._analyze_handler_signature(handler_info['signature'], request)
+        args = []
+        
+        # Handle injectable parameters
+        for param_info in analysis['injectable_params']:
+            marker = param_info['injection_marker']
+            value = None
+            
+            if isinstance(marker, Header):
+                value = request.headers.get(marker.name, marker.default)
+            elif isinstance(marker, Cookie):
+                value = request.cookies.get(marker.name, marker.default)
+            elif isinstance(marker, Query):
+                value = request.query_params.get(marker.name, marker.default)
+            
+            if value is None and not param_info['has_default']:
+                raise ValueError(f"Required parameter '{param_info['name']}' not found in request")
+                
+            args.append(value)
+        
+        # Handle other parameters (try to inject from container or use defaults)
+        for param_info in analysis['required_params'] + analysis['optional_params']:
+            if param_info['has_default']:
+                continue  # Will be handled by function call
+                
+            # Try to get from container based on type annotation
+            try:
+                if param_info['annotation'] != param_info.empty:
+                    value = container.get(param_info['annotation'])
+                    args.append(value)
+            except Exception:
+                if not param_info['has_default']:
+                    raise ValueError(f"Cannot inject parameter '{param_info['name']}'")
+        
+        return args
+
     async def _handle_request(self, request: Request, container: Container) -> Any:
         method = request.method
         handler = None
         handler_name = None
         args_to_pass = []
 
+        # Handle form submissions first
         if self.__form_handlers__.get(method):
             form_data = await request.form()
             for form_type, form_handler_names in self.__form_handlers__[method].items():
@@ -565,10 +669,47 @@ class Route:
                     if handler:
                         break
 
+        # Handle method handlers with signature matching
         if not handler and method in self.__method_handlers__:
-            handler_name = self.__method_handlers__[method]
-            handler = getattr(self, handler_name)
-            args_to_pass = [request]
+            handlers = self.__method_handlers__[method]
+            
+            if len(handlers) == 1:
+                # Only one handler, use it
+                handler_info = handlers[0]
+                handler = handler_info['method']
+                handler_name = handler_info['name']
+                try:
+                    args_to_pass = await self._extract_handler_parameters(handler_info, request, container)
+                except Exception as e:
+                    return await container.call(self._error_handler, e)
+            else:
+                # Multiple handlers, find the best match
+                scored_handlers = []
+                for handler_info in handlers:
+                    score = self._score_handler_compatibility(handler_info, request)
+                    scored_handlers.append((score, handler_info))
+                
+                # Sort by score (highest first)
+                scored_handlers.sort(key=lambda x: x[0], reverse=True)
+                
+                # Try handlers in order of compatibility score
+                for score, handler_info in scored_handlers:
+                    try:
+                        args_to_pass = await self._extract_handler_parameters(handler_info, request, container)
+                        handler = handler_info['method']
+                        handler_name = handler_info['name']
+                        break
+                    except Exception:
+                        continue  # Try next handler
+                
+                if not handler:
+                    return await container.call(
+                        self._error_handler,
+                        HTTPMethodNotAllowedException(
+                            f"No compatible handler found for {method} request with provided parameters.",
+                            list(self.__method_handlers__.keys() | self.__form_handlers__.keys())
+                        ),
+                    )
 
         if not handler:
             return await container.call(
@@ -582,7 +723,12 @@ class Route:
             )
 
         try:
-            handler_output_data = await container.call(handler, args_to_pass[0])
+            # Call handler with extracted parameters
+            if args_to_pass:
+                handler_output_data = await container.call(handler, *args_to_pass)
+            else:
+                handler_output_data = await container.call(handler)
+                
             if handler_name and handler_name in self.__annotated_response_wrappers__:
                 wrapper_class = self.__annotated_response_wrappers__[handler_name]
                 if isinstance(handler_output_data, tuple):
