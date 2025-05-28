@@ -30,7 +30,7 @@ class MultipartTestForm(Form):
 
 
 class MultipartRoute(Route):
-    async def handle_form(self, form: MultipartTestForm) -> Response:
+    async def handle_post(self, form: MultipartTestForm) -> Response:
         file_content = await form.file_upload.read()
 
         response_parts = [

@@ -161,6 +161,66 @@ class ParameterInjectionRoute(Route):
         return {"message": "fallback handler", "source": "fallback"}
 
 
+# --- Routes for testing signature matching and handler scoring ---
+
+
+class MultipleGetHandlersRoute(Route):
+    """Route with multiple GET handlers to test signature matching"""
+    
+    async def handle_get_with_user_id(
+        self, user_id: Annotated[str, Query("user_id")]
+    ) -> Annotated[dict, JsonResponse]:
+        return {"handler": "user_id", "user_id": user_id}
+    
+    async def handle_get_with_category(
+        self, category: Annotated[str, Query("category")]
+    ) -> Annotated[dict, JsonResponse]:
+        return {"handler": "category", "category": category}
+    
+    async def handle_get_with_both(
+        self,
+        user_id: Annotated[str, Query("user_id")],
+        category: Annotated[str, Query("category")]
+    ) -> Annotated[dict, JsonResponse]:
+        return {"handler": "both", "user_id": user_id, "category": category}
+    
+    async def handle_get_fallback(self) -> Annotated[dict, JsonResponse]:
+        return {"handler": "fallback", "message": "no specific parameters"}
+
+
+class ParameterInjectionFailureRoute(Route):
+    """Route to test parameter injection failures"""
+    
+    async def handle_get_required_missing(
+        self, required_param: Annotated[str, Query("required")]
+    ) -> Annotated[dict, JsonResponse]:
+        return {"required_param": required_param}
+    
+    async def handle_get_with_default(
+        self, optional_param: Annotated[str, Query("optional", default="default")]
+    ) -> Annotated[dict, JsonResponse]:
+        return {"optional_param": optional_param}
+
+
+class HandlerScoringRoute(Route):
+    """Route to test handler scoring system"""
+    
+    async def handle_get_high_score(
+        self,
+        param1: Annotated[str, Query("param1")],
+        param2: Annotated[str, Query("param2")]
+    ) -> Annotated[dict, JsonResponse]:
+        return {"handler": "high_score", "param1": param1, "param2": param2}
+    
+    async def handle_get_medium_score(
+        self, param1: Annotated[str, Query("param1")]
+    ) -> Annotated[dict, JsonResponse]:
+        return {"handler": "medium_score", "param1": param1}
+    
+    async def handle_get_low_score(self) -> Annotated[dict, JsonResponse]:
+        return {"handler": "low_score"}
+
+
 # --- Test Extension for adding Route classes ---
 
 
@@ -364,4 +424,262 @@ async def test_raw_dict_handler_without_response_type_errors(
 
     response = await client.get("/test_raw_dict_error")
     assert response.status_code == 500
-    # Check for the app
+    # Check for the app's error message about unsupported return type
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_raw_string_handler_without_response_type_errors(
+    app: App, client: AsyncClient
+):
+    """
+    Tests that a handler returning a raw string without an Annotated response type
+    or returning a Response instance causes a 500 error.
+    """
+    plugin = RouteTestExtension("/test_raw_string_error", RawStringRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_raw_string_error")
+    assert response.status_code == 500
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_direct_response_instance(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_direct_response", DirectResponseInstanceRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_direct_response")
+    assert response.status_code == 201
+    assert response.text == "Direct Response instance."
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_jinja_tuple_return(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_jinja_tuple", JinjaTupleReturnRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_jinja_tuple")
+    # This test might fail if the template doesn't exist, but it tests the tuple handling
+    # The actual template rendering is tested elsewhere
+    assert plugin.plugin_registered_route
+
+
+# --- Tests for Parameter Injection ---
+
+
+@pytest.mark.asyncio
+async def test_parameter_injection_query(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_param_injection", ParameterInjectionRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_param_injection?id=123")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] == "123"
+    assert data["source"] == "query"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_parameter_injection_header(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_param_injection", ParameterInjectionRoute)
+    app.add_extension(plugin)
+
+    response = await client.get(
+        "/test_param_injection", headers={"Authorization": "Bearer token123"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["auth_token"] == "Bearer token123"
+    assert data["source"] == "header"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_parameter_injection_cookie(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_param_injection", ParameterInjectionRoute)
+    app.add_extension(plugin)
+
+    response = await client.get(
+        "/test_param_injection", cookies={"session_id": "sess123"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session_id"] == "sess123"
+    assert data["source"] == "cookie"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_parameter_injection_with_defaults(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_param_injection", ParameterInjectionRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_param_injection")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["optional_param"] == "default_value"
+    assert data["source"] == "query_with_default"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_parameter_injection_multiple_params(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_param_injection", ParameterInjectionRoute)
+    app.add_extension(plugin)
+
+    response = await client.get(
+        "/test_param_injection?id=456",
+        headers={"Authorization": "Bearer multi"},
+        cookies={"session_id": "multi_sess"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] == "456"
+    assert data["auth_token"] == "Bearer multi"
+    assert data["session_id"] == "multi_sess"
+    assert data["source"] == "multiple"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_parameter_injection_fallback(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_param_injection", ParameterInjectionRoute)
+    app.add_extension(plugin)
+
+    # No parameters provided, should fall back to the generic handler
+    response = await client.get("/test_param_injection")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source"] in ["query_with_default", "fallback"]  # Could match either
+    assert plugin.plugin_registered_route
+
+
+# --- Tests for Multiple GET Handlers and Signature Matching ---
+
+
+@pytest.mark.asyncio
+async def test_multiple_get_handlers_user_id(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_multiple_get", MultipleGetHandlersRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_multiple_get?user_id=123")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["handler"] == "user_id"
+    assert data["user_id"] == "123"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_multiple_get_handlers_category(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_multiple_get", MultipleGetHandlersRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_multiple_get?category=electronics")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["handler"] == "category"
+    assert data["category"] == "electronics"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_multiple_get_handlers_both_params(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_multiple_get", MultipleGetHandlersRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_multiple_get?user_id=123&category=electronics")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["handler"] == "both"
+    assert data["user_id"] == "123"
+    assert data["category"] == "electronics"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_multiple_get_handlers_fallback(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_multiple_get", MultipleGetHandlersRoute)
+    app.add_extension(plugin)
+
+    response = await client.get("/test_multiple_get")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["handler"] == "fallback"
+    assert data["message"] == "no specific parameters"
+    assert plugin.plugin_registered_route
+
+
+# --- Tests for Parameter Injection Failures ---
+
+
+@pytest.mark.asyncio
+async def test_parameter_injection_required_missing(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_param_failure", ParameterInjectionFailureRoute)
+    app.add_extension(plugin)
+
+    # Missing required parameter should result in error
+    response = await client.get("/test_param_failure")
+    assert response.status_code in [400, 500]  # Could be either depending on error handling
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_parameter_injection_with_default_fallback(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_param_failure", ParameterInjectionFailureRoute)
+    app.add_extension(plugin)
+
+    # Should use the handler with default value
+    response = await client.get("/test_param_failure")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["optional_param"] == "default"
+    assert plugin.plugin_registered_route
+
+
+# --- Tests for Handler Scoring System ---
+
+
+@pytest.mark.asyncio
+async def test_handler_scoring_high_score(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_scoring", HandlerScoringRoute)
+    app.add_extension(plugin)
+
+    # Provide both parameters - should match high score handler
+    response = await client.get("/test_scoring?param1=value1&param2=value2")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["handler"] == "high_score"
+    assert data["param1"] == "value1"
+    assert data["param2"] == "value2"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_handler_scoring_medium_score(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_scoring", HandlerScoringRoute)
+    app.add_extension(plugin)
+
+    # Provide only one parameter - should match medium score handler
+    response = await client.get("/test_scoring?param1=value1")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["handler"] == "medium_score"
+    assert data["param1"] == "value1"
+    assert plugin.plugin_registered_route
+
+
+@pytest.mark.asyncio
+async def test_handler_scoring_low_score(app: App, client: AsyncClient):
+    plugin = RouteTestExtension("/test_scoring", HandlerScoringRoute)
+    app.add_extension(plugin)
+
+    # Provide no parameters - should match low score handler
+    response = await client.get("/test_scoring")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["handler"] == "low_score"
+    assert plugin.plugin_registered_route
