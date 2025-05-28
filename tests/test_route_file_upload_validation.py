@@ -3,6 +3,7 @@ Test files related to routes.
 """
 
 from pathlib import Path
+from typing import Annotated
 
 import pytest
 from bevy import dependency
@@ -11,9 +12,58 @@ from httpx import AsyncClient
 from serv.app import App
 from serv.extensions import Extension
 from serv.requests import Request
-from serv.responses import ResponseBuilder
+from serv.routes import Route, TextResponse
 from serv.routing import Router
 from tests.helpers import create_test_extension_spec
+
+
+class FileUploadTestRoute(Route):
+    """Handle file upload using Route class pattern"""
+    
+    async def handle_post(self, request: Request = dependency()) -> Annotated[str, TextResponse]:
+        try:
+            # Check content type first
+            content_type = request.headers.get("content-type", "")
+            if not content_type or not (
+                "multipart/form-data" in content_type
+                or "application/x-www-form-urlencoded" in content_type
+            ):
+                # For error cases, we need to handle status codes differently
+                # Since we're using annotated responses, we'll raise an exception
+                # or return a direct Response object
+                from serv.routes import Response
+                return Response(status_code=400, body="No file uploaded")
+
+            form_data = await request.form()
+
+            # Check if form_data is empty or doesn't have the file field
+            if not form_data or "file_upload" not in form_data:
+                from serv.routes import Response
+                return Response(status_code=400, body="No file uploaded")
+
+            file_upload_list = form_data["file_upload"]
+            if not file_upload_list or not isinstance(file_upload_list, list):
+                from serv.routes import Response
+                return Response(status_code=400, body="Invalid file upload")
+
+            file_upload_dict = file_upload_list[0]  # Get first file
+            if not isinstance(file_upload_dict, dict) or "file" not in file_upload_dict:
+                from serv.routes import Response
+                return Response(status_code=400, body="Invalid file upload structure")
+
+            file_obj = file_upload_dict["file"]
+            content = file_obj.read()
+
+            response_text = f"File: {file_upload_dict['filename']}\n"
+            response_text += f"Content-Type: {file_upload_dict['content_type']}\n"
+            response_text += f"Size: {len(content)} bytes\n"
+            response_text += f"Content: {content.decode('utf-8') if len(content) < 100 else 'Large file'}"
+
+            return response_text
+
+        except Exception as e:
+            from serv.routes import Response
+            return Response(status_code=500, body=f"Error processing upload: {str(e)}")
 
 
 class FileUploadTestExtension(Extension):
@@ -34,68 +84,13 @@ class FileUploadTestExtension(Extension):
         self._stand_alone = True
 
     async def on_app_request_begin(self, router: Router = dependency()) -> None:
-        router.add_route("/upload", self.handle_upload)
+        router.add_route("/upload", FileUploadTestRoute)
         self.plugin_registered_route = True
-
-    async def handle_upload(
-        self, request: Request = dependency(), response: ResponseBuilder = dependency()
-    ):
-        """Handle file upload using function handler pattern"""
-        try:
-            # Check content type first
-            content_type = request.headers.get("content-type", "")
-            if not content_type or not (
-                "multipart/form-data" in content_type
-                or "application/x-www-form-urlencoded" in content_type
-            ):
-                response.set_status(400)
-                response.content_type("text/plain")
-                response.body("No file uploaded")
-                return
-
-            form_data = await request.form()
-
-            # Check if form_data is empty or doesn't have the file field
-            if not form_data or "file_upload" not in form_data:
-                response.set_status(400)
-                response.content_type("text/plain")
-                response.body("No file uploaded")
-                return
-
-            file_upload_list = form_data["file_upload"]
-            if not file_upload_list or not isinstance(file_upload_list, list):
-                response.set_status(400)
-                response.content_type("text/plain")
-                response.body("Invalid file upload")
-                return
-
-            file_upload_dict = file_upload_list[0]  # Get first file
-            if not isinstance(file_upload_dict, dict) or "file" not in file_upload_dict:
-                response.set_status(400)
-                response.content_type("text/plain")
-                response.body("Invalid file upload structure")
-                return
-
-            file_obj = file_upload_dict["file"]
-            content = file_obj.read()
-
-            response_text = f"File: {file_upload_dict['filename']}\n"
-            response_text += f"Content-Type: {file_upload_dict['content_type']}\n"
-            response_text += f"Size: {len(content)} bytes\n"
-            response_text += f"Content: {content.decode('utf-8') if len(content) < 100 else 'Large file'}"
-
-            response.content_type("text/plain")
-            response.body(response_text)
-
-        except Exception as e:
-            response.set_status(500)
-            response.content_type("text/plain")
-            response.body(f"Error processing upload: {str(e)}")
 
 
 @pytest.mark.asyncio
-async def test_file_upload_with_function_handler(app: App, client: AsyncClient):
-    """Test file upload using the working function handler pattern"""
+async def test_file_upload_with_route_handler(app: App, client: AsyncClient):
+    """Test file upload using the Route class pattern"""
     plugin = FileUploadTestExtension()
     app.add_extension(plugin)
 
