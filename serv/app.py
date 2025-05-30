@@ -24,7 +24,6 @@ from asgiref.typing import (
 )
 from bevy import dependency, get_registry, inject
 from bevy.containers import Container
-from bevy.registries import Registry
 from jinja2 import Environment, FileSystemLoader
 
 from serv.config import load_raw_config
@@ -278,8 +277,6 @@ class App:
 
         # Set up container instances
         self._container.instances[App] = self
-        self._container.instances[Container] = self._container
-        self._container.instances[Registry] = self._registry
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
