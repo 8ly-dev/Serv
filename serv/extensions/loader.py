@@ -334,7 +334,31 @@ class ExtensionLoader:
         succeeded = 0
         failed = []
         for listener in listeners:
-            module_path, class_name = listener.split(":")
+            try:
+                # Validate that listener is a string in the expected format
+                if not isinstance(listener, str):
+                    raise ValueError(
+                        f"Listener must be a string in format 'module:class', but got {type(listener).__name__}: {repr(listener)}"
+                    )
+
+                if ":" not in listener:
+                    raise ValueError(
+                        f"Listener must be in format 'module:class', but got: {repr(listener)}"
+                    )
+
+                module_path, class_name = listener.split(":")
+            except (ValueError, AttributeError) as e:
+                # Add context about the invalid listener format
+                e.add_note(
+                    f" - Invalid listener format in extension '{extension_import}'"
+                )
+                e.add_note(" - Expected format: 'module:class' (string)")
+                e.add_note(
+                    f" - Actual value: {repr(listener)} (type: {type(listener).__name__})"
+                )
+                failed.append(e)
+                continue
+
             with (
                 ExceptionContext()
                 .apply_note(f" - Attempting to load listener {listener}")
@@ -373,7 +397,31 @@ class ExtensionLoader:
         succeeded = 0
         failed = []
         for entry_point in middleware_entries:
-            module_path, class_name = entry_point.split(":")
+            try:
+                # Validate that entry_point is a string in the expected format
+                if not isinstance(entry_point, str):
+                    raise ValueError(
+                        f"Middleware entry must be a string in format 'module:class', but got {type(entry_point).__name__}: {repr(entry_point)}"
+                    )
+
+                if ":" not in entry_point:
+                    raise ValueError(
+                        f"Middleware entry must be in format 'module:class', but got: {repr(entry_point)}"
+                    )
+
+                module_path, class_name = entry_point.split(":")
+            except (ValueError, AttributeError) as e:
+                # Add context about the invalid middleware format
+                e.add_note(
+                    f" - Invalid middleware format in extension '{extension_import}'"
+                )
+                e.add_note(" - Expected format: 'module:class' (string)")
+                e.add_note(
+                    f" - Actual value: {repr(entry_point)} (type: {type(entry_point).__name__})"
+                )
+                failed.append(e)
+                continue
+
             try:
                 module = self._extension_loader.import_path(
                     f"{extension_import}.{module_path}"

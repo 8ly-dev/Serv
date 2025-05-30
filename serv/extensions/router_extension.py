@@ -40,7 +40,21 @@ class RouterBuilder:
 
     def _get_route_handler(self, route: "RouteConfig") -> Any:
         print("Getting route: ", route)
-        module, handler = route["handler"].split(":")
+
+        handler_str = route["handler"]
+
+        # Validate that handler is a string in the expected format
+        if not isinstance(handler_str, str):
+            raise ValueError(
+                f"Route handler must be a string in format 'module:class', but got {type(handler_str).__name__}: {repr(handler_str)}"
+            )
+
+        if ":" not in handler_str:
+            raise ValueError(
+                f"Route handler must be in format 'module:class', but got: {repr(handler_str)}"
+            )
+
+        module, handler = handler_str.split(":")
         module = self._importer.load_module(module)
         return getattr(module, handler)
 

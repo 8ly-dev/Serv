@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import sys
+import traceback
 from inspect import isclass
 from pathlib import Path
 
@@ -747,6 +748,60 @@ def handle_validate_extension_command(args_ns):
     return total_issues == 0
 
 
+def _format_exception_group(exc: Exception, dev_mode: bool = False) -> str:
+    """Format an ExceptionGroup with all sub-exceptions for better debugging.
+
+    Args:
+        exc: The exception to format (may or may not be an ExceptionGroup)
+        dev_mode: Whether to include full tracebacks
+
+    Returns:
+        Formatted string with full exception details
+    """
+    if not isinstance(exc, ExceptionGroup):
+        # Not an ExceptionGroup, format normally
+        if dev_mode:
+            return "".join(
+                traceback.format_exception(type(exc), exc, exc.__traceback__)
+            )
+        else:
+            return str(exc)
+
+    # Format ExceptionGroup with all sub-exceptions
+    lines = []
+    lines.append(
+        f"ExceptionGroup: {exc.message} ({len(exc.exceptions)} sub-exception{'s' if len(exc.exceptions) != 1 else ''})"
+    )
+
+    for i, sub_exc in enumerate(exc.exceptions, 1):
+        lines.append(f"\n--- Sub-exception {i}/{len(exc.exceptions)} ---")
+        lines.append(f"Type: {type(sub_exc).__name__}")
+        lines.append(f"Message: {str(sub_exc)}")
+
+        # Include exception notes if present (added by extension loader)
+        # Notes are always shown as they provide valuable context without being too verbose
+        if hasattr(sub_exc, "__notes__") and sub_exc.__notes__:
+            lines.append("Notes:")
+            for note in sub_exc.__notes__:
+                lines.append(f"  {note}")
+
+        if dev_mode:
+            # Include full traceback for each sub-exception
+            tb_lines = traceback.format_exception(
+                type(sub_exc), sub_exc, sub_exc.__traceback__
+            )
+            lines.append("Traceback:")
+            lines.extend(f"  {line.rstrip()}" for line in tb_lines)
+
+        # Check for nested ExceptionGroups
+        if isinstance(sub_exc, ExceptionGroup):
+            lines.append("Nested ExceptionGroup:")
+            nested_format = _format_exception_group(sub_exc, dev_mode)
+            lines.extend(f"  {line}" for line in nested_format.split("\n"))
+
+    return "\n".join(lines)
+
+
 def _get_configured_app(app_module_str: str | None, args_ns) -> App:
     """Get a configured App instance."""
     if app_module_str:
@@ -784,7 +839,19 @@ def _get_configured_app(app_module_str: str | None, args_ns) -> App:
         app = app_class(**app_kwargs)
         return app
     except Exception as e:
-        logger.error(f"Error creating app instance: {e}")
+        # Check if we're in development mode for enhanced error reporting
+        dev_mode = getattr(args_ns, "dev", False) or app_kwargs.get("dev_mode", False)
+
+        if isinstance(e, ExceptionGroup):
+            # Format ExceptionGroup with all sub-exceptions
+            formatted_error = _format_exception_group(e, dev_mode=dev_mode)
+            logger.error(f"Error creating app instance:\n{formatted_error}")
+        else:
+            # Regular exception handling
+            if dev_mode:
+                logger.exception("Error creating app instance", exc_info=e)
+            else:
+                logger.error(f"Error creating app instance: {e}")
         raise
 
 
@@ -1217,11 +1284,16 @@ async def handle_dev_command(args_ns):
         print("   • Enhanced error reporting")
         print("   • Development mode enabled")
 
+        # Set environment variables for better error reporting
+        import os
+
+        os.environ["PYTHONUNBUFFERED"] = "1"  # Ensure immediate output
+        os.environ["PYTHONDONTWRITEBYTECODE"] = "1"  # Prevent .pyc files
+
         app = _get_configured_app(args_ns.app, args_ns)
 
         # Force development mode
-        if hasattr(app, "dev_mode"):
-            app.dev_mode = True
+        app.dev_mode = True
 
         # Configure uvicorn for development
         reload = not args_ns.no_reload
@@ -1235,6 +1307,9 @@ async def handle_dev_command(args_ns):
             else args_ns.workers,  # Reload doesn't work with multiple workers
             "log_level": "debug",
             "access_log": True,
+            # Enhanced error reporting for development
+            "use_colors": True,
+            "server_header": False,  # Reduce noise in dev mode
         }
 
         logger.info(f"Starting development server on {args_ns.host}:{args_ns.port}")
@@ -1252,7 +1327,12 @@ async def handle_dev_command(args_ns):
         logger.info("Development server shutdown requested")
         raise
     except Exception as e:
-        logger.error(f"Error starting development server: {e}")
+        # Enhanced error reporting for development mode
+        if isinstance(e, ExceptionGroup):
+            formatted_error = _format_exception_group(e, dev_mode=True)
+            logger.error(f"Error starting development server:\n{formatted_error}")
+        else:
+            logger.exception("Error starting development server", exc_info=e)
         sys.exit(1)
 
 

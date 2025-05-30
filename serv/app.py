@@ -281,6 +281,16 @@ class App:
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
         self.add_error_handler(HTTPMethodNotAllowedException, self._default_405_handler)
 
+    @property
+    def dev_mode(self) -> bool:
+        """Get the current development mode setting."""
+        return self._dev_mode
+
+    @dev_mode.setter
+    def dev_mode(self, value: bool) -> None:
+        """Set the development mode setting."""
+        self._dev_mode = value
+
     def add_error_handler(
         self,
         error_type: type[Exception],
@@ -584,13 +594,42 @@ class App:
         if "text/html" in accept_header:
             # Use HTML response
             response.content_type("text/html")
+
+            # Enhanced traceback for development mode
+            if self._dev_mode:
+                # Get full traceback with context
+                tb_lines = traceback.format_exception(
+                    type(error), error, error.__traceback__
+                )
+                full_traceback = "".join(tb_lines)
+
+                # Also include exception chain if present
+                if error.__cause__ or error.__context__:
+                    full_traceback += "\n\n--- Exception Chain ---\n"
+                    if error.__cause__:
+                        cause_tb = traceback.format_exception(
+                            type(error.__cause__),
+                            error.__cause__,
+                            error.__cause__.__traceback__,
+                        )
+                        full_traceback += f"Caused by: {''.join(cause_tb)}"
+                    if error.__context__ and error.__context__ != error.__cause__:
+                        context_tb = traceback.format_exception(
+                            type(error.__context__),
+                            error.__context__,
+                            error.__context__.__traceback__,
+                        )
+                        full_traceback += f"During handling of: {''.join(context_tb)}"
+            else:
+                full_traceback = "".join(traceback.format_exception(error))
+
             context = {
                 "status_code": status_code,
                 "error_title": "Error",
                 "error_message": "An unexpected error occurred.",
                 "error_type": type(error).__name__,
                 "error_str": str(error),
-                "traceback": "".join(traceback.format_exception(error)),
+                "traceback": full_traceback,
                 "request_path": request.path,
                 "request_method": request.method,
                 "show_details": self._dev_mode,
@@ -612,17 +651,41 @@ class App:
             }
 
             if self._dev_mode:
-                error_data["traceback"] = traceback.format_exception(error)
+                # Enhanced traceback for JSON response in dev mode
+                tb_lines = traceback.format_exception(
+                    type(error), error, error.__traceback__
+                )
+                error_data["traceback"] = tb_lines
+
+                # Include exception chain
+                if error.__cause__:
+                    cause_tb = traceback.format_exception(
+                        type(error.__cause__),
+                        error.__cause__,
+                        error.__cause__.__traceback__,
+                    )
+                    error_data["caused_by"] = cause_tb
+                if error.__context__ and error.__context__ != error.__cause__:
+                    context_tb = traceback.format_exception(
+                        type(error.__context__),
+                        error.__context__,
+                        error.__context__.__traceback__,
+                    )
+                    error_data["context"] = context_tb
 
             response.body(json.dumps(error_data))
         else:
             # Use plaintext response
             response.content_type("text/plain")
-            error_message = (
-                f"{status_code} Error: {type(error).__name__}: {error}"
-                if self._dev_mode
-                else f"{status_code} Error: An unexpected error occurred."
-            )
+            if self._dev_mode:
+                # Full traceback in plaintext for dev mode
+                tb_lines = traceback.format_exception(
+                    type(error), error, error.__traceback__
+                )
+                full_traceback = "".join(tb_lines)
+                error_message = f"{status_code} Error: {type(error).__name__}: {error}\n\nFull Traceback:\n{full_traceback}"
+            else:
+                error_message = f"{status_code} Error: An unexpected error occurred."
             response.body(error_message)
 
     @inject
