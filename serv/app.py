@@ -277,6 +277,7 @@ class App:
 
         # Set up container instances
         self._container.add(App, self)
+        self._container.add(EventEmitter, self._emit)
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
