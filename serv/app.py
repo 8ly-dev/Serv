@@ -276,7 +276,7 @@ class App:
         inject_request_object.register_hook(self._registry)
 
         # Set up container instances
-        self._container.instances[App] = self
+        self._container.add(App, self)
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
