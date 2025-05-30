@@ -8,9 +8,9 @@ from httpx import AsyncClient
 
 from serv.app import App
 from serv.extensions import Extension
+from serv.injectors import Cookie, Header, Query
 from serv.routes import (
     Form,
-    GetRequest,
     Jinja2Response,
     JsonResponse,
     Response,
@@ -20,7 +20,6 @@ from serv.routes import (
 from serv.routing import (
     Router,  # For type hinting if needed, actual router comes from event
 )
-from serv.injectors import Header, Cookie, Query
 from tests.helpers import create_test_extension_spec
 
 # --- Test-specific Form and Route classes ---
@@ -48,7 +47,9 @@ class ComplexTestRoute(Route):
     async def handle_post(self, form: SimpleForm) -> Annotated[str, TextResponse]:
         return f"Form processed: Name={form.name}, Age={form.age}"
 
-    async def handle_post_another(self, form: AnotherForm) -> Annotated[str, TextResponse]:
+    async def handle_post_another(
+        self, form: AnotherForm
+    ) -> Annotated[str, TextResponse]:
         return f"AnotherForm processed: ItemID={form.item_id}"
 
     async def handle_custom_error(self, error: MyCustomException) -> Response:
@@ -166,36 +167,40 @@ class ParameterInjectionRoute(Route):
 
 class MultipleGetHandlersRoute(Route):
     """Route with multiple GET handlers to test signature matching"""
-    
+
     async def handle_get_with_user_id(
         self, user_id: Annotated[str, Query("user_id")]
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "user_id", "user_id": user_id}
-    
+
     async def handle_get_with_category(
         self, category: Annotated[str, Query("category")]
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "category", "category": category}
-    
+
     async def handle_get_with_both(
         self,
         user_id: Annotated[str, Query("user_id")],
-        category: Annotated[str, Query("category")]
+        category: Annotated[str, Query("category")],
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "both", "user_id": user_id, "category": category}
-    
+
     async def handle_get_fallback(self) -> Annotated[dict, JsonResponse]:
         return {"handler": "fallback", "message": "no specific parameters"}
 
 
 class ParameterInjectionFailureRoute(Route):
     """Route to test parameter injection failures"""
-    
+
     async def handle_get_required_missing(
         self, required_param: Annotated[str, Query("required")]
     ) -> Annotated[dict, JsonResponse]:
         return {"required_param": required_param}
-    
+
+
+class ParameterInjectionWithDefaultRoute(Route):
+    """Route to test parameter injection with default values"""
+
     async def handle_get_with_default(
         self, optional_param: Annotated[str, Query("optional", default="default")]
     ) -> Annotated[dict, JsonResponse]:
@@ -204,19 +209,19 @@ class ParameterInjectionFailureRoute(Route):
 
 class HandlerScoringRoute(Route):
     """Route to test handler scoring system"""
-    
+
     async def handle_get_high_score(
         self,
         param1: Annotated[str, Query("param1")],
-        param2: Annotated[str, Query("param2")]
+        param2: Annotated[str, Query("param2")],
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "high_score", "param1": param1, "param2": param2}
-    
+
     async def handle_get_medium_score(
         self, param1: Annotated[str, Query("param1")]
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "medium_score", "param1": param1}
-    
+
     async def handle_get_low_score(self) -> Annotated[dict, JsonResponse]:
         return {"handler": "low_score"}
 
@@ -623,17 +628,22 @@ async def test_parameter_injection_required_missing(app: App, client: AsyncClien
 
     # Missing required parameter should result in error
     response = await client.get("/test_param_failure")
-    assert response.status_code in [400, 500]  # Could be either depending on error handling
+    assert response.status_code in [
+        400,
+        500,
+    ]  # Could be either depending on error handling
     assert plugin.plugin_registered_route
 
 
 @pytest.mark.asyncio
 async def test_parameter_injection_with_default_fallback(app: App, client: AsyncClient):
-    plugin = RouteTestExtension("/test_param_failure", ParameterInjectionFailureRoute)
+    plugin = RouteTestExtension(
+        "/test_param_default", ParameterInjectionWithDefaultRoute
+    )
     app.add_extension(plugin)
 
     # Should use the handler with default value
-    response = await client.get("/test_param_failure")
+    response = await client.get("/test_param_default")
     assert response.status_code == 200
     data = response.json()
     assert data["optional_param"] == "default"
