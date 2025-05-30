@@ -874,7 +874,7 @@ Test your routes and iterate:
 
 ```bash
 # Start development server
-serv dev
+serv --dev launch
 
 # Run tests
 serv test

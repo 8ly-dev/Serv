@@ -814,7 +814,7 @@ Update the extension's `extension.yaml` with appropriate configuration.
 serv extension enable security
 
 # Test the application
-serv dev
+serv --dev launch
 
 # Run tests
 serv test

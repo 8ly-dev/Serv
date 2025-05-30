@@ -26,7 +26,7 @@ The easiest way to deploy Serv applications is using the built-in CLI commands:
 serv launch --host 0.0.0.0 --port 8000 --workers 4
 
 # Development server
-serv dev --host 0.0.0.0 --port 8000
+serv --dev launch --host 0.0.0.0 --port 8000
 
 # Test configuration before deployment
 serv launch --dry-run

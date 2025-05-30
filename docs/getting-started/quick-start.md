@@ -126,14 +126,15 @@ serv extension enable hello_world
 Start the development server:
 
 ```bash
-serv dev
+serv --dev launch
 ```
 
-Or use the standard launch command:
+Your Serv application is now running at `http://127.0.0.1:8000`. The development server includes:
 
-```bash
-serv launch
-```
+- 🔄 **Auto-reload**: Automatically restarts when you change files
+- 📝 **Enhanced error reporting**: Detailed tracebacks and debugging information  
+- 🐛 **Debug logging**: Verbose logging for development
+- ⚡ **Fast startup**: Optimized for development workflow
 
 ### 7. Test Your Application
 
@@ -380,7 +381,7 @@ serv create listener --name "name" --extension "extension"
 
 ### Development
 ```bash
-serv dev                       # Start development server
+serv --dev launch              # Start development server
 serv launch                    # Start production server
 serv test                      # Run tests
 serv shell                     # Interactive shell
@@ -518,4 +519,4 @@ serv app details
 serv app check
 ```
 
-You're now ready to build amazing applications with Serv! 🚀 
+You're now ready to build amazing applications with Serv! 🚀

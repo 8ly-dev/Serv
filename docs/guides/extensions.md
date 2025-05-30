@@ -779,7 +779,7 @@ serv extension enable my_feature
 serv extension validate my_feature
 
 # Test the application
-serv dev
+serv --dev launch
 ```
 
 ## Next Steps

@@ -1229,27 +1229,71 @@ async def handle_launch_command(args_ns):
     logger.debug("Launch command started.")
 
     try:
+        # Check if dev mode is enabled (global --dev flag)
+        dev_mode = getattr(args_ns, "dev", False)
+
+        if dev_mode:
+            print("🚀 Starting Serv development server...")
+            print("📝 Development mode features:")
+            print("   • Auto-reload enabled (unless --no-reload)")
+            print("   • Enhanced error reporting")
+            print("   • Development mode enabled")
+
+            # Set environment variables for better error reporting
+            import os
+
+            os.environ["PYTHONUNBUFFERED"] = "1"  # Ensure immediate output
+            os.environ["PYTHONDONTWRITEBYTECODE"] = "1"  # Prevent .pyc files
+
         app = _get_configured_app(args_ns.app, args_ns)
+
+        # Force development mode if --dev flag is set
+        if dev_mode:
+            app.dev_mode = True
 
         if args_ns.dry_run:
             print("=== Dry Run Mode ===")
             print("Application loaded successfully. Server would start with:")
             print(f"  Host: {args_ns.host}")
             print(f"  Port: {args_ns.port}")
-            print(f"  Reload: {args_ns.reload}")
+            print(f"  Dev Mode: {dev_mode}")
+            if dev_mode:
+                reload_enabled = not getattr(args_ns, "no_reload", False)
+                print(f"  Reload: {reload_enabled}")
+            else:
+                print(f"  Reload: {args_ns.reload}")
             print(f"  Workers: {args_ns.workers}")
             return
+
+        # Determine reload setting
+        if dev_mode:
+            # In dev mode, auto-reload is enabled by default unless --no-reload is specified
+            reload = not getattr(args_ns, "no_reload", False)
+        else:
+            # In normal mode, only reload if --reload is explicitly specified
+            reload = args_ns.reload
 
         # Configure uvicorn
         uvicorn_config = {
             "app": app,
             "host": args_ns.host,
             "port": args_ns.port,
-            "reload": args_ns.reload,
+            "reload": reload,
             "workers": args_ns.workers
-            if not args_ns.reload
+            if not reload
             else 1,  # Reload doesn't work with multiple workers
         }
+
+        # Add dev mode specific configuration
+        if dev_mode:
+            uvicorn_config.update(
+                {
+                    "log_level": "debug",
+                    "access_log": True,
+                    "use_colors": True,
+                    "server_header": False,  # Reduce noise in dev mode
+                }
+            )
 
         if args_ns.factory:
             # If factory mode, we need to pass the app as a string
@@ -1258,65 +1302,14 @@ async def handle_launch_command(args_ns):
             else:
                 uvicorn_config["app"] = "serv.app:App"
 
-        logger.info(f"Starting Serv application on {args_ns.host}:{args_ns.port}")
-
-        # Start the server
-        server = uvicorn.Server(uvicorn.Config(**uvicorn_config))
-        await server.serve()
-
-    except KeyboardInterrupt:
-        # This should be handled by the main CLI, but just in case
-        logger.info("Server shutdown requested")
-        raise
-    except Exception as e:
-        logger.error(f"Error launching application: {e}")
-        sys.exit(1)
-
-
-async def handle_dev_command(args_ns):
-    """Handles the 'dev' command for enhanced development server."""
-    logger.debug("Dev command started.")
-
-    try:
-        print("🚀 Starting Serv development server...")
-        print("📝 Development mode features:")
-        print("   • Auto-reload enabled (unless --no-reload)")
-        print("   • Enhanced error reporting")
-        print("   • Development mode enabled")
-
-        # Set environment variables for better error reporting
-        import os
-
-        os.environ["PYTHONUNBUFFERED"] = "1"  # Ensure immediate output
-        os.environ["PYTHONDONTWRITEBYTECODE"] = "1"  # Prevent .pyc files
-
-        app = _get_configured_app(args_ns.app, args_ns)
-
-        # Force development mode
-        app.dev_mode = True
-
-        # Configure uvicorn for development
-        reload = not args_ns.no_reload
-        uvicorn_config = {
-            "app": app,
-            "host": args_ns.host,
-            "port": args_ns.port,
-            "reload": reload,
-            "workers": 1
-            if reload
-            else args_ns.workers,  # Reload doesn't work with multiple workers
-            "log_level": "debug",
-            "access_log": True,
-            # Enhanced error reporting for development
-            "use_colors": True,
-            "server_header": False,  # Reduce noise in dev mode
-        }
-
-        logger.info(f"Starting development server on {args_ns.host}:{args_ns.port}")
-        if reload:
-            print("🔄 Auto-reload is enabled - files will be watched for changes")
+        if dev_mode:
+            logger.info(f"Starting development server on {args_ns.host}:{args_ns.port}")
+            if reload:
+                print("🔄 Auto-reload is enabled - files will be watched for changes")
+            else:
+                print("⚠️  Auto-reload is disabled")
         else:
-            print("⚠️  Auto-reload is disabled")
+            logger.info(f"Starting Serv application on {args_ns.host}:{args_ns.port}")
 
         # Start the server
         server = uvicorn.Server(uvicorn.Config(**uvicorn_config))
@@ -1324,15 +1317,20 @@ async def handle_dev_command(args_ns):
 
     except KeyboardInterrupt:
         # This should be handled by the main CLI, but just in case
-        logger.info("Development server shutdown requested")
+        if dev_mode:
+            logger.info("Development server shutdown requested")
+        else:
+            logger.info("Server shutdown requested")
         raise
     except Exception as e:
         # Enhanced error reporting for development mode
-        if isinstance(e, ExceptionGroup):
+        if dev_mode and isinstance(e, ExceptionGroup):
             formatted_error = _format_exception_group(e, dev_mode=True)
             logger.error(f"Error starting development server:\n{formatted_error}")
-        else:
+        elif dev_mode:
             logger.exception("Error starting development server", exc_info=e)
+        else:
+            logger.error(f"Error launching application: {e}")
         sys.exit(1)
 
 

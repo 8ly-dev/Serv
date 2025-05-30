@@ -43,6 +43,12 @@ def main():
         logger.setLevel(logging.DEBUG)
         logger.debug("Debug logging enabled.")
 
+    # Enable debug logging automatically in dev mode
+    if hasattr(args_ns, "dev") and args_ns.dev:
+        os.environ["SERV_DEBUG"] = "1"
+        logger.setLevel(logging.DEBUG)
+        logger.debug("Development mode enabled - debug logging activated.")
+
     current_args_to_use = args_ns
 
     if not hasattr(args_ns, "command") or args_ns.command is None:
@@ -53,7 +59,8 @@ def main():
         )
         try:
             launch_specific_args = launch_parser.parse_args(non_command_cli_args)
-            for global_arg_name in ["debug", "version"]:
+            # Propagate global arguments to launch command
+            for global_arg_name in ["debug", "dev", "app", "config", "extension_dirs"]:
                 if hasattr(args_ns, global_arg_name):
                     setattr(
                         launch_specific_args,
@@ -66,6 +73,10 @@ def main():
             # If there's a parsing error, let's use the original args to show help
             parser.print_help()
             sys.exit(1)
+    else:
+        # Command was specified, propagate global --dev flag to the command's args
+        if hasattr(args_ns, "dev") and args_ns.dev:
+            current_args_to_use.dev = True
 
     if hasattr(current_args_to_use, "func"):
         # Use async if the handler is async

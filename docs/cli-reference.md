@@ -24,6 +24,7 @@ All Serv commands support these global options:
 |--------|-------------|---------|
 | `--version` | Show version information | `serv --version` |
 | `--debug` | Enable debug logging | `serv --debug launch` |
+| `--dev` | Enable development mode | `serv --dev launch` |
 | `--app`, `-a` | Custom application class | `serv -a myapp.core:CustomApp launch` |
 | `--config`, `-c` | Path to config file | `serv -c config/prod.yaml launch` |
 | `--extension-dirs` | Extension directory path | `serv --extension-dirs ./custom-extensions launch` |
@@ -34,21 +35,21 @@ All Serv commands support these global options:
 
 ### `serv launch`
 
-Launch the production Serv application server.
+Launch the Serv application server.
 
 **Usage:**
 ```bash
-serv launch [--host HOST] [--port PORT] [--reload] [--workers N] [--factory] [--dry-run] [--dev]
+serv launch [--host HOST] [--port PORT] [--reload] [--no-reload] [--workers N] [--factory] [--dry-run]
 ```
 
 **Options:**
 - `--host`: Bind socket to this host (default: 127.0.0.1)
 - `--port`, `-p`: Bind socket to this port (default: 8000)
 - `--reload`: Enable auto-reload
+- `--no-reload`: Disable auto-reload (overrides --dev mode default)
 - `--workers`, `-w`: Number of worker processes (default: 1)
 - `--factory`: Treat app as factory function
 - `--dry-run`: Load app but don't start server
-- `--dev`: Enable development mode
 
 **Examples:**
 
@@ -62,49 +63,38 @@ serv launch --host 0.0.0.0 --port 3000
 # Production with multiple workers
 serv launch --workers 4 --host 0.0.0.0 --port 8000
 
-# Development mode with auto-reload
-serv launch --dev --reload
+# Development mode with enhanced features
+serv --dev launch
+
+# Development mode with auto-reload disabled
+serv --dev launch --no-reload
 
 # Dry run to test configuration
 serv launch --dry-run
 ```
 
-### `serv dev`
+**Development Mode (--dev flag):**
 
-Start an enhanced development server with debugging features.
+The global `--dev` flag enables enhanced development features:
 
-**Usage:**
-```bash
-serv dev [--host HOST] [--port PORT] [--no-reload] [--workers N]
-```
-
-**Options:**
-- `--host`: Bind socket to this host (default: 127.0.0.1)
-- `--port`, `-p`: Bind socket to this port (default: 8000)
-- `--no-reload`: Disable auto-reload (enabled by default)
-- `--workers`, `-w`: Number of worker processes (default: 1)
-
-**Examples:**
+- 🔄 Auto-reload enabled by default (unless `--no-reload` is specified)
+- 📝 Enhanced error reporting with full tracebacks
+- 🐛 Debug logging automatically enabled
+- ⚡ Development-optimized uvicorn settings
 
 ```bash
 # Start development server
-serv dev
+serv --dev launch
 
-# Custom port with auto-reload
-serv dev --port 3000
+# Development mode on custom port
+serv --dev launch --port 3000
 
-# Disable auto-reload
-serv dev --no-reload
+# Development mode without auto-reload
+serv --dev launch --no-reload
 
-# Development server on all interfaces
-serv dev --host 0.0.0.0
+# Development mode on all interfaces
+serv --dev launch --host 0.0.0.0
 ```
-
-**Development features:**
-- 🔄 Auto-reload enabled by default
-- 📝 Enhanced error reporting
-- 🐛 Debug logging
-- ⚡ Fast restart on file changes
 
 ## Testing
 
@@ -687,7 +677,7 @@ serv extension enable my_feature
 serv test --extensions
 
 # 9. Start development server
-serv dev
+serv --dev launch
 ```
 
 ### Testing Workflow
@@ -766,7 +756,7 @@ serv launch --dry-run
 Enable debug logging for detailed information:
 
 ```bash
-serv --debug dev
+serv --debug launch
 serv --debug config validate
 serv --debug extension validate
 ```
@@ -778,7 +768,7 @@ serv --debug extension validate
 serv --help
 
 # Command-specific help
-serv dev --help
+serv --dev launch --help
 serv create route --help
 serv config set --help
 ```

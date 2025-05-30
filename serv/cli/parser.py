@@ -17,7 +17,6 @@ from .commands import (
     handle_create_listener_command,
     handle_create_middleware_command,
     handle_create_route_command,
-    handle_dev_command,
     handle_disable_extension_command,
     handle_enable_extension_command,
     handle_init_command,
@@ -43,6 +42,11 @@ def create_parser():
         "--debug",
         action="store_true",
         help="Enable debug logging for Serv CLI and potentially the app.",
+    )
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Enable development mode with enhanced features (auto-reload, debug logging, enhanced error reporting).",
     )
     parser.add_argument(
         "--app",
@@ -86,6 +90,11 @@ def create_parser():
         "--reload", action="store_true", help="Enable auto-reload."
     )
     launch_parser.add_argument(
+        "--no-reload",
+        action="store_true",
+        help="Disable auto-reload (overrides --dev mode's default auto-reload).",
+    )
+    launch_parser.add_argument(
         "--workers",
         "-w",
         type=int,
@@ -102,42 +111,7 @@ def create_parser():
         action="store_true",
         help="Load and configure the app and extensions but don't start the server.",
     )
-    launch_parser.add_argument(
-        "--dev",
-        action="store_true",
-        help="Enable development mode for the application.",
-    )
     launch_parser.set_defaults(func=handle_launch_command)
-
-    # Dev parser
-    dev_parser = subparsers.add_parser(
-        "dev", help="Start development server with enhanced features."
-    )
-    dev_parser.add_argument(
-        "--host",
-        help="Bind socket to this host. Default: 127.0.0.1",
-        default="127.0.0.1",
-    )
-    dev_parser.add_argument(
-        "--port",
-        "-p",
-        type=int,
-        help="Bind socket to this port. Default: 8000",
-        default=8000,
-    )
-    dev_parser.add_argument(
-        "--no-reload",
-        action="store_true",
-        help="Disable auto-reload (enabled by default in dev mode).",
-    )
-    dev_parser.add_argument(
-        "--workers",
-        "-w",
-        type=int,
-        help="Number of worker processes. Defaults to 1 (reload disabled with multiple workers).",
-        default=1,
-    )
-    dev_parser.set_defaults(func=handle_dev_command)
 
     # Test parser
     test_parser = subparsers.add_parser(

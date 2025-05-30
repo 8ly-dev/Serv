@@ -940,26 +940,39 @@ class TestExtension(Extension):
         assert "Set test.items = ['a', 'b', 'c']" in stdout
 
     def test_dev_command_dry_run(self, clean_test_dir):
-        """Test the 'serv dev' command in a way that doesn't start the server."""
-        # Note: We can't easily test the actual server startup without complex async handling
-        # So we'll test the command parsing and basic setup
-
+        """Test the '--dev' flag with launch command (replaces the old 'serv dev' command)."""
         # Set up a clean directory with config
         run_cli_command(
             ["python", "-m", "serv", "create", "app", "--force", "--non-interactive"],
             cwd=clean_test_dir,
         )
 
-        # Test that the dev command exists and can be parsed (will fail when trying to start server)
+        # Test that the --dev flag works with launch command
         return_code, stdout, stderr = run_cli_command(
-            ["python", "-m", "serv", "dev", "--help"],
+            ["python", "-m", "serv", "--dev", "launch", "--help"],
             cwd=clean_test_dir,
         )
-        assert "usage: serv dev" in stdout
+        assert "usage: serv launch" in stdout
         assert "--host" in stdout
         assert "--port" in stdout
         assert "--no-reload" in stdout
         assert "--workers" in stdout
+
+        # Test --dev flag in main help
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "--help"],
+            cwd=clean_test_dir,
+        )
+        assert "--dev" in stdout
+        assert "development mode" in stdout.lower()
+
+        # Test that --dev flag can be used without explicit launch command
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "--dev", "--help"],
+            cwd=clean_test_dir,
+        )
+        # Should default to launch command when no subcommand specified
+        assert "usage:" in stdout.lower()
 
     def test_test_command_no_pytest(self, clean_test_dir):
         """Test the 'serv test' command when pytest is not available."""
@@ -1036,26 +1049,28 @@ class TestExtension(Extension):
         )
 
     def test_all_new_commands_help(self, clean_test_dir):
-        """Test that all new commands have proper help text."""
-        # Test main help shows all new commands
+        """Test that all commands have proper help text."""
+        # Test main help shows all commands and global flags
         return_code, stdout, stderr = run_cli_command(
             ["python", "-m", "serv", "--help"],
             cwd=clean_test_dir,
         )
 
-        # Check that all new commands are listed in main help
-        assert "dev" in stdout
+        # Check that all commands are listed in main help
         assert "test" in stdout
         assert "shell" in stdout
         assert "config" in stdout
-        assert "Start development server with enhanced features" in stdout
         assert "Run tests for the application and extensions" in stdout
         assert "Start interactive Python shell with app context" in stdout
         assert "Configuration management commands" in stdout
 
+        # Check that the global --dev flag is shown
+        assert "--dev" in stdout
+        assert "development mode" in stdout.lower()
+
         # Test individual command help works
         individual_commands = [
-            ["dev", "--help"],
+            ["launch", "--help"],
             ["test", "--help"],
             ["shell", "--help"],
             ["config", "--help"],
@@ -1075,6 +1090,14 @@ class TestExtension(Extension):
             assert "options:" in stdout.lower(), (
                 f"Command {cmd_args} should show options help"
             )
+
+        # Test global --dev flag with launch command
+        return_code, stdout, stderr = run_cli_command(
+            ["python", "-m", "serv", "--dev", "launch", "--help"],
+            cwd=clean_test_dir,
+        )
+        assert "usage:" in stdout.lower()
+        assert "options:" in stdout.lower()
 
     def test_config_subcommands_help(self, clean_test_dir):
         """Test that all config subcommands have proper help text."""
