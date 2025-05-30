@@ -1,7 +1,0 @@
-name: SignatureRoutingDemo
-description: "Demonstration of signature-based routing with multiple handlers per HTTP method"
-version: "1.0.0"
-author: "Serv Framework"
-
-listeners:
-  - main:SignatureRoutingExtension
