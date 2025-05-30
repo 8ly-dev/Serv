@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from serv.app import App
 from serv.extensions import Extension
 from serv.requests import Request
-from serv.routes import Route, TextResponse
+from serv.routes import Route, TextResponse, handle
 from serv.routing import Router
 from tests.helpers import create_test_extension_spec
 
@@ -20,7 +20,8 @@ from tests.helpers import create_test_extension_spec
 class FileUploadTestRoute(Route):
     """Handle file upload using Route class pattern"""
 
-    async def handle_post(
+    @handle.POST
+    async def post_handler(
         self, request: Request = dependency()
     ) -> Annotated[str, TextResponse]:
         from serv.exceptions import HTTPBadRequestException

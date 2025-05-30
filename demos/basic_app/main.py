@@ -4,14 +4,15 @@ from typing import Annotated
 from serv.app import App
 from serv.extensions import Listener
 from serv.responses import HtmlResponse, TextResponse
-from serv.routes import Route
+from serv.routes import Route, handle
 from serv.routing import Router
 
 
 class HomeRoute(Route):
-    """Modern Route class demonstrating signature-based routing"""
+    """Modern Route class demonstrating decorator-based routing"""
 
-    async def handle_get(self) -> Annotated[str, TextResponse]:
+    @handle.GET
+    async def get_homepage(self) -> Annotated[str, TextResponse]:
         """Handle GET requests to homepage"""
         return "Hello from Serv! This is the updated basic demo using Route classes."
 
@@ -19,7 +20,8 @@ class HomeRoute(Route):
 class AboutRoute(Route):
     """About page route"""
 
-    async def handle_get(self) -> Annotated[str, HtmlResponse]:
+    @handle.GET
+    async def get_about(self) -> Annotated[str, HtmlResponse]:
         """Handle GET requests to about page"""
         return """
         <h1>About Us</h1>
@@ -29,7 +31,7 @@ class AboutRoute(Route):
         <h2>What's New</h2>
         <ul>
             <li>Route classes instead of functions</li>
-            <li>Signature-based method dispatch</li>
+            <li>Decorator-based method dispatch</li>
             <li>Type-annotated responses</li>
             <li>Automatic parameter injection</li>
         </ul>

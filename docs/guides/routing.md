@@ -1,13 +1,13 @@
 # Routing
 
-Serv provides a powerful and intuitive routing system built around Route classes that use signature-based method dispatch. Routes automatically detect and invoke the appropriate handler method based on HTTP method and request parameters, making your application structure clear and maintainable.
+Serv provides a powerful and intuitive routing system built around Route classes that use decorator-based method dispatch. Routes automatically detect and invoke the appropriate handler method based on HTTP method decorators and request parameters, making your application structure clear and maintainable.
 
 ## Overview
 
 In Serv, routing follows these principles:
 
-1. **Route Classes**: Create classes that inherit from `Route` with typed handler methods
-2. **Signature-Based Dispatch**: Handlers are selected based on method signatures and request data
+1. **Route Classes**: Create classes that inherit from `Route` with decorated handler methods
+2. **Decorator-Based Dispatch**: Handlers are selected based on @handle decorators and request data
 3. **Parameter Injection**: Automatic extraction of parameters from requests based on type annotations
 4. **Multiple Handlers**: Support multiple handlers per HTTP method with different parameter requirements
 5. **Extension-Based Organization**: Routes are organized within extensions for modularity
@@ -60,25 +60,28 @@ routers:
 **route_blog_posts.py:**
 ```python
 from typing import Annotated
-from serv.routes import Route, GetRequest, PostRequest
+from serv.routes import Route, GetRequest, PostRequest, handle
 from serv.responses import JsonResponse, TextResponse
 from serv.injectors import Query, Header
 
 class BlogPosts(Route):
-    async def handle_get(self) -> Annotated[list[dict], JsonResponse]:
+    @handle.GET
+    async def get_all_posts(self) -> Annotated[list[dict], JsonResponse]:
         """Handle GET requests to /api/posts"""
-        posts = await self.get_all_posts()
+        posts = await self.fetch_all_posts()
         return posts
     
-    async def handle_get_by_author(
+    @handle.GET
+    async def get_posts_by_author(
         self, 
         author: Annotated[str, Query("author")]
     ) -> Annotated[list[dict], JsonResponse]:
         """Handle GET requests with author filter"""
-        posts = await self.get_posts_by_author(author)
+        posts = await self.fetch_posts_by_author(author)
         return posts
     
-    async def handle_post(
+    @handle.POST
+    async def create_post(
         self, 
         request: PostRequest,
         auth_token: Annotated[str, Header("Authorization")]
@@ -88,18 +91,18 @@ class BlogPosts(Route):
             raise HTTPUnauthorizedException("Invalid token")
         
         data = await request.json()
-        post = await self.create_post(data)
+        post = await self.save_post(data)
         return "Post created successfully"
     
-    async def get_all_posts(self):
+    async def fetch_all_posts(self):
         """Get all blog posts"""
         return [{"id": 1, "title": "Sample Post", "content": "Sample content"}]
     
-    async def get_posts_by_author(self, author: str):
+    async def fetch_posts_by_author(self, author: str):
         """Get posts by specific author"""
         return [{"id": 1, "title": "Sample Post", "author": author}]
     
-    async def create_post(self, data: dict):
+    async def save_post(self, data: dict):
         """Create a new blog post"""
         return {"id": 2, "title": data.get("title"), "content": data.get("content")}
     
@@ -171,37 +174,40 @@ This creates routes at:
 - `/admin/dashboard`
 - `/admin/users`
 
-## Route Classes and Signature-Based Routing
+## Route Classes and Decorator-Based Routing
 
 ### Route Class Structure
 
-Route classes inherit from `Route` and define handler methods for different HTTP methods:
+Route classes inherit from `Route` and define handler methods decorated with HTTP method decorators:
 
 ```python
 from typing import Annotated
-from serv.routes import Route, GetRequest, PostRequest, PutRequest, DeleteRequest
+from serv.routes import Route, GetRequest, PostRequest, PutRequest, DeleteRequest, handle
 from serv.responses import JsonResponse, TextResponse
 from serv.injectors import Query, Header, Cookie
 from serv.exceptions import HTTPNotFoundException, HTTPUnauthorizedException
 
 class UserRoute(Route):
-    async def handle_get(self, user_id: Annotated[str, Query("id")]) -> Annotated[dict, JsonResponse]:
+    @handle.GET
+    async def get_user_by_id(self, user_id: Annotated[str, Query("id")]) -> Annotated[dict, JsonResponse]:
         """Get user by ID"""
         user = await self.get_user(user_id)
         if not user:
             raise HTTPNotFoundException(f"User {user_id} not found")
         return user
     
-    async def handle_get_profile(
+    @handle.GET
+    async def get_user_profile(
         self, 
         user_id: Annotated[str, Query("id")],
         include_private: Annotated[str, Query("private", default="false")]
     ) -> Annotated[dict, JsonResponse]:
         """Get user profile with optional private data"""
-        user = await self.get_user_profile(user_id, include_private == "true")
+        user = await self.get_user_profile_data(user_id, include_private == "true")
         return user
     
-    async def handle_post(
+    @handle.POST
+    async def create_new_user(
         self, 
         request: PostRequest,
         auth_token: Annotated[str, Header("Authorization")]
@@ -214,7 +220,8 @@ class UserRoute(Route):
         user = await self.create_user(data)
         return "User created successfully"
     
-    async def handle_put(
+    @handle.PUT
+    async def update_user_data(
         self, 
         request: PutRequest,
         user_id: Annotated[str, Query("id")],
@@ -228,7 +235,8 @@ class UserRoute(Route):
         user = await self.update_user(user_id, data)
         return user
     
-    async def handle_delete(
+    @handle.DELETE
+    async def delete_user_account(
         self, 
         user_id: Annotated[str, Query("id")],
         auth_token: Annotated[str, Header("Authorization")]
@@ -241,11 +249,11 @@ class UserRoute(Route):
         return "User deleted successfully"
 ```
 
-### Signature-Based Method Selection
+### Decorator-Based Method Selection
 
 Serv automatically selects the most appropriate handler based on:
 
-1. **HTTP Method Match**: Methods starting with `handle_<method>` (e.g., `handle_get`, `handle_post`)
+1. **HTTP Method Match**: Methods decorated with `@handle.GET`, `@handle.POST`, etc.
 2. **Parameter Availability**: Handlers requiring parameters that are available in the request
 3. **Specificity Score**: More specific handlers (more parameters) are preferred
 

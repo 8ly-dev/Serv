@@ -4,18 +4,20 @@ from bevy import dependency
 
 from serv.app import App
 from serv.extensions import Listener
-from serv.routes import GetRequest, Jinja2Response, JsonResponse, Route
+from serv.routes import GetRequest, Jinja2Response, JsonResponse, Route, handle
 from serv.routing import Router
 
 
 # Define API Route classes for different resources
 class UsersAPI(Route):
+    @handle.GET
     async def list_all(
         self, request: GetRequest
     ) -> Annotated[dict[str, Any], JsonResponse]:
         users = [{"id": 1, "name": "John Doe"}, {"id": 2, "name": "Jane Smith"}]
         return {"users": users}
 
+    @handle.GET
     async def get_one(
         self, request: GetRequest, id: str
     ) -> Annotated[dict[str, Any], JsonResponse]:
@@ -23,6 +25,7 @@ class UsersAPI(Route):
 
 
 class ArticlesAPI(Route):
+    @handle.GET
     async def list_all(
         self, request: GetRequest
     ) -> Annotated[dict[str, Any], JsonResponse]:
@@ -32,6 +35,7 @@ class ArticlesAPI(Route):
         ]
         return {"articles": articles}
 
+    @handle.GET
     async def get_one(
         self, request: GetRequest, id: str
     ) -> Annotated[dict[str, Any], JsonResponse]:
@@ -40,6 +44,7 @@ class ArticlesAPI(Route):
 
 # Define frontend routes
 class HomePage(Route):
+    @handle.GET
     async def on_get(
         self, request: GetRequest
     ) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
@@ -47,6 +52,7 @@ class HomePage(Route):
 
 
 class AboutPage(Route):
+    @handle.GET
     async def on_get(
         self, request: GetRequest
     ) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:

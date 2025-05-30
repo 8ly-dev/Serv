@@ -44,5 +44,6 @@ For detailed documentation and examples, visit: https://serv.dev/docs
 """
 
 from serv.app import App
+from serv.routes import handle
 
-__all__ = ["App"]
+__all__ = ["App", "handle"]

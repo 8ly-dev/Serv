@@ -16,6 +16,7 @@ from serv.routes import (
     Response,
     Route,
     TextResponse,
+    handle,
 )
 from serv.routing import (
     Router,  # For type hinting if needed, actual router comes from event
@@ -41,13 +42,16 @@ class MyCustomException(Exception):
 
 
 class ComplexTestRoute(Route):
-    async def handle_get(self) -> Annotated[str, TextResponse]:
+    @handle.GET
+    async def get_handler(self) -> Annotated[str, TextResponse]:
         return "GET request processed"
 
-    async def handle_post(self, form: SimpleForm) -> Annotated[str, TextResponse]:
+    @handle.POST
+    async def post_simple_form(self, form: SimpleForm) -> Annotated[str, TextResponse]:
         return f"Form processed: Name={form.name}, Age={form.age}"
 
-    async def handle_post_another(
+    @handle.POST
+    async def post_another_form(
         self, form: AnotherForm
     ) -> Annotated[str, TextResponse]:
         return f"AnotherForm processed: ItemID={form.item_id}"
@@ -57,7 +61,8 @@ class ComplexTestRoute(Route):
 
 
 class CustomErrorRoute(Route):
-    async def handle_get(self) -> Response:
+    @handle.GET
+    async def get_handler(self) -> Response:
         raise MyCustomException("Something went wrong!")
 
     async def handle_custom_error(self, error: MyCustomException) -> Response:
@@ -65,7 +70,8 @@ class CustomErrorRoute(Route):
 
 
 class UnhandledErrorRoute(Route):
-    async def handle_get(self) -> Response:
+    @handle.GET
+    async def get_handler(self) -> Response:
         raise ValueError("This is an unhandled error.")
 
 
@@ -73,34 +79,40 @@ class UnhandledErrorRoute(Route):
 
 
 class JsonAnnotatedRoute(Route):
-    async def handle_get(
+    @handle.GET
+    async def get_handler(
         self,
     ) -> Annotated[list[dict[str, Any]], JsonResponse]:
         return [{"id": 1, "name": "Test User"}, {"id": 2, "name": "Another User"}]
 
 
 class TextAnnotatedRoute(Route):
-    async def handle_get(self) -> Annotated[str, TextResponse]:
+    @handle.GET
+    async def get_handler(self) -> Annotated[str, TextResponse]:
         return "Hello from annotated text!"
 
 
 class RawDictRoute(Route):  # For testing error case
-    async def handle_get(self) -> dict[str, str]:
+    @handle.GET
+    async def get_handler(self) -> dict[str, str]:
         return {"message": "This is a raw dict"}
 
 
 class RawStringRoute(Route):
-    async def handle_get(self) -> str:
+    @handle.GET
+    async def get_handler(self) -> str:
         return "This is a raw string."
 
 
 class DirectResponseInstanceRoute(Route):
-    async def handle_get(self) -> Response:
+    @handle.GET
+    async def get_handler(self) -> Response:
         return TextResponse("Direct Response instance.", status_code=201)
 
 
 class JsonAnnotatedCustomStatusRoute(Route):
-    async def handle_get(
+    @handle.GET
+    async def get_handler(
         self,
     ) -> Annotated[dict[str, str], JsonResponse]:
         return {"custom_status_test": "data"}
@@ -114,7 +126,8 @@ class Jinja2TestResponse(Jinja2Response):
 
 # New route for Jinja2 tuple return test
 class JinjaTupleReturnRoute(Route):
-    async def handle_get(
+    @handle.GET
+    async def get_handler(
         self,
     ) -> Annotated[tuple[str, dict[str, str]], Jinja2TestResponse]:
         return ("jinja_tuple_test.html", {"greeting": "Hello from Jinja via tuple"})
@@ -124,28 +137,33 @@ class JinjaTupleReturnRoute(Route):
 
 
 class ParameterInjectionRoute(Route):
-    async def handle_get_with_query(
+    @handle.GET
+    async def get_with_query(
         self, user_id: Annotated[str, Query("id")]
     ) -> Annotated[dict, JsonResponse]:
         return {"user_id": user_id, "source": "query"}
 
-    async def handle_get_with_header(
+    @handle.GET
+    async def get_with_header(
         self, auth_token: Annotated[str, Header("Authorization")]
     ) -> Annotated[dict, JsonResponse]:
         return {"auth_token": auth_token, "source": "header"}
 
-    async def handle_get_with_cookie(
+    @handle.GET
+    async def get_with_cookie(
         self, session_id: Annotated[str, Cookie("session_id")]
     ) -> Annotated[dict, JsonResponse]:
         return {"session_id": session_id, "source": "cookie"}
 
-    async def handle_get_with_defaults(
+    @handle.GET
+    async def get_with_defaults(
         self,
         optional_param: Annotated[str, Query("optional", default="default_value")],
     ) -> Annotated[dict, JsonResponse]:
         return {"optional_param": optional_param, "source": "query_with_default"}
 
-    async def handle_get_multiple_params(
+    @handle.GET
+    async def get_multiple_params(
         self,
         user_id: Annotated[str, Query("id")],
         auth_token: Annotated[str, Header("Authorization")],
@@ -158,7 +176,8 @@ class ParameterInjectionRoute(Route):
             "source": "multiple",
         }
 
-    async def handle_get_fallback(self) -> Annotated[dict, JsonResponse]:
+    @handle.GET
+    async def get_fallback(self) -> Annotated[dict, JsonResponse]:
         return {"message": "fallback handler", "source": "fallback"}
 
 
@@ -168,31 +187,36 @@ class ParameterInjectionRoute(Route):
 class MultipleGetHandlersRoute(Route):
     """Route with multiple GET handlers to test signature matching"""
 
-    async def handle_get_with_user_id(
+    @handle.GET
+    async def get_with_user_id(
         self, user_id: Annotated[str, Query("user_id")]
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "user_id", "user_id": user_id}
 
-    async def handle_get_with_category(
+    @handle.GET
+    async def get_with_category(
         self, category: Annotated[str, Query("category")]
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "category", "category": category}
 
-    async def handle_get_with_both(
+    @handle.GET
+    async def get_with_both(
         self,
         user_id: Annotated[str, Query("user_id")],
         category: Annotated[str, Query("category")],
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "both", "user_id": user_id, "category": category}
 
-    async def handle_get_fallback(self) -> Annotated[dict, JsonResponse]:
+    @handle.GET
+    async def get_fallback(self) -> Annotated[dict, JsonResponse]:
         return {"handler": "fallback", "message": "no specific parameters"}
 
 
 class ParameterInjectionFailureRoute(Route):
     """Route to test parameter injection failures"""
 
-    async def handle_get_required_missing(
+    @handle.GET
+    async def get_required_missing(
         self, required_param: Annotated[str, Query("required")]
     ) -> Annotated[dict, JsonResponse]:
         return {"required_param": required_param}
@@ -201,7 +225,8 @@ class ParameterInjectionFailureRoute(Route):
 class ParameterInjectionWithDefaultRoute(Route):
     """Route to test parameter injection with default values"""
 
-    async def handle_get_with_default(
+    @handle.GET
+    async def get_with_default(
         self, optional_param: Annotated[str, Query("optional", default="default")]
     ) -> Annotated[dict, JsonResponse]:
         return {"optional_param": optional_param}
@@ -210,19 +235,22 @@ class ParameterInjectionWithDefaultRoute(Route):
 class HandlerScoringRoute(Route):
     """Route to test handler scoring system"""
 
-    async def handle_get_high_score(
+    @handle.GET
+    async def get_high_score(
         self,
         param1: Annotated[str, Query("param1")],
         param2: Annotated[str, Query("param2")],
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "high_score", "param1": param1, "param2": param2}
 
-    async def handle_get_medium_score(
+    @handle.GET
+    async def get_medium_score(
         self, param1: Annotated[str, Query("param1")]
     ) -> Annotated[dict, JsonResponse]:
         return {"handler": "medium_score", "param1": param1}
 
-    async def handle_get_low_score(self) -> Annotated[dict, JsonResponse]:
+    @handle.GET
+    async def get_low_score(self) -> Annotated[dict, JsonResponse]:
         return {"handler": "low_score"}
 
 
@@ -365,7 +393,8 @@ async def test_route_method_not_allowed_specific_override(
 @pytest.mark.asyncio
 async def test_route_method_not_allowed_no_override(app: App, client: AsyncClient):
     class SimpleGetRoute(Route):
-        async def handle_get(self) -> Annotated[str, TextResponse]:
+        @handle.GET
+        async def get_handler(self) -> Annotated[str, TextResponse]:
             return "GET only"
 
         # No custom MNA handler

@@ -17,6 +17,7 @@ from serv.routes import (
     PutRequest,
     Route,
     TextResponse,
+    handle,
 )
 from serv.routing import Router
 
@@ -46,7 +47,8 @@ class CreateUserForm(Form):
 class SearchRoute(Route):
     """Search API with multiple GET handlers based on parameters"""
 
-    async def handle_get(self) -> Annotated[dict, JsonResponse]:
+    @handle.GET
+    async def default_search(self) -> Annotated[dict, JsonResponse]:
         """Default search - no parameters"""
         return {
             "message": "Default search results",
@@ -54,7 +56,8 @@ class SearchRoute(Route):
             "handler": "default",
         }
 
-    async def handle_get_with_query(
+    @handle.GET
+    async def search_with_query(
         self, query: Annotated[str, Query("q")]
     ) -> Annotated[dict, JsonResponse]:
         """Search with query parameter only"""
@@ -64,7 +67,8 @@ class SearchRoute(Route):
             "handler": "with_query",
         }
 
-    async def handle_get_paginated(
+    @handle.GET
+    async def search_paginated(
         self,
         query: Annotated[str, Query("q")],
         page: Annotated[str, Query("page", default="1")],
@@ -81,7 +85,8 @@ class SearchRoute(Route):
             "handler": "paginated",
         }
 
-    async def handle_get_advanced(
+    @handle.GET
+    async def search_advanced(
         self,
         query: Annotated[str, Query("q")],
         page: Annotated[str, Query("page", default="1")],
@@ -104,7 +109,8 @@ class SearchRoute(Route):
 class UserRoute(Route):
     """User API with authentication-based handler selection"""
 
-    async def handle_get(self) -> Annotated[dict, JsonResponse]:
+    @handle.GET
+    async def get_public_users(self) -> Annotated[dict, JsonResponse]:
         """Public user list - no auth required"""
         return {
             "users": [
@@ -115,7 +121,8 @@ class UserRoute(Route):
             "handler": "public",
         }
 
-    async def handle_get_authenticated(
+    @handle.GET
+    async def get_authenticated_users(
         self, auth_token: Annotated[str, Header("Authorization")]
     ) -> Annotated[dict, JsonResponse]:
         """Private user list - auth required"""
@@ -141,7 +148,8 @@ class UserRoute(Route):
             "handler": "authenticated",
         }
 
-    async def handle_post(
+    @handle.POST
+    async def create_user_json(
         self, request: PostRequest, auth_token: Annotated[str, Header("Authorization")]
     ) -> Annotated[dict, JsonResponse]:
         """Create user - requires authentication"""
@@ -159,7 +167,8 @@ class UserRoute(Route):
             "handler": "create_authenticated",
         }
 
-    async def handle_post_form(
+    @handle.POST
+    async def create_user_form(
         self, form: CreateUserForm, auth_token: Annotated[str, Header("Authorization")]
     ) -> Annotated[str, TextResponse]:
         """Create user via form"""
@@ -168,7 +177,8 @@ class UserRoute(Route):
 
         return f"User {form.username} created via form with email {form.email}"
 
-    async def handle_put(
+    @handle.PUT
+    async def update_user(
         self,
         request: PutRequest,
         user_id: Annotated[str, Query("id")],
@@ -197,7 +207,8 @@ class UserRoute(Route):
 class ContactRoute(Route):
     """Contact form demonstrating form handling"""
 
-    async def handle_get(self) -> Annotated[str, HtmlResponse]:
+    @handle.GET
+    async def show_contact_form(self) -> Annotated[str, HtmlResponse]:
         """Show contact form"""
         return """
         <!DOCTYPE html>
@@ -256,7 +267,8 @@ class ContactRoute(Route):
         </html>
         """
 
-    async def handle_contact_form(
+    @handle.POST
+    async def process_contact_form(
         self, form: ContactForm
     ) -> Annotated[str, HtmlResponse]:
         """Process contact form submission"""

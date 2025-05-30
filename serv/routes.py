@@ -3,6 +3,7 @@ import sys
 from collections import defaultdict
 from collections.abc import AsyncGenerator
 from datetime import date, datetime
+from functools import wraps
 from inspect import get_annotations, signature
 from pathlib import Path
 from types import NoneType, UnionType
@@ -186,6 +187,47 @@ class OptionsRequest(Request):
 
 class HeadRequest(Request):
     pass
+
+
+class _HandleDecorator:
+    """Decorator class for marking route handler methods with HTTP methods."""
+
+    def __init__(self, methods: set[str]):
+        self.methods = methods
+
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store the HTTP methods this handler supports
+        wrapper.__handle_methods__ = self.methods
+        return wrapper
+
+    def __or__(self, other):
+        """Support for @handle.GET | handle.POST syntax"""
+        if isinstance(other, _HandleDecorator):
+            return _HandleDecorator(self.methods | other.methods)
+        return NotImplemented
+
+
+class _HandleRegistry:
+    """Registry that provides method decorators like @handle.GET, @handle.POST"""
+
+    def __init__(self):
+        # Create decorator instances for each HTTP method
+        self.GET = _HandleDecorator({"GET"})
+        self.POST = _HandleDecorator({"POST"})
+        self.PUT = _HandleDecorator({"PUT"})
+        self.DELETE = _HandleDecorator({"DELETE"})
+        self.PATCH = _HandleDecorator({"PATCH"})
+        self.OPTIONS = _HandleDecorator({"OPTIONS"})
+        self.HEAD = _HandleDecorator({"HEAD"})
+        self.FORM = _HandleDecorator({"FORM"})  # Special form handler
+
+
+# Create the global handle instance
+handle = _HandleRegistry()
 
 
 MethodMapping = {
@@ -447,28 +489,15 @@ class Route:
                 ):
                     cls.__annotated_response_wrappers__[name] = args[1]
 
-            # Handle method naming pattern (handle_<method>)
-            if name.startswith("handle_"):
-                method_part = name[7:]  # Remove 'handle_' prefix
-
-                # Extract HTTP method - could be 'get', 'get_with_query', etc.
-                for http_method in [
-                    "GET",
-                    "POST",
-                    "PUT",
-                    "DELETE",
-                    "PATCH",
-                    "OPTIONS",
-                    "HEAD",
-                ]:
-                    method_lower = http_method.lower()
-                    if method_part == method_lower or method_part.startswith(
-                        method_lower + "_"
-                    ):
-                        cls.__method_handlers__[http_method].append(
-                            {"name": name, "method": member, "signature": sig}
-                        )
-                        break  # Found a match, don't check other methods
+            # Handle decorator-based method detection
+            if hasattr(member, "__handle_methods__"):
+                for http_method in member.__handle_methods__:
+                    if http_method == "FORM":
+                        # Special handling for FORM - these will be detected by form parameter analysis
+                        continue
+                    cls.__method_handlers__[http_method].append(
+                        {"name": name, "method": member, "signature": sig}
+                    )
 
             # Handle form handlers and error handlers (existing logic)
             if len(params) > 1:

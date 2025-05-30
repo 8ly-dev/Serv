@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from serv.app import App
 from serv.extensions import Extension
 from serv.requests import Request
-from serv.routes import JsonResponse, Route
+from serv.routes import JsonResponse, Route, handle
 from serv.routing import Router
 
 
@@ -45,7 +45,10 @@ class DirectHandlerExtension(Extension):
 
 # Test Route 1: Single file and text fields
 class DirectSingleFileRoute(Route):
-    async def handle_post(self, request: Request = dependency()) -> Annotated[dict, JsonResponse]:
+    @handle.POST
+    async def post_handler(
+        self, request: Request = dependency()
+    ) -> Annotated[dict, JsonResponse]:
         form_data = await request.form()
 
         errors = []
@@ -87,7 +90,9 @@ class DirectSingleFileRoute(Route):
                         f"file_upload content error. Expected b'Hello, world!', got: {file_content!r}"
                     )
                 else:
-                    file_content_for_response = file_content.decode()  # Store for response
+                    file_content_for_response = (
+                        file_content.decode()
+                    )  # Store for response
 
         if errors:
             # For debugging, include what form_data looks like (simplified)
@@ -143,7 +148,10 @@ async def test_direct_multipart_single_file(app: App, client: AsyncClient):
 
 # Test Route 2: Multiple files (one optional present, one optional absent)
 class DirectMultipleFilesRoute(Route):
-    async def handle_post(self, request: Request = dependency()) -> Annotated[dict, JsonResponse]:
+    @handle.POST
+    async def post_handler(
+        self, request: Request = dependency()
+    ) -> Annotated[dict, JsonResponse]:
         form_data = await request.form()
 
         # Basic checks (can be more thorough like above)
@@ -169,7 +177,9 @@ class DirectMultipleFilesRoute(Route):
         optional_file_obj = optional_file_sent_list[0]
         assert isinstance(optional_file_obj, dict)
         assert optional_file_obj["filename"] == "opt.txt"
-        content_opt = optional_file_obj["file"].read() if optional_file_obj["file"] else b""
+        content_opt = (
+            optional_file_obj["file"].read() if optional_file_obj["file"] else b""
+        )
         assert content_opt == b"Optional content"
 
         # Construct a serializable response
