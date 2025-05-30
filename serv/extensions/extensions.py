@@ -274,7 +274,6 @@ class Listener:
             if not callable(callback):
                 continue
 
-            # Only use decorator-based event detection
             if hasattr(callback, "__event_names__"):
                 for event_name in callback.__event_names__:
                     cls.__listeners__[event_name].append(name)
@@ -297,12 +296,10 @@ class Listener:
         """
         self._stand_alone = stand_alone
 
-        # Support both extension_spec and extension_spec for backward compatibility
-        spec = extension_spec or extension_spec
+        spec = None
+        if extension_spec:
+            spec = extension_spec
 
-        if spec:
-            self.__extension_spec__ = spec
-            self.__extension_spec__ = spec  # Backward compatibility
         elif not stand_alone:
             module = sys.modules[self.__module__]
             if not hasattr(module, "__extension_spec__") and not hasattr(
@@ -316,12 +313,8 @@ class Listener:
             spec = getattr(module, "__extension_spec__", None) or getattr(
                 module, "__extension_spec__", None
             )
-            self.__extension_spec__ = spec
-            self.__extension_spec__ = spec  # Backward compatibility
-        else:
-            # Stand-alone mode - no extension spec required
-            self.__extension_spec__ = None
-            self.__extension_spec__ = None  # Backward compatibility
+
+        self.__extension_spec__ = spec
 
     async def on(
         self,
