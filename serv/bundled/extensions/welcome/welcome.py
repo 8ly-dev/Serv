@@ -48,7 +48,7 @@ Note:
 
 from typing import Annotated, Any  # Added Any for dict type hint
 
-from serv.routes import GetRequest, Jinja2Response, Route
+from serv.routes import GetRequest, Jinja2Response, Route, handle
 
 
 class WelcomeRoute(Route):
@@ -78,7 +78,8 @@ class WelcomeRoute(Route):
         ```
     """
 
-    async def handle_get(
+    @handle.GET
+    async def show_welcome_page(
         self, _: GetRequest
     ) -> Annotated[tuple[str, dict[str, Any]], Jinja2Response]:
         """Handle GET requests to display the welcome page.

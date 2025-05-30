@@ -2,10 +2,10 @@
 with names following the format '[optional_]on_{event_name}'. This gives the author the ability to make readable
 function names like 'set_role_on_user_create' or 'create_annotations_on_form_submit'."""
 
-import re
 import sys
 from collections import defaultdict
-from inspect import isawaitable
+from functools import wraps
+from inspect import get_annotations, isawaitable, signature
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +15,141 @@ from bevy.containers import Container
 import serv.extensions.loader as pl
 
 type ListenerMapping = dict[str, list[str]]
+
+
+class Context:
+    """Event context object that acts like a dictionary with additional event metadata.
+
+    The Context object provides access to all keyword arguments passed to an event
+    emission, while also including the event name for reference.
+
+    Examples:
+        Accessing event data:
+
+        ```python
+        class MyListener(Listener):
+            @on("user.created")
+            async def handle_user_created(self, context: Context):
+                user_id = context["user_id"]
+                email = context["email"]
+                print(f"Event: {context.event_name}, User: {user_id}")
+        ```
+
+        Using both context and direct parameters:
+
+        ```python
+        class MyListener(Listener):
+            @on("user.created")
+            async def handle_user_created(self, user_id: int, context: Context):
+                # user_id is injected directly
+                # context provides access to all parameters and event name
+                print(f"Event: {context.event_name}, User: {user_id}")
+                if "email" in context:
+                    print(f"Email: {context['email']}")
+        ```
+    """
+
+    def __init__(self, event_name: str, **kwargs):
+        self.event_name = event_name
+        self._data = kwargs
+
+    def __getitem__(self, key: str) -> Any:
+        return self._data[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self._data[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self._data[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._data
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._data.get(key, default)
+
+    def keys(self):
+        return self._data.keys()
+
+    def values(self):
+        return self._data.values()
+
+    def items(self):
+        return self._data.items()
+
+    def __repr__(self) -> str:
+        return f"Context(event_name={self.event_name!r}, data={self._data!r})"
+
+
+class _OnDecorator:
+    """Decorator class for marking listener methods with event names."""
+
+    def __init__(self, events: set[str]):
+        self.events = events
+
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        # Store the events this handler supports
+        wrapper.__event_names__ = self.events
+        return wrapper
+
+    def __or__(self, other):
+        """Support for @on("event1") | on("event2") syntax"""
+        if isinstance(other, _OnDecorator):
+            return _OnDecorator(self.events | other.events)
+        return NotImplemented
+
+
+def on(event_name: str) -> _OnDecorator:
+    """Decorator for marking event handler methods.
+
+    This decorator replaces the naming-based event detection with explicit
+    event name specification.
+
+    Args:
+        event_name: The name of the event to listen for (e.g., "app.request.begin")
+
+    Examples:
+        Basic event handler:
+
+        ```python
+        class MyListener(Listener):
+            @on("app.request.begin")
+            async def setup_request(self, router: Router = dependency()):
+                # Handle app request begin event
+                pass
+        ```
+
+        Handler for multiple events:
+
+        ```python
+        class MyListener(Listener):
+            @on("user.created") | on("user.updated")
+            async def handle_user_changes(self, user_id: int):
+                # Handle both user created and updated events
+                pass
+        ```
+
+        Handler with context:
+
+        ```python
+        class MyListener(Listener):
+            @on("order.processed")
+            async def handle_order(self, context: Context):
+                order_id = context["order_id"]
+                print(f"Processing order {order_id} for event {context.event_name}")
+        ```
+    """
+    return _OnDecorator({event_name})
 
 
 def search_for_extension_directory(path: Path) -> Path | None:
@@ -135,16 +270,14 @@ class Listener:
             if name.startswith("_"):
                 continue
 
-            event = re.match(r"^(?:.+_)?on_(.*)$", name)
-            if not event:
-                continue
-
             callback = getattr(cls, name)
             if not callable(callback):
                 continue
 
-            event_name = event.group(1)
-            cls.__listeners__[event_name].append(name)
+            # Only use decorator-based event detection
+            if hasattr(callback, "__event_names__"):
+                for event_name in callback.__event_names__:
+                    cls.__listeners__[event_name].append(name)
 
     def __init__(
         self,
@@ -194,26 +327,70 @@ class Listener:
         self,
         event_name: str,
         container: Container | None = None,
-        *args: Any,
         **kwargs: Any,
     ) -> None:
         """Receives event notifications.
 
         This method will be called by the application when an event this listener
-        is registered for occurs. Subclasses should implement this method to handle
-        specific events.
+        is registered for occurs. Handlers are called with keyword arguments only,
+        and Context objects are injected for parameters with Context type annotation.
 
         Args:
             event_name: The name of the event that occurred.
             **kwargs: Arbitrary keyword arguments associated with the event.
         """
-        event_name = re.sub(r"[^a-z0-9]+", "_", event_name.lower())
+        # Find handlers for this exact event name
+        if event_name not in self.__listeners__:
+            return  # No handlers for this event
+
         for listener_handler_name in self.__listeners__[event_name]:
             callback = getattr(self, listener_handler_name)
-            result = get_container(container).call(callback, *args, **kwargs)
+
+            # Prepare arguments for the handler
+            handler_kwargs = await self._prepare_handler_arguments(
+                callback, event_name, kwargs, container
+            )
+
+            result = get_container(container).call(callback, **handler_kwargs)
             if isawaitable(result):
                 await result
 
+    async def _prepare_handler_arguments(
+        self,
+        callback: callable,
+        event_name: str,
+        event_kwargs: dict[str, Any],
+        container: Container | None,
+    ) -> dict[str, Any]:
+        """Prepare arguments for a handler based on its signature."""
+        try:
+            sig = signature(callback)
+            annotations = get_annotations(callback)
+        except Exception:
+            # If we can't get signature info, pass through all kwargs
+            return event_kwargs
 
-# Backward compatibility alias
+        handler_kwargs = {}
+
+        for param_name, param in sig.parameters.items():
+            if param_name == "self":
+                continue
+
+            param_annotation = annotations.get(param_name, param.annotation)
+
+            # Check if parameter expects a Context object
+            if param_annotation is Context or (
+                hasattr(param_annotation, "__name__")
+                and param_annotation.__name__ == "Context"
+            ):
+                handler_kwargs[param_name] = Context(event_name, **event_kwargs)
+            elif param_name in event_kwargs:
+                # Only pass parameters that match available event data
+                handler_kwargs[param_name] = event_kwargs[param_name]
+            # If parameter is not available and has no default, it will be handled by bevy
+
+        return handler_kwargs
+
+
+# Alias for Extension (same as Listener but clearer name for some use cases)
 Extension = Listener

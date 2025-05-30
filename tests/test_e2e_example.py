@@ -13,7 +13,7 @@ import pytest
 from bevy import dependency
 
 from serv.app import App
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
 from serv.responses import ResponseBuilder
 from serv.routing import Router
@@ -50,7 +50,8 @@ class SimpleTextExtension(Extension):
         self.text = text
         self._stand_alone = True
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
 
     async def _handler(self, response: ResponseBuilder = dependency()):
@@ -88,7 +89,8 @@ class JsonExtension(Extension):
         self.data = data
         self._stand_alone = True
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
 
     async def _handler(self, response: ResponseBuilder = dependency()):

@@ -89,7 +89,9 @@ class EventEmitter:
     async def emit(self, event: str, *, container: Container = dependency(), **kwargs):
         async with asyncio.TaskGroup() as tg:
             for extension in chain(*self.extensions.values()):
-                tg.create_task(container.call(extension.on, event, **kwargs))
+                tg.create_task(
+                    container.call(extension.on, event, container=container, **kwargs)
+                )
 
 
 class App:

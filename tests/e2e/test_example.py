@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from bevy import dependency
 
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from serv.responses import ResponseBuilder
 from serv.routing import Router
 from tests.e2e.helpers import AppBuilder, create_test_client
@@ -39,7 +39,8 @@ class SimpleTextExtension(Extension):
         self.text = text
         self._stand_alone = True
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
 
     async def _handler(self, response: ResponseBuilder = dependency()):
@@ -67,7 +68,8 @@ class JsonExtension(Extension):
         self.data = data
         self._stand_alone = True
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
 
     async def _handler(self, response: ResponseBuilder = dependency()):

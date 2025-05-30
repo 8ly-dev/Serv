@@ -131,7 +131,7 @@ class TestCliCommands:
 
         # Create main.py
         plugin_code = """
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from bevy import dependency
 from serv.routing import Router
 from serv.responses import ResponseBuilder
@@ -141,7 +141,8 @@ class TestExtension(Extension):
         super().__init__(**kwargs)
         self._stand_alone = True
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         router.add_route("/hello", self._hello_handler, methods=["GET"])
 
     async def _hello_handler(self, response: ResponseBuilder = dependency()):

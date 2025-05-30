@@ -6,7 +6,7 @@ from bevy import dependency
 from serv.exceptions import (
     ServException,
 )
-from serv.extensions import Listener
+from serv.extensions import Listener, on
 from serv.injectors import Cookie, Header, Query
 from serv.responses import ResponseBuilder
 from serv.routes import (
@@ -241,14 +241,14 @@ class ContactRoute(Route):
                 </div>
                 <button type="submit">Send Message</button>
             </form>
-            
+
             <h2>Demo Instructions</h2>
             <p>This form demonstrates signature-based routing. Try:</p>
             <ul>
                 <li>Fill out and submit the form</li>
                 <li>Submit with missing fields (will show validation)</li>
             </ul>
-            
+
             <h2>API Examples</h2>
             <h3>Search API:</h3>
             <ul>
@@ -257,7 +257,7 @@ class ContactRoute(Route):
                 <li><a href="/api/search?q=python&page=2">Paginated search</a></li>
                 <li><a href="/api/search?q=python&category=programming">Advanced search</a></li>
             </ul>
-            
+
             <h3>User API:</h3>
             <ul>
                 <li><a href="/api/users">Public users</a></li>
@@ -301,7 +301,8 @@ class SignatureRoutingExtension(Listener):
         super().__init__()
         print("SignatureRoutingExtension.__init__ called!")
 
-    async def on_app_request_begin(self, router: Router = dependency()):
+    @on("app.request.begin")
+    async def setup_routing(self, router: Router = dependency()):
         """Set up the routes when the app starts up"""
         print("SignatureRoutingExtension.on_app_startup called!")
         print(f"Got router: {router}")
@@ -332,9 +333,9 @@ class SignatureRoutingExtension(Listener):
         </head>
         <body>
             <h1>Serv Signature-Based Routing Demo</h1>
-            
+
             <p>This demo showcases Serv's powerful signature-based routing system where multiple handlers can exist for the same HTTP method and are automatically selected based on request parameters.</p>
-            
+
             <div class="feature">
                 <h2>🔍 Search API - Multiple GET Handlers</h2>
                 <p>The same endpoint behaves differently based on available parameters:</p>
@@ -343,7 +344,7 @@ class SignatureRoutingExtension(Listener):
                 <div class="endpoint"><a href="/api/search?q=python&page=2">GET /api/search?q=python&page=2</a> - Paginated</div>
                 <div class="endpoint"><a href="/api/search?q=python&category=programming">GET /api/search?q=python&category=programming</a> - Advanced</div>
             </div>
-            
+
             <div class="feature">
                 <h2>👤 User API - Authentication-Based Selection</h2>
                 <p>Different handlers based on authentication headers:</p>
@@ -351,17 +352,17 @@ class SignatureRoutingExtension(Listener):
                 <div class="endpoint"><code>GET /api/users + Authorization header</code> - Private data</div>
                 <div class="endpoint"><code>POST /api/users + Authorization header</code> - Create user</div>
             </div>
-            
+
             <div class="feature">
                 <h2>📝 Contact Form - Form Handling</h2>
                 <p>Automatic form matching and processing:</p>
                 <div class="endpoint"><a href="/contact">GET /contact</a> - Show form</div>
                 <div class="endpoint"><code>POST /contact</code> - Process form</div>
             </div>
-            
+
             <h2>Try It Out</h2>
             <p>Use curl, Postman, or your browser to test different endpoints and see how Serv automatically selects the most appropriate handler!</p>
-            
+
             <h3>Example Commands:</h3>
             <pre><code># Search examples
 curl http://127.0.0.1:8000/api/search

@@ -10,7 +10,7 @@ from bevy import dependency
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from serv.requests import Request
 from serv.routes import JsonResponse, Route, handle
 from serv.routing import Router
@@ -38,7 +38,8 @@ class DirectHandlerExtension(Extension):
         self.plugin_registered_route = False
         self._stand_alone = True
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self.route_class)
         self.plugin_registered_route = True
 

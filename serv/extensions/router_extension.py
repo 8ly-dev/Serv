@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 from bevy import dependency
 
 import serv.routing as r
-from serv.extensions import Listener
+from serv.extensions import Listener, on
 
 if TYPE_CHECKING:
     from serv.extensions.importer import Importer
@@ -87,8 +87,7 @@ class RouterExtension(Listener):
         """Build routes from the given configuration."""
         return route_configs
 
-    async def on_app_request_begin(
-        self, main_router: "r.Router" = dependency()
-    ) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, main_router: "r.Router" = dependency()) -> None:
         for router_builder in self._routers.values():
             router_builder.build(main_router)

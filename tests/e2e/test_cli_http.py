@@ -114,14 +114,15 @@ class TestCliHttpBehavior:
 
         # Create main.py with the specified route
         plugin_code = f"""
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
 from bevy import dependency
 from serv.routing import Router
 from serv.responses import ResponseBuilder
 
 class {plugin_name.replace("_", " ").title().replace(" ", "")}Extension(Extension):
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         router.add_route("{route_path}", self._handler, methods=["GET"])
 
     async def _handler(self, response: ResponseBuilder = dependency()):
@@ -181,7 +182,7 @@ async def {middleware_name}_middleware(handler):
 
         from bevy import dependency
 
-        from serv.extensions import Extension
+        from serv.extensions import Extension, on
         from serv.responses import ResponseBuilder
         from serv.routing import Router
         from tests.helpers import create_test_extension_spec
@@ -195,7 +196,8 @@ async def {middleware_name}_middleware(handler):
                 )
                 super().__init__(extension_spec=mock_spec)
 
-            async def on_app_request_begin(self, router: Router = dependency()) -> None:
+            @on("app.request.begin")
+            async def setup_routes(self, router: Router = dependency()) -> None:
                 router.add_route("/test-route", self._handler, methods=["GET"])
 
             async def _handler(self, response: ResponseBuilder = dependency()):

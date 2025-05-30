@@ -3,7 +3,7 @@ from typing import Annotated, Any
 from bevy import dependency
 
 from serv.app import App
-from serv.extensions import Listener
+from serv.extensions import Listener, on
 from serv.routes import GetRequest, Jinja2Response, JsonResponse, Route, handle
 from serv.routing import Router
 
@@ -97,7 +97,8 @@ class MountDemoExtension(Listener):
         self.main_router.mount("/admin", admin_router)
         self.main_router.mount("/about", about_router)
 
-    def on_app_request_begin(self, router: Router = dependency()):
+    @on("app.request.begin")
+    async def setup_router(self, router: Router = dependency()):
         router.add_router(self.main_router)
 
 
