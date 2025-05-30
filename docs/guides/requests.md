@@ -6,11 +6,11 @@ Serv provides powerful request handling capabilities through specialized request
 
 Serv's request handling features:
 
-1. **Typed Request Objects**: Specialized request classes for different HTTP methods
-2. **Automatic Parameter Injection**: Path parameters, query parameters, and headers
-3. **Body Parsing**: JSON, form data, and file uploads
-4. **Route-Based Handling**: Clean separation using Route classes
-5. **Dependency Injection**: Access to request data through the container
+1. **Signature-Based Routing**: Automatic handler selection based on method signatures
+2. **Parameter Injection**: Direct injection of query params, headers, and cookies via annotations
+3. **Typed Request Objects**: Specialized request classes for different HTTP methods
+4. **Body Parsing**: JSON, form data, and file uploads with automatic form matching
+5. **Route Classes**: Clean separation using Route classes with multiple handlers per method
 
 ## Request Types
 
@@ -188,54 +188,35 @@ class ValidatedUserRoute(Route):
 
 ## Query Parameters
 
-### Basic Query Parameters
+### Basic Query Parameters with Signature-Based Routing
 
-Access query parameters from the URL using direct access or dependency injection:
+Use parameter injection for clean, automatic query parameter handling:
 
 ```python
 from serv.injectors import Query
 from serv.exceptions import HTTPBadRequestException
 
 class SearchRoute(Route):
-    async def handle_get(self, request: GetRequest) -> Annotated[dict, JsonResponse]:
-        """Search with query parameters using direct access"""
-        # Get query parameters
-        query = request.query_params.get("q", "")
-        page = int(request.query_params.get("page", "1"))
-        limit = int(request.query_params.get("limit", "10"))
-        sort = request.query_params.get("sort", "created_at")
-        
-        # Validate parameters
-        if page < 1:
-            raise HTTPBadRequestException("Page must be >= 1")
-        
-        if limit < 1 or limit > 100:
-            raise HTTPBadRequestException("Limit must be between 1 and 100")
-        
-        # Perform search
-        results = await self.search(query, page, limit, sort)
-        
-        return {
-            "query": query,
-            "page": page,
-            "limit": limit,
-            "sort": sort,
-            "results": results,
-            "total": len(results)
-        }
-
-class SearchInjectionRoute(Route):
-    async def handle_get(
+    async def handle_get(self) -> Annotated[dict, JsonResponse]:
+        """Default search - no parameters"""
+        results = await self.get_default_results()
+        return {"results": results, "message": "Default search results"}
+    
+    async def handle_get_with_query(
         self,
-        request: GetRequest,
-        # Inject query parameters with defaults and type conversion
-        query: Annotated[str, Query("q", "")] = dependency(),
-        page: Annotated[str, Query("page", "1")] = dependency(),
-        limit: Annotated[str, Query("limit", "10")] = dependency(),
-        sort: Annotated[str, Query("sort", "created_at")] = dependency(),
+        query: Annotated[str, Query("q")]
     ) -> Annotated[dict, JsonResponse]:
-        """Search with query parameters using dependency injection"""
-        
+        """Search with query string only"""
+        results = await self.search(query)
+        return {"query": query, "results": results}
+    
+    async def handle_get_paginated(
+        self,
+        query: Annotated[str, Query("q")],
+        page: Annotated[str, Query("page", default="1")],
+        limit: Annotated[str, Query("limit", default="10")]
+    ) -> Annotated[dict, JsonResponse]:
+        """Search with pagination"""
         # Convert and validate parameters
         try:
             page_num = int(page)
@@ -249,32 +230,46 @@ class SearchInjectionRoute(Route):
         if limit_num < 1 or limit_num > 100:
             raise HTTPBadRequestException("Limit must be between 1 and 100")
         
-        # Perform search
-        results = await self.search(query, page_num, limit_num, sort)
+        # Perform paginated search
+        results = await self.search_paginated(query, page_num, limit_num)
+        
+        return {
+            "query": query,
+            "page": page_num,
+            "limit": limit_num,
+            "results": results,
+            "total": len(results)
+        }
+    
+    async def handle_get_advanced(
+        self,
+        query: Annotated[str, Query("q")],
+        page: Annotated[str, Query("page", default="1")],
+        limit: Annotated[str, Query("limit", default="10")],
+        sort: Annotated[str, Query("sort", default="created_at")],
+        category: Annotated[str, Query("category", default=None)]
+    ) -> Annotated[dict, JsonResponse]:
+        """Advanced search with all options"""
+        page_num = int(page)
+        limit_num = int(limit)
+        
+        results = await self.advanced_search(query, page_num, limit_num, sort, category)
         
         return {
             "query": query,
             "page": page_num,
             "limit": limit_num,
             "sort": sort,
-            "results": results,
-            "total": len(results)
+            "category": category,
+            "results": results
         }
-    
-    async def search(self, query: str, page: int, limit: int, sort: str):
-        """Mock search implementation"""
-        # Simulate search results
-        all_results = [
-            {"id": i, "title": f"Result {i}", "content": f"Content for {query}"}
-            for i in range(1, 51)  # 50 mock results
-        ]
-        
-        # Apply pagination
-        start = (page - 1) * limit
-        end = start + limit
-        
-        return all_results[start:end]
 ```
+
+**Request routing examples:**
+- `GET /search` → `handle_get` (no parameters)
+- `GET /search?q=python` → `handle_get_with_query` (has query only)
+- `GET /search?q=python&page=2` → `handle_get_paginated` (has query and pagination)
+- `GET /search?q=python&page=2&sort=date&category=tech` → `handle_get_advanced` (most specific)
 
 ### Multiple Values for Same Parameter
 

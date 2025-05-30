@@ -1,15 +1,16 @@
 # Routing
 
-Serv provides a powerful declarative routing system that emphasizes configuration over code. Routes are defined in YAML configuration files and automatically wired to handler functions, making your application structure clear and maintainable.
+Serv provides a powerful and intuitive routing system built around Route classes that use signature-based method dispatch. Routes automatically detect and invoke the appropriate handler method based on HTTP method and request parameters, making your application structure clear and maintainable.
 
 ## Overview
 
 In Serv, routing follows these principles:
 
-1. **Declarative Configuration**: Routes are defined in `extension.yaml` files
-2. **CLI-First Development**: Use CLI commands to create routes and handlers
-3. **Automatic Wiring**: Serv automatically connects routes to handler functions
-4. **Extension-Based Organization**: Routes are organized within extensions for modularity
+1. **Route Classes**: Create classes that inherit from `Route` with typed handler methods
+2. **Signature-Based Dispatch**: Handlers are selected based on method signatures and request data
+3. **Parameter Injection**: Automatic extraction of parameters from requests based on type annotations
+4. **Multiple Handlers**: Support multiple handlers per HTTP method with different parameter requirements
+5. **Extension-Based Organization**: Routes are organized within extensions for modularity
 
 ## Getting Started
 
@@ -58,16 +59,53 @@ routers:
 
 **route_blog_posts.py:**
 ```python
-from typing import Annotated, Any
-from serv.routes import GetRequest, Jinja2Response, Route
-from serv.responses import ResponseBuilder
-from bevy import dependency
+from typing import Annotated
+from serv.routes import Route, GetRequest, PostRequest
+from serv.responses import JsonResponse, TextResponse
+from serv.injectors import Query, Header
 
 class BlogPosts(Route):
-    async def handle_get(self, request: GetRequest) -> None:
+    async def handle_get(self) -> Annotated[list[dict], JsonResponse]:
         """Handle GET requests to /api/posts"""
-        # Your route logic here
-        pass
+        posts = await self.get_all_posts()
+        return posts
+    
+    async def handle_get_by_author(
+        self, 
+        author: Annotated[str, Query("author")]
+    ) -> Annotated[list[dict], JsonResponse]:
+        """Handle GET requests with author filter"""
+        posts = await self.get_posts_by_author(author)
+        return posts
+    
+    async def handle_post(
+        self, 
+        request: PostRequest,
+        auth_token: Annotated[str, Header("Authorization")]
+    ) -> Annotated[str, TextResponse]:
+        """Handle POST requests to create new posts"""
+        if not self.validate_auth(auth_token):
+            raise HTTPUnauthorizedException("Invalid token")
+        
+        data = await request.json()
+        post = await self.create_post(data)
+        return "Post created successfully"
+    
+    async def get_all_posts(self):
+        """Get all blog posts"""
+        return [{"id": 1, "title": "Sample Post", "content": "Sample content"}]
+    
+    async def get_posts_by_author(self, author: str):
+        """Get posts by specific author"""
+        return [{"id": 1, "title": "Sample Post", "author": author}]
+    
+    async def create_post(self, data: dict):
+        """Create a new blog post"""
+        return {"id": 2, "title": data.get("title"), "content": data.get("content")}
+    
+    def validate_auth(self, token: str) -> bool:
+        """Validate authentication token"""
+        return token == "valid-token"
 ```
 
 ## Declarative Route Configuration
@@ -133,95 +171,245 @@ This creates routes at:
 - `/admin/dashboard`
 - `/admin/users`
 
-## Creating Route Handlers
+## Route Classes and Signature-Based Routing
 
-### Using the CLI
+### Route Class Structure
 
-Create route handlers using the CLI for consistency:
-
-```bash
-# Create a route with custom path and router
-serv create route --name "user_profile" \
-  --path "/users/{id}/profile" \
-  --router "api_router"
-
-# Create a route for a specific extension
-serv create route --name "admin_dashboard" \
-  --path "/dashboard" \
-  --router "admin_router" \
-  --extension "admin_extension"
-```
-
-### Handler Function Structure
-
-Route handlers are simple async functions that handle HTTP requests:
+Route classes inherit from `Route` and define handler methods for different HTTP methods:
 
 ```python
-from serv.responses import ResponseBuilder
-from bevy import dependency
+from typing import Annotated
+from serv.routes import Route, GetRequest, PostRequest, PutRequest, DeleteRequest
+from serv.responses import JsonResponse, TextResponse
+from serv.injectors import Query, Header, Cookie
+from serv.exceptions import HTTPNotFoundException, HTTPUnauthorizedException
 
-async def PostList(response: ResponseBuilder = dependency(), **path_params):
-    """Handle requests to /posts"""
-    response.content_type("application/json")
-    response.body('{"posts": []}')
+class UserRoute(Route):
+    async def handle_get(self, user_id: Annotated[str, Query("id")]) -> Annotated[dict, JsonResponse]:
+        """Get user by ID"""
+        user = await self.get_user(user_id)
+        if not user:
+            raise HTTPNotFoundException(f"User {user_id} not found")
+        return user
+    
+    async def handle_get_profile(
+        self, 
+        user_id: Annotated[str, Query("id")],
+        include_private: Annotated[str, Query("private", default="false")]
+    ) -> Annotated[dict, JsonResponse]:
+        """Get user profile with optional private data"""
+        user = await self.get_user_profile(user_id, include_private == "true")
+        return user
+    
+    async def handle_post(
+        self, 
+        request: PostRequest,
+        auth_token: Annotated[str, Header("Authorization")]
+    ) -> Annotated[str, TextResponse]:
+        """Create new user"""
+        if not self.validate_auth(auth_token):
+            raise HTTPUnauthorizedException("Authentication required")
+        
+        data = await request.json()
+        user = await self.create_user(data)
+        return "User created successfully"
+    
+    async def handle_put(
+        self, 
+        request: PutRequest,
+        user_id: Annotated[str, Query("id")],
+        session_id: Annotated[str, Cookie("session_id")]
+    ) -> Annotated[dict, JsonResponse]:
+        """Update user"""
+        if not self.validate_session(session_id):
+            raise HTTPUnauthorizedException("Invalid session")
+        
+        data = await request.json()
+        user = await self.update_user(user_id, data)
+        return user
+    
+    async def handle_delete(
+        self, 
+        user_id: Annotated[str, Query("id")],
+        auth_token: Annotated[str, Header("Authorization")]
+    ) -> Annotated[str, TextResponse]:
+        """Delete user"""
+        if not self.validate_admin_auth(auth_token):
+            raise HTTPUnauthorizedException("Admin access required")
+        
+        await self.delete_user(user_id)
+        return "User deleted successfully"
+```
 
-async def PostDetail(post_id: str, response: ResponseBuilder = dependency()):
-    """Handle requests to /posts/{id}"""
-    response.content_type("application/json")
-    response.body(f'{{"post_id": "{post_id}"}}')
+### Signature-Based Method Selection
 
-async def UserPosts(user_id: str, response: ResponseBuilder = dependency()):
-    """Handle requests to /users/{user_id}/posts"""
-    response.content_type("application/json")
-    response.body(f'{{"user_id": "{user_id}", "posts": []}}')
+Serv automatically selects the most appropriate handler based on:
+
+1. **HTTP Method Match**: Methods starting with `handle_<method>` (e.g., `handle_get`, `handle_post`)
+2. **Parameter Availability**: Handlers requiring parameters that are available in the request
+3. **Specificity Score**: More specific handlers (more parameters) are preferred
+
+**Example with multiple GET handlers:**
+
+```python
+class ProductRoute(Route):
+    async def handle_get(self) -> Annotated[list[dict], JsonResponse]:
+        """Fallback: Get all products"""
+        return await self.get_all_products()
+    
+    async def handle_get_by_category(
+        self, 
+        category: Annotated[str, Query("category")]
+    ) -> Annotated[list[dict], JsonResponse]:
+        """Get products by category"""
+        return await self.get_products_by_category(category)
+    
+    async def handle_get_by_user(
+        self, 
+        user_id: Annotated[str, Query("user_id")]
+    ) -> Annotated[list[dict], JsonResponse]:
+        """Get products for specific user"""
+        return await self.get_user_products(user_id)
+    
+    async def handle_get_filtered(
+        self,
+        category: Annotated[str, Query("category")],
+        user_id: Annotated[str, Query("user_id")]
+    ) -> Annotated[list[dict], JsonResponse]:
+        """Get products filtered by both category and user"""
+        return await self.get_filtered_products(category, user_id)
+```
+
+**Request routing examples:**
+- `GET /products` → `handle_get` (no parameters)
+- `GET /products?category=electronics` → `handle_get_by_category` (has category)
+- `GET /products?user_id=123` → `handle_get_by_user` (has user_id)
+- `GET /products?category=electronics&user_id=123` → `handle_get_filtered` (most specific)
+
+## Parameter Injection
+
+### Query Parameters
+
+Inject query parameters using the `Query` annotation:
+
+```python
+from serv.injectors import Query
+
+class SearchRoute(Route):
+    async def handle_get(
+        self,
+        query: Annotated[str, Query("q")],
+        page: Annotated[int, Query("page", default=1)],
+        limit: Annotated[int, Query("limit", default=10)]
+    ) -> Annotated[dict, JsonResponse]:
+        """Search with pagination"""
+        results = await self.search(query, page, limit)
+        return {"results": results, "page": page, "limit": limit}
+```
+
+### Headers
+
+Inject HTTP headers using the `Header` annotation:
+
+```python
+from serv.injectors import Header
+
+class AuthenticatedRoute(Route):
+    async def handle_get(
+        self,
+        auth_token: Annotated[str, Header("Authorization")],
+        api_key: Annotated[str, Header("X-API-Key", default=None)]
+    ) -> Annotated[dict, JsonResponse]:
+        """Authenticated endpoint"""
+        if not auth_token.startswith("Bearer "):
+            raise HTTPUnauthorizedException("Invalid authorization header")
+        
+        user = await self.validate_token(auth_token)
+        return {"user": user}
+```
+
+### Cookies
+
+Inject cookies using the `Cookie` annotation:
+
+```python
+from serv.injectors import Cookie
+
+class SessionRoute(Route):
+    async def handle_get(
+        self,
+        session_id: Annotated[str, Cookie("session_id")],
+        theme: Annotated[str, Cookie("theme", default="light")]
+    ) -> Annotated[dict, JsonResponse]:
+        """Session-based endpoint"""
+        session = await self.get_session(session_id)
+        if not session:
+            raise HTTPUnauthorizedException("Invalid session")
+        
+        return {"session": session, "theme": theme}
 ```
 
 ### Path Parameters
 
-Path parameters are automatically extracted and passed to your handler:
+Path parameters from URL patterns are accessible via `request.path_params`:
 
 ```python
-# Route: /users/{user_id}/posts/{post_id}
-async def UserPost(
-    user_id: str, 
-    post_id: str, 
-    response: ResponseBuilder = dependency()
-):
-    response.body(f"User {user_id}, Post {post_id}")
+class UserDetailRoute(Route):
+    async def handle_get(self, request: GetRequest) -> Annotated[dict, JsonResponse]:
+        """Get user by path parameter"""
+        user_id = request.path_params["user_id"]
+        user = await self.get_user(user_id)
+        return user
 ```
 
-## HTTP Methods and Request Types
+## Form Handling
 
-### Method-Specific Handlers
+### Form Classes
 
-Use request type annotations to handle specific HTTP methods:
+Define form classes using dataclasses for structured form handling:
 
 ```python
-from serv.routes import GetRequest, PostRequest, PutRequest, DeleteRequest
+from dataclasses import dataclass
+from serv.routes import Form, Route, PostRequest
+from serv.responses import HtmlResponse, TextResponse
+from typing import Annotated
 
-async def PostList(request: GetRequest, response: ResponseBuilder = dependency()):
-    """Handle GET /posts"""
-    response.body("List of posts")
+@dataclass
+class ContactForm(Form):
+    name: str
+    email: str
+    message: str
 
-async def CreatePost(request: PostRequest, response: ResponseBuilder = dependency()):
-    """Handle POST /posts"""
-    response.body("Post created")
+@dataclass
+class UserRegistrationForm(Form):
+    username: str
+    email: str
+    password: str
+    age: int = 18  # Optional with default
 
-async def UpdatePost(
-    post_id: str,
-    request: PutRequest, 
-    response: ResponseBuilder = dependency()
-):
-    """Handle PUT /posts/{post_id}"""
-    response.body(f"Post {post_id} updated")
-
-async def DeletePost(
-    post_id: str,
-    request: DeleteRequest, 
-    response: ResponseBuilder = dependency()
-):
-    """Handle DELETE /posts/{post_id}"""
-    response.body(f"Post {post_id} deleted")
+class ContactRoute(Route):
+    async def handle_get(self) -> Annotated[str, HtmlResponse]:
+        """Show contact form"""
+        return '''
+        <form method="post">
+            <input name="name" placeholder="Name" required>
+            <input name="email" type="email" placeholder="Email" required>
+            <textarea name="message" placeholder="Message" required></textarea>
+            <button type="submit">Send</button>
+        </form>
+        '''
+    
+    async def handle_contact_form(self, form: ContactForm) -> Annotated[str, HtmlResponse]:
+        """Handle contact form submission"""
+        # Process the form data
+        await self.send_email(form.email, form.name, form.message)
+        return f"<h1>Thank you {form.name}! Your message has been sent.</h1>"
+    
+    async def handle_registration_form(self, form: UserRegistrationForm) -> Annotated[str, TextResponse]:
+        """Handle user registration"""
+        # Validate and create user
+        user = await self.create_user(form.username, form.email, form.password, form.age)
+        return f"User {form.username} registered successfully"
 ```
 
 ### Configuration for Multiple Methods
