@@ -6,7 +6,7 @@ import yaml
 from bevy.registries import Registry
 
 from serv.app import App
-from serv.extensions import Listener
+from serv.extensions import Listener, on
 from serv.extensions.loader import ExtensionSpec
 from tests.helpers import create_mock_importer
 
@@ -123,13 +123,16 @@ def test_extension_event_registration():
     """Test that plugin events are correctly registered via __init_subclass__."""
 
     class TestEventListener(Listener):
-        def on_startup(self):
+        @on("startup")
+        def handle_startup(self):
             pass
 
-        def on_shutdown(self):
+        @on("shutdown")
+        def handle_shutdown(self):
             pass
 
-        def custom_on_event(self):
+        @on("event")
+        def custom_handle_event(self):
             pass
 
         def not_an_event(self):
@@ -148,9 +151,9 @@ def test_extension_event_registration():
     }
 
     # Check that the correct method names were registered for each event
-    assert "on_startup" in TestEventListener.__listeners__["startup"]
-    assert "on_shutdown" in TestEventListener.__listeners__["shutdown"]
-    assert "custom_on_event" in TestEventListener.__listeners__["event"]
+    assert "handle_startup" in TestEventListener.__listeners__["startup"]
+    assert "handle_shutdown" in TestEventListener.__listeners__["shutdown"]
+    assert "custom_handle_event" in TestEventListener.__listeners__["event"]
 
     # Check that non-callable attributes were not registered
     assert "non_callable_on_event" not in {

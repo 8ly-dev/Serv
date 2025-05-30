@@ -7,7 +7,7 @@ import yaml
 from bevy import dependency
 from bevy.registries import Registry
 
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
 from serv.responses import ResponseBuilder
 from serv.routing import Router
@@ -42,7 +42,8 @@ def create_plugin_with_config(extension_yaml_content):
             response.content_type("text/plain")
             response.body(f"Setting value: {test_setting}")
 
-        async def on_app_request_begin(self, router: Router = dependency()):
+        @on("app.request.begin")
+        async def setup_routes(self, router: Router = dependency()):
             # Use settings from self.__extension_spec__ if available, otherwise default
             route_settings_from_spec = (
                 getattr(self.__extension_spec__, "_config", {})
@@ -120,8 +121,8 @@ async def test_route_settings():
     router = Router()
     container.instances[Router] = router
 
-    # Set up routes
-    await plugin.on_app_request_begin(router)
+    # Set up routes via event emission
+    await plugin.on("app.request.begin", container=container, router=router)
 
     # Resolve a route and check settings
     resolved = router.resolve_route("/test", "GET")
@@ -146,8 +147,8 @@ async def test_settings_injection():
     router = Router()
     container.instances[Router] = router
 
-    # Set up routes
-    await plugin.on_app_request_begin(router)
+    # Set up routes via event emission
+    await plugin.on("app.request.begin", container=container, router=router)
 
     # Resolve the route
     resolved = router.resolve_route("/test_with_settings", "GET")
@@ -187,9 +188,9 @@ async def test_mounted_router_settings():
     # Mount the API router
     main_router.mount("/api", api_router)
 
-    # Set up routes on both routers
-    await plugin.on_app_request_begin(main_router)
-    await plugin.on_app_request_begin(api_router)
+    # Set up routes on both routers via event emission
+    await plugin.on("app.request.begin", container=container, router=main_router)
+    await plugin.on("app.request.begin", container=container, router=api_router)
 
     # Resolve a route on the mounted router
     resolved = main_router.resolve_route("/api/test", "GET")

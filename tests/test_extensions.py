@@ -3,7 +3,7 @@ import sys
 import pytest
 from bevy import dependency, get_container
 
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from tests.helpers import create_test_extension_spec
 
 
@@ -16,7 +16,8 @@ class _TestUser:
 @pytest.mark.asyncio
 async def test_extensions():
     class TestExtension(Extension):
-        async def on_user_create(
+        @on("user_create")
+        async def handle_user_create(
             self,
             user: _TestUser = dependency(),
         ):
@@ -38,7 +39,7 @@ async def test_extensions():
         spec  # Set on instance too if anything might check
     )
 
-    await plugin_instance.on("user_create", container)
+    await plugin_instance.on("user_create", container=container)
 
     # Clean up module patch
     if original_spec is not None:
@@ -50,7 +51,8 @@ async def test_extensions():
 @pytest.mark.asyncio
 async def test_extensions_with_args():
     class TestExtension(Extension):
-        async def on_user_create(
+        @on("user_create")
+        async def handle_user_create(
             self,
             user: _TestUser = dependency(),
         ):
@@ -79,7 +81,8 @@ async def test_extensions_with_args():
 @pytest.mark.asyncio
 async def test_extensions_with_args_and_dependency():
     class TestExtension(Extension):
-        async def on_user_create(
+        @on("user_create")
+        async def handle_user_create(
             self,
             user_name: str,
             user: _TestUser = dependency(),
@@ -134,11 +137,13 @@ async def test_extensions_with_multiple_handlers():
     reached_handlers = set()
 
     class TestExtension(Extension):
-        async def a_on_user_create(self):
-            reached_handlers.add("a_on_user_create")
+        @on("user_create")
+        async def a_handle_user_create(self):
+            reached_handlers.add("a_handle_user_create")
 
-        async def b_on_user_create(self):
-            reached_handlers.add("b_on_user_create")
+        @on("user_create")
+        async def b_handle_user_create(self):
+            reached_handlers.add("b_handle_user_create")
 
     test_extension_module = sys.modules[TestExtension.__module__]
     original_spec = getattr(test_extension_module, "__extension_spec__", None)
@@ -149,7 +154,7 @@ async def test_extensions_with_multiple_handlers():
     plugin_instance.__extension_spec__ = spec
 
     await plugin_instance.on("user_create")
-    assert reached_handlers == {"a_on_user_create", "b_on_user_create"}
+    assert reached_handlers == {"a_handle_user_create", "b_handle_user_create"}
 
     if original_spec is not None:
         test_extension_module.__extension_spec__ = original_spec
@@ -160,7 +165,8 @@ async def test_extensions_with_multiple_handlers():
 @pytest.mark.asyncio
 async def test_extensions_with_unfilled_dependency():
     class TestExtension(Extension):
-        async def on_user_create(
+        @on("user_create")
+        async def handle_user_create(
             self,
             user: _TestUser = dependency(),
         ): ...

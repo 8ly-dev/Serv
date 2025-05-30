@@ -8,7 +8,7 @@ import yaml
 from bevy import dependency
 from bevy.registries import Registry
 
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
 from serv.responses import ResponseBuilder
 from serv.routing import Router
@@ -45,7 +45,8 @@ async def sample_handler(response: ResponseBuilder):
     sys.path.insert(0, str(temp_dir))
 
     class TestExtension(Extension):
-        async def on_app_request_begin(self, router: Router = dependency()):
+        @on("app.request.begin")
+        async def setup_routes(self, router: Router = dependency()):
             # Setup routes from extension_config if they exist
             if not hasattr(self, "__extension_spec__") or not self.__extension_spec__:
                 return
@@ -156,7 +157,7 @@ async def test_extension_router_config_basic():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.on("app.request.begin", container=container, router=router)
 
     # Verify router was created and set up correctly
     assert len(router._routes) == 1
@@ -199,8 +200,8 @@ async def test_extension_router_mounting():
     main_router.mount("/api", api_router)
 
     # Add routes to both routers
-    await plugin.on_app_request_begin(main_router)
-    await plugin.on_app_request_begin(api_router)
+    await plugin.on("app.request.begin", container=container, router=main_router)
+    await plugin.on("app.request.begin", container=container, router=api_router)
 
     # Verify routers were created
     assert len(main_router._routes) == 1
@@ -241,7 +242,7 @@ async def test_extension_on_app_startup():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.on("app.request.begin", container=container, router=router)
 
     # Verify router was created and set up correctly
     assert len(router._routes) == 1

@@ -10,7 +10,7 @@ from bevy import dependency
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from serv.requests import Request
 from serv.routes import Route, TextResponse, handle
 from serv.routing import Router
@@ -37,7 +37,7 @@ class FileUploadTestRoute(Route):
         try:
             form_data = await request.form()
         except Exception:
-            raise HTTPBadRequestException("Failed to parse form data")
+            raise HTTPBadRequestException("Failed to parse form data") from None
 
         # Check if form_data is empty or doesn't have the file field
         if not form_data or "file_upload" not in form_data:
@@ -64,7 +64,7 @@ class FileUploadTestRoute(Route):
         except Exception as e:
             from serv.exceptions import ServException
 
-            raise ServException(f"Error processing upload: {str(e)}")
+            raise ServException(f"Error processing upload: {str(e)}") from None
 
 
 class FileUploadTestExtension(Extension):
@@ -84,7 +84,8 @@ class FileUploadTestExtension(Extension):
         self.plugin_registered_route = False
         self._stand_alone = True
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         router.add_route("/upload", FileUploadTestRoute)
         self.plugin_registered_route = True
 

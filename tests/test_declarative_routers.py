@@ -95,7 +95,7 @@ async def test_declarative_router_basic():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.setup_routes(router)
 
     # Verify a sub-router was added
     assert len(router._sub_routers) == 1
@@ -136,7 +136,7 @@ async def test_declarative_router_multiple_routes():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.setup_routes(router)
 
     # Verify a sub-router was added
     assert len(router._sub_routers) == 1
@@ -178,7 +178,7 @@ async def test_declarative_router_multiple_routers():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.setup_routes(router)
 
     # Verify two sub-routers were added (one for each router config)
     assert len(router._sub_routers) == 2
@@ -220,7 +220,7 @@ async def test_declarative_router_with_mount():
     container.instances[Router] = main_router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(main_router)
+    await plugin.setup_routes(main_router)
 
     # Verify that a router was mounted
     assert len(main_router._mounted_routers) == 1
@@ -267,7 +267,7 @@ async def test_declarative_router_with_config():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.setup_routes(router)
 
     # Verify a sub-router was added
     assert len(router._sub_routers) == 1
@@ -299,7 +299,7 @@ async def test_declarative_router_empty_config():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.setup_routes(router)
 
     # Verify no routes or sub-routers were added
     assert len(router._routes) == 0
@@ -325,7 +325,7 @@ async def test_declarative_router_no_routers_config():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.setup_routes(router)
 
     # Verify no routes or sub-routers were added
     assert len(router._routes) == 0
@@ -403,7 +403,7 @@ async def test_declarative_router_with_methods():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.setup_routes(router)
 
     # Verify a sub-router was added
     assert len(router._sub_routers) == 1
@@ -476,7 +476,7 @@ async def test_declarative_router_complex_configuration():
     container.instances[Router] = main_router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(main_router)
+    await plugin.setup_routes(main_router)
 
     # Verify one sub-router and one mounted router were added
     assert len(main_router._sub_routers) == 1  # main_router
@@ -536,7 +536,7 @@ async def test_declarative_router_error_handling():
 
     # This should raise an error due to invalid handler format
     with pytest.raises(ValueError):
-        await plugin.on_app_request_begin(router)
+        await plugin.setup_routes(router)
 
 
 def test_declarative_router_integration_with_app():
@@ -623,7 +623,7 @@ async def test_declarative_router_route_resolution():
     container.instances[Router] = router
 
     # Call the event handler to set up routes
-    await plugin.on_app_request_begin(router)
+    await plugin.setup_routes(router)
 
     # Test route resolution
     result = router.resolve_route("/users/123", "GET")
@@ -682,8 +682,8 @@ async def test_declarative_router_multiple_plugins():
     container.instances[Router] = router
 
     # Set up routes from both plugins
-    await plugin1.on_app_request_begin(router)
-    await plugin2.on_app_request_begin(router)
+    await plugin1.setup_routes(router)
+    await plugin2.setup_routes(router)
 
     # Verify both plugins added their routes
     assert len(router._sub_routers) == 1  # plugin1

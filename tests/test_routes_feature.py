@@ -7,7 +7,7 @@ from bevy import dependency
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.extensions import Extension
+from serv.extensions import Extension, on
 from serv.injectors import Cookie, Header, Query
 from serv.routes import (
     Form,
@@ -277,7 +277,8 @@ class RouteTestExtension(Extension):
         self.plugin_registered_route = False
         self._stand_alone = True
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def setup_routes(self, router: Router = dependency()) -> None:
         # Using app.request.begin as it seems to be a point where router_instance is available
         # A dedicated app.startup or app.plugins.loaded event might be cleaner if available.
         router.add_route(self.path, self.route_class)
@@ -494,9 +495,8 @@ async def test_jinja_tuple_return(app: App, client: AsyncClient):
     plugin = RouteTestExtension("/test_jinja_tuple", JinjaTupleReturnRoute)
     app.add_extension(plugin)
 
-    response = await client.get("/test_jinja_tuple")
-    # This test might fail if the template doesn't exist, but it tests the tuple handling
-    # The actual template rendering is tested elsewhere
+    # Test that jinja tuple handling works (actual template rendering tested elsewhere)
+    await client.get("/test_jinja_tuple")
     assert plugin.plugin_registered_route
 
 

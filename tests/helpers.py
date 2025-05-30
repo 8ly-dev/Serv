@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 from bevy import dependency
 from bevy.containers import Container
 
-from serv.extensions import Listener
+from serv.extensions import Listener, on
 from serv.extensions.importer import Importer
 from serv.extensions.loader import ExtensionSpec
 from serv.requests import Request
@@ -59,7 +59,8 @@ class RouteAddingExtension(Listener):
         super().__init__()
         # self._stand_alone = True # No longer needed here for Extension base class init
 
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
+    @on("app.request.begin")
+    async def add_route(self, router: Router = dependency()) -> None:
         router.add_route(self.path, self._handler_wrapper, methods=self.methods)
 
     async def _handler_wrapper(
@@ -122,7 +123,6 @@ def create_test_extension_spec(
 
 
 # Backward compatibility aliases
-EventWatcherExtension = None  # Will be set after class definition
 patch_extension_spec_on_module = patch_extension_spec_on_module
 
 
@@ -139,10 +139,6 @@ class EventWatcherExtension(Listener):
 
     async def on(self, event_name: str, **kwargs: Any) -> None:
         self.events_seen.append((event_name, kwargs))
-
-
-# Set backward compatibility alias after class definition
-EventWatcherExtension = EventWatcherExtension
 
 
 # Example of a simple middleware for testing
