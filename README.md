@@ -51,10 +51,10 @@ In Serv, functionality lives in **extensions**. Each extension is a self-contain
 ```
 my-project/
 ├── serv.config.yaml      # App configuration
-├── extensions/           # Your extensions
-│   └── users/
-│       ├── extension.yaml
-│       └── main.py
+└── extensions/           # Your extensions
+    └── users/
+        ├── extension.yaml
+        └── main.py
 ```
 
 ### Routes with Personality
