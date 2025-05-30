@@ -1,51 +1,45 @@
-# Serv Framework - Basic Demo
+# Basic Serv App Demo
 
-This directory contains a basic demonstration of the Serv web framework.
+This is a minimal example of a Serv application that demonstrates the modern Route class system with signature-based routing.
 
 ## Features Demonstrated
 
-*   Basic application setup using `serv.app.App`.
-*   Defining a simple `serv.plugins.Extension`.
-*   Adding routes within a plugin using `router.add_route()`.
-*   Simple asynchronous request handlers.
-*   Returning plain text and HTML responses using `serv.responses.ResponseBuilder`.
-*   Dependency injection for `ResponseBuilder` and `Router` into handlers/plugin methods via `bevy.dependency()`.
-
-## Files
-
-*   `main.py`: The Python script containing the Serv application and example routes.
-*   `README.md`: This file, providing instructions and information about the demo.
-
-## Prerequisites
-
-Before running the demo, ensure you have Python 3.8+ installed.
-
-You will also need to install the Serv framework. If you are running this demo from within the Serv project's cloned repository, ensure the project is installed (e.g., in editable mode `pip install -e .`) or that your `PYTHONPATH` is configured to find the `serv` package.
-
-Additionally, this demo uses `uvicorn` as the ASGI server and `bevy` for dependency injection. If they are not already installed as part of Serv's dependencies, you can install them via pip:
-
-```bash
-pip install uvicorn bevy
-```
+*   **Route Classes**: Using `Route` base class instead of functions
+*   **Handler Methods**: Methods like `handle_get()` for HTTP methods  
+*   **Type Annotations**: `Annotated[str, TextResponse]` for typed responses
+*   **Extension System**: Clean registration of route classes
+*   **Modern Patterns**: Updated approach to Serv application structure
 
 ## Running the Demo
 
-1.  Navigate to the Serv project's root directory in your terminal if you aren't there already.
+```bash
+cd demos/basic_app
+python main.py
+```
 
-2.  Run the demo application using Python:
-    ```bash
-    python demos/basic_app/main.py
-    ```
+Then visit:
+- http://127.0.0.1:8000/ for the homepage
+- http://127.0.0.1:8000/about for the about page
 
-3.  The application will start, and you should see output similar to:
-    ```
-    Starting Serv basic demo on http://127.0.0.1:8000
-    Press Ctrl+C to stop.
-    ```
-    You can then access the application at:
-    *   `http://127.0.0.1:8000/` to see the plain text homepage.
-    *   `http://127.0.0.1:8000/about` to see the HTML about page.
+## Code Structure
 
-## Stopping the Demo
+```python
+class HomeRoute(Route):
+    async def handle_get(self) -> Annotated[str, TextResponse]:
+        return "Hello from Serv!"
 
-To stop the server, press `Ctrl+C` in the terminal where the `main.py` script is running. 
+class BasicAppExtension(Listener):
+    async def on_app_request_begin(self, router: Router) -> None:
+        router.add_route("/", HomeRoute)
+```
+
+## What's New in This Version
+
+This updated demo showcases the modern Serv approach:
+
+1. **Route Classes**: Instead of function handlers, we use Route classes that inherit from the `Route` base class
+2. **Handler Methods**: Methods like `handle_get()` automatically handle HTTP GET requests
+3. **Type Safety**: Return type annotations specify response types like `TextResponse` and `HtmlResponse`
+4. **Clean Architecture**: Better separation of concerns and more maintainable code
+
+For more advanced features like parameter injection and multiple handlers per method, check out the [signature routing demo](../signature_routing_demo/). 

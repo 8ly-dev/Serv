@@ -1,32 +1,47 @@
 import asyncio
-
-from bevy import dependency
+from typing import Annotated
 
 from serv.app import App
 from serv.extensions import Listener
-from serv.responses import ResponseBuilder
+from serv.responses import HtmlResponse, TextResponse
+from serv.routes import Route
 from serv.routing import Router
 
-# Define a handler for the root path
+
+class HomeRoute(Route):
+    """Modern Route class demonstrating signature-based routing"""
+
+    async def handle_get(self) -> Annotated[str, TextResponse]:
+        """Handle GET requests to homepage"""
+        return "Hello from Serv! This is the updated basic demo using Route classes."
 
 
-async def homepage(response: ResponseBuilder = dependency()):
-    response.content_type("text/plain")
-    response.body("Hello from Serv! This is the basic demo.")
+class AboutRoute(Route):
+    """About page route"""
 
-
-# Define another handler for an /about path
-async def about_page(response: ResponseBuilder = dependency()):
-    response.content_type("text/html")
-    response.body(
-        "<h1>About Us</h1><p>This is a simple demo of the Serv framework.</p>"
-    )
+    async def handle_get(self) -> Annotated[str, HtmlResponse]:
+        """Handle GET requests to about page"""
+        return """
+        <h1>About Us</h1>
+        <p>This is a simple demo of the Serv framework using the new Route class system.</p>
+        <p><a href="/">← Back to Home</a></p>
+        
+        <h2>What's New</h2>
+        <ul>
+            <li>Route classes instead of functions</li>
+            <li>Signature-based method dispatch</li>
+            <li>Type-annotated responses</li>
+            <li>Automatic parameter injection</li>
+        </ul>
+        
+        <p>Check out the <a href="../signature_routing_demo/">signature routing demo</a> for more advanced features!</p>
+        """
 
 
 class BasicAppExtension(Listener):
-    async def on_app_request_begin(self, router: Router = dependency()) -> None:
-        router.add_route("/", homepage)
-        router.add_route("/about", about_page)
+    async def on_app_request_begin(self, router: Router) -> None:
+        router.add_route("/", HomeRoute)
+        router.add_route("/about", AboutRoute)
 
 
 # If the script is run directly, start the Uvicorn server
