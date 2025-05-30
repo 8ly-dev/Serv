@@ -20,6 +20,7 @@ from bevy import dependency, inject
 from bevy.containers import Container
 
 import serv
+import serv.app as app
 import serv.extensions.loader as pl
 from serv.exceptions import HTTPMethodNotAllowedException
 from serv.extensions import Listener
@@ -573,6 +574,12 @@ class Route:
             type(self)._extension = None
 
         return self._extension
+
+    @inject
+    async def emit(
+        self, event: str, emitter: "app.EventEmitter" = dependency(), /, **kwargs: Any
+    ):
+        return await emitter.emit(event, **kwargs)
 
     def _analyze_handler_signature(self, handler_sig, request: Request) -> dict:
         """Analyze a handler's signature and determine what parameters it needs."""

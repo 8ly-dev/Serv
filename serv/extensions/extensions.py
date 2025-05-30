@@ -9,9 +9,10 @@ from inspect import get_annotations, isawaitable, signature
 from pathlib import Path
 from typing import Any
 
-from bevy import get_container
+from bevy import dependency, get_container, inject
 from bevy.containers import Container
 
+import serv.app as app
 import serv.extensions.loader as pl
 
 type ListenerMapping = dict[str, list[str]]
@@ -347,6 +348,13 @@ class Listener:
             result = get_container(container).call(callback, **handler_kwargs)
             if isawaitable(result):
                 await result
+
+    @inject
+    @staticmethod
+    async def emit(
+        event_name: str, _emitter: "app.EventEmitter" = dependency(), **kwargs: Any
+    ):
+        await _emitter.emit(event_name, **kwargs)
 
     async def _prepare_handler_arguments(
         self,

@@ -79,6 +79,7 @@ class EventEmitter:
     def __init__(self, extensions: dict[Path, list[Listener]]):
         self.extensions = extensions
 
+    @inject
     def emit_sync(
         self, event: str, *, container: Container = dependency(), **kwargs
     ) -> Task:
@@ -86,6 +87,7 @@ class EventEmitter:
             self.emit(event, container=container, **kwargs)
         )
 
+    @inject
     async def emit(self, event: str, *, container: Container = dependency(), **kwargs):
         async with asyncio.TaskGroup() as tg:
             for extension in chain(*self.extensions.values()):
