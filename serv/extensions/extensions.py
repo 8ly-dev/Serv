@@ -324,8 +324,8 @@ class Listener:
     ) -> None:
         """Receives event notifications.
 
-        This method will be called by the application when an event this listener
-        is registered for occurs. Handlers are called with keyword arguments only,
+        This method will be called by the application when an event occurs that this
+        listener is registered for. Handlers are called with keyword arguments only,
         and Context objects are injected for parameters with Context type annotation.
 
         Args:
