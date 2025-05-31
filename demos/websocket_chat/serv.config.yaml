@@ -1,0 +1,12 @@
+site_info:
+  name: "WebSocket Echo Chat Demo"
+  description: "A demo showcasing WebSocket functionality in Serv"
+
+extensions:
+  - websocket_chat
+
+settings:
+  debug: true
+  host: "127.0.0.1"
+  port: 8000
+  extension_dir: "./extensions" 

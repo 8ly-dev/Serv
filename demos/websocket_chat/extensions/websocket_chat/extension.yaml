@@ -1,0 +1,13 @@
+name: WebSocket Echo Chat
+description: A demo extension showcasing WebSocket functionality with an echo chat interface
+version: 1.0.0
+author: Serv Demo
+
+routers:
+  - name: chat_router
+    routes:
+      - path: /
+        handler: main:ChatPageRoute
+      - path: /ws
+        handler: main:echo_websocket_handler
+        websocket: true 

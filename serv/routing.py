@@ -28,6 +28,7 @@ class Router:
     - URL generation with `url_for()`
     - Route settings and metadata
     - Flexible handler types (functions, Route classes)
+    - WebSocket route support
 
     Examples:
         Basic router setup:
@@ -49,6 +50,13 @@ class Router:
                 return {"user": "data"}
 
         router.add_route("/users/{id}", UserRoute)
+        
+        # Add WebSocket handler
+        async def websocket_handler(websocket):
+            async for message in websocket:
+                await websocket.send(message)
+        
+        router.add_websocket("/ws", websocket_handler)
         ```
 
         Router with settings:
@@ -81,6 +89,10 @@ class Router:
         # Stores tuples of (path_pattern, methods, handler_callable, settings)
         self._routes: list[
             tuple[str, frozenset[str] | None, Callable, dict[str, Any]]
+        ] = []
+        # Stores WebSocket routes as tuples of (path_pattern, handler_callable, settings)
+        self._websocket_routes: list[
+            tuple[str, Callable, dict[str, Any]]
         ] = []
         # Stores mapping of (route_class -> path_pattern) for url_for lookups
         self._route_class_paths: dict[type[routes.Route], list[str]] = {}
@@ -183,6 +195,31 @@ class Router:
                     frozenset(m.upper() for m in methods) if methods else None
                 )
                 self._routes.append((path, normalized_methods, handler, settings or {}))
+
+    def add_websocket(
+        self,
+        path: str,
+        handler: "Callable[..., Awaitable[Any]]",
+        *,
+        settings: dict[str, Any] = None,
+    ):
+        """Adds a WebSocket route to this router.
+
+        Args:
+            path: The path pattern for the WebSocket route.
+            handler: An async WebSocket handler function that accepts a WebSocket parameter.
+            settings: Optional dictionary of settings to be added to the container when handling this route.
+
+        Examples:
+            >>> async def echo_handler(websocket):
+            ...     async for message in websocket:
+            ...         await websocket.send(message)
+            >>> router.add_websocket("/ws", echo_handler)
+            
+            >>> # With settings
+            >>> router.add_websocket("/ws", echo_handler, settings={"auth_required": True})
+        """
+        self._websocket_routes.append((path, handler, settings or {}))
 
     def add_router(self, router: "Router"):
         """Adds a sub-router. Sub-routers are checked before the current router's own routes.
@@ -685,6 +722,49 @@ class Router:
         # Check if we consumed all parts
         if pattern_idx == len(pattern_parts) and request_idx == len(request_parts):
             return params
+
+        return None
+
+    def resolve_websocket(
+        self, request_path: str
+    ) -> tuple[Callable, dict[str, Any], dict[str, Any]] | None:
+        """Resolve a WebSocket route for the given path.
+
+        Args:
+            request_path: The WebSocket request path to match against registered routes.
+
+        Returns:
+            A tuple of (handler_callable, path_params, route_settings) if a matching
+            WebSocket route is found, None otherwise.
+
+        Examples:
+            >>> handler, params, settings = router.resolve_websocket("/ws/user/123")
+            >>> if handler:
+            ...     # Handle WebSocket connection
+            ...     await handler(websocket, **params)
+        """
+        # First check sub-routers (they take precedence)
+        for sub_router in reversed(self._sub_routers):
+            result = sub_router.resolve_websocket(request_path)
+            if result:
+                return result
+
+        # Check mounted routers
+        for mount_path, mounted_router in self._mounted_routers:
+            if request_path.startswith(mount_path):
+                # Remove the mount path prefix before checking the mounted router
+                relative_path = request_path[len(mount_path) :] or "/"
+                result = mounted_router.resolve_websocket(relative_path)
+                if result:
+                    return result
+
+        # Check our own WebSocket routes
+        for path_pattern, handler, settings in self._websocket_routes:
+            path_params = self._match_path(request_path, path_pattern)
+            if path_params is not None:
+                # Merge router-level settings with route-specific settings
+                merged_settings = {**self._settings, **settings}
+                return handler, path_params, merged_settings
 
         return None
 

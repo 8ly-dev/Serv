@@ -27,11 +27,22 @@ class RouterBuilder:
     def build(self, main_router: "r.Router"):
         router = r.Router(self._settings)
         for route in self._routes:
-            args = [route["path"], self._get_route_handler(route)]
-            if methods := route.get("methods"):
-                args.append(methods)
-
-            router.add_route(*args, settings=route.get("config", {}))
+            handler = self._get_route_handler(route)
+            
+            # Check if this is a WebSocket route
+            if route.get("websocket", False):
+                # Add as WebSocket route
+                router.add_websocket(
+                    route["path"], 
+                    handler, 
+                    settings=route.get("config", {})
+                )
+            else:
+                # Add as regular HTTP route
+                args = [route["path"], handler]
+                if methods := route.get("methods"):
+                    args.append(methods)
+                router.add_route(*args, settings=route.get("config", {}))
 
         if self._mount_path:
             main_router.mount(self._mount_path, router)
@@ -89,5 +100,15 @@ class RouterExtension(Listener):
 
     @on("app.request.begin")
     async def setup_routes(self, main_router: "r.Router" = dependency()) -> None:
+        for router_builder in self._routers.values():
+            router_builder.build(main_router)
+
+    @on("app.websocket.begin")
+    async def setup_websocket_routes(self, main_router: "r.Router" = dependency()) -> None:
+        """Set up routes for WebSocket connections.
+        
+        WebSocket connections use a fresh router instance, so we need to register
+        routes during the websocket.begin event as well.
+        """
         for router_builder in self._routers.values():
             router_builder.build(main_router)

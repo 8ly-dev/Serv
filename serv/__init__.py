@@ -9,6 +9,7 @@ Serv is an ASGI-based web framework that emphasizes:
 - Middleware support for cross-cutting concerns
 - Template rendering with Jinja2
 - Event-driven extension system
+- WebSocket support for real-time communication
 
 Quick Start:
     ```python
@@ -29,9 +30,30 @@ Quick Start:
     # Run with: uvicorn main:app --reload
     ```
 
+WebSocket Support:
+    ```python
+    from serv import App, WebSocket
+    from serv.websocket import FrameType
+    from typing import Annotated
+
+    app = App()
+
+    # Simple echo WebSocket handler
+    async def websocket_handler(websocket: WebSocket):
+        async for message in websocket:
+            await websocket.send(message)
+
+    # Binary WebSocket handler
+    async def binary_handler(ws: Annotated[WebSocket, FrameType.BINARY]):
+        async for message in ws:
+            # message is bytes
+            await ws.send(message)
+    ```
+
 Key Components:
     - App: Main application class and ASGI entry point
     - Route: Base class for HTTP route handlers
+    - WebSocket: WebSocket connection handler for real-time communication
     - Extension: Base class for extending application functionality
     - Router: URL routing and path matching
     - ResponseBuilder: Fluent response construction
@@ -45,5 +67,6 @@ For detailed documentation and examples, visit: https://serv.dev/docs
 
 from serv.app import App
 from serv.routes import handle
+from serv.websocket import WebSocket
 
-__all__ = ["App", "handle"]
+__all__ = ["App", "handle", "WebSocket"]
