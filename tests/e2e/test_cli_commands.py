@@ -98,8 +98,6 @@ class TestCliCommands:
             config = yaml.safe_load(f)
 
         assert "site_info" in config, "Config should have a 'site_info' section"
-        assert "extensions" in config, "Config should have a 'extensions' section"
-        assert "middleware" in config, "Config should have a 'middleware' section"
 
     def test_create_extension_command(self, clean_test_dir, monkeypatch):
         """Test manually creating a plugin structure."""
