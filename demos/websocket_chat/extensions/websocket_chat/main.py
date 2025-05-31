@@ -4,15 +4,16 @@ A demo extension showcasing WebSocket functionality with an echo chat interface.
 """
 
 from typing import Annotated
+
 from bevy import dependency
 
 from serv import WebSocket, handle
-from serv.routes import Route, GetRequest, HtmlResponse
+from serv.routes import GetRequest, HtmlResponse, Route
 
 
 class ChatPageRoute(Route):
     """Serve the chat page."""
-    
+
     @handle.GET
     async def handle_get(self, request: GetRequest) -> Annotated[str, HtmlResponse]:
         """Return the chat interface HTML."""
@@ -135,7 +136,7 @@ class ChatPageRoute(Route):
 <body>
     <div class="chat-container">
         <h1>🚀 WebSocket Echo Chat Demo</h1>
-        
+
         <div class="info">
             <h3>About This Demo</h3>
             <p>This demo showcases the WebSocket functionality implemented in the Serv framework. Type a message and send it - the server will echo it back to you immediately!</p>
@@ -147,11 +148,11 @@ class ChatPageRoute(Route):
                 <li>Error handling and reconnection</li>
             </ul>
         </div>
-        
+
         <div id="status" class="status connecting">Connecting to WebSocket...</div>
-        
+
         <div id="messages"></div>
-        
+
         <div class="input-container">
             <input type="text" id="messageInput" placeholder="Type your message here..." disabled>
             <button id="sendButton" disabled>Send</button>
@@ -172,11 +173,11 @@ class ChatPageRoute(Route):
         function updateStatus(status, message) {
             statusEl.className = `status ${status}`;
             statusEl.textContent = message;
-            
+
             const isConnected = status === 'connected';
             messageInput.disabled = !isConnected;
             sendButton.disabled = !isConnected;
-            
+
             if (isConnected) {
                 messageInput.focus();
             }
@@ -185,9 +186,9 @@ class ChatPageRoute(Route):
         function addMessage(content, type = 'received') {
             const div = document.createElement('div');
             div.className = `message ${type}`;
-            
+
             const timestamp = new Date().toLocaleTimeString();
-            
+
             if (type === 'system') {
                 div.textContent = `[${timestamp}] ${content}`;
             } else if (type === 'sent') {
@@ -195,7 +196,7 @@ class ChatPageRoute(Route):
             } else {
                 div.textContent = `[${timestamp}] Echo: ${content}`;
             }
-            
+
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
@@ -203,35 +204,35 @@ class ChatPageRoute(Route):
         function connect() {
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${location.host}/ws`);
-            
+
             ws.onopen = () => {
                 updateStatus('connected', 'Connected to WebSocket server');
                 addMessage('Connected to echo chat server', 'system');
-                
+
                 // Reset reconnect delay on successful connection
                 reconnectDelay = 1000;
-                
+
                 // Clear any pending reconnect
                 if (reconnectTimeout) {
                     clearTimeout(reconnectTimeout);
                     reconnectTimeout = null;
                 }
             };
-            
+
             ws.onmessage = (event) => {
                 console.log('Received message:', event.data);
                 addMessage(event.data, 'received');
             };
-            
+
             ws.onclose = (event) => {
                 console.log('WebSocket closed:', event.code, event.reason);
                 updateStatus('disconnected', `Disconnected (Code: ${event.code})`);
                 addMessage(`Connection closed (${event.code}): ${event.reason || 'No reason provided'}`, 'system');
-                
+
                 // Attempt to reconnect
                 scheduleReconnect();
             };
-            
+
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
                 updateStatus('disconnected', 'Connection error occurred');
@@ -241,13 +242,13 @@ class ChatPageRoute(Route):
 
         function scheduleReconnect() {
             if (reconnectTimeout) return; // Already scheduled
-            
+
             addMessage(`Attempting to reconnect in ${reconnectDelay / 1000} seconds...`, 'system');
-            
+
             reconnectTimeout = setTimeout(() => {
                 reconnectTimeout = null;
                 connect();
-                
+
                 // Exponential backoff, but cap at maxReconnectDelay
                 reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay);
             }, reconnectDelay);
@@ -256,7 +257,7 @@ class ChatPageRoute(Route):
         function sendMessage() {
             const message = messageInput.value.trim();
             if (!message || !ws || ws.readyState !== WebSocket.OPEN) return;
-            
+
             console.log('Sending message:', message);
             ws.send(message);
             addMessage(message, 'sent');
@@ -265,7 +266,7 @@ class ChatPageRoute(Route):
 
         // Event listeners
         sendButton.addEventListener('click', sendMessage);
-        
+
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 sendMessage();
@@ -282,12 +283,12 @@ class ChatPageRoute(Route):
 async def echo_websocket_handler(websocket: WebSocket = dependency()) -> None:
     """WebSocket echo handler - demonstrates the basic async iteration pattern."""
     print(f"WebSocket connection established from {websocket.client}")
-    
+
     try:
         # Accept the connection
         await websocket.accept()
         print("WebSocket connection accepted")
-        
+
         # Echo messages back using async iteration
         print("Starting message iteration...")
         message_count = 0
@@ -297,10 +298,13 @@ async def echo_websocket_handler(websocket: WebSocket = dependency()) -> None:
             echo_response = f"Echo: {message}"
             await websocket.send(echo_response)
             print(f"Sent echo response: {echo_response}")
-            
+
     except Exception as e:
         print(f"WebSocket error: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
-        print(f"WebSocket connection closed (processed {message_count if 'message_count' in locals() else 0} messages)")
+        print(
+            f"WebSocket connection closed (processed {message_count if 'message_count' in locals() else 0} messages)"
+        )

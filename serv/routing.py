@@ -50,12 +50,12 @@ class Router:
                 return {"user": "data"}
 
         router.add_route("/users/{id}", UserRoute)
-        
+
         # Add WebSocket handler
         async def websocket_handler(websocket):
             async for message in websocket:
                 await websocket.send(message)
-        
+
         router.add_websocket("/ws", websocket_handler)
         ```
 
@@ -91,9 +91,7 @@ class Router:
             tuple[str, frozenset[str] | None, Callable, dict[str, Any]]
         ] = []
         # Stores WebSocket routes as tuples of (path_pattern, handler_callable, settings)
-        self._websocket_routes: list[
-            tuple[str, Callable, dict[str, Any]]
-        ] = []
+        self._websocket_routes: list[tuple[str, Callable, dict[str, Any]]] = []
         # Stores mapping of (route_class -> path_pattern) for url_for lookups
         self._route_class_paths: dict[type[routes.Route], list[str]] = {}
         # Stores mapping of route path patterns to settings
@@ -215,7 +213,7 @@ class Router:
             ...     async for message in websocket:
             ...         await websocket.send(message)
             >>> router.add_websocket("/ws", echo_handler)
-            
+
             >>> # With settings
             >>> router.add_websocket("/ws", echo_handler, settings={"auth_required": True})
         """

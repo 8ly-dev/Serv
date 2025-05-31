@@ -1,1 +1,1 @@
-# WebSocket Chat Extension 
+# WebSocket Chat Extension

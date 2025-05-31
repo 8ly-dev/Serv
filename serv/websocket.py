@@ -384,7 +384,7 @@ class WebSocket:
             return await self.receive()
         except WebSocketConnectionError:
             # Convert connection errors to StopAsyncIteration for proper async iteration
-            raise StopAsyncIteration
+            raise StopAsyncIteration from None
 
     async def __aenter__(self):
         """Async context manager entry - automatically accept connection."""

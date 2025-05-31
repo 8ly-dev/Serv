@@ -61,10 +61,10 @@ def inject_websocket_object(container: Container, annotation: Any) -> Optional[A
 
     Handles both plain WebSocket injection and Annotated[WebSocket, FrameType.X] patterns.
     """
-    from serv.websocket import WebSocket, FrameType
+    from serv.websocket import FrameType, WebSocket
 
     # Handle plain WebSocket type
-    if isinistance(annotation, type) and issubclass(annotation, WebSocket):
+    if isinstance(annotation, type) and issubclass(annotation, WebSocket):
         if websocket := container.get_optional(annotation):
             return websocket
 
@@ -72,7 +72,11 @@ def inject_websocket_object(container: Container, annotation: Any) -> Optional[A
     origin = get_origin(annotation)
     if origin is Annotated:
         args = get_args(annotation)
-        if len(args) >= 2 and isinstance(args[0], type) and issubclass(args[0], WebSocket):
+        if (
+            len(args) >= 2
+            and isinstance(args[0], type)
+            and issubclass(args[0], WebSocket)
+        ):
             websocket_opt = container.get(WebSocket)
             if websocket_opt:
                 websocket = websocket_opt.unwrap()

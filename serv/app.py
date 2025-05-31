@@ -274,7 +274,7 @@ class App:
     def _init_container(self):
         # Register hooks for injection
         inject_request_object.register_hook(self._registry)
-        
+
         # Register WebSocket injection hook
         inject_websocket_object.register_hook(self._registry)
 
@@ -1005,7 +1005,7 @@ class App:
                 resolved_route_info = router_instance_for_request.resolve_websocket(
                     scope.get("path", "/")
                 )
-                
+
                 if not resolved_route_info:
                     # No WebSocket route found, reject connection
                     await send({"type": "websocket.close", "code": 4404})
@@ -1014,22 +1014,24 @@ class App:
                 handler_callable, path_params, route_settings = resolved_route_info
 
                 # Extract WebSocket frame type from handler annotations if present
-                import inspect
-                from typing import get_type_hints, get_args, get_origin
-                from serv.websocket import WebSocket, FrameType
+                from typing import get_args, get_origin, get_type_hints
+
+                from serv.websocket import FrameType, WebSocket
 
                 frame_type = FrameType.TEXT  # Default frame type
-                
+
                 try:
                     # Get type hints for the handler
                     type_hints = get_type_hints(handler_callable, include_extras=True)
-                    
+
                     # Look for WebSocket parameter with frame type annotation
-                    for param_name, param_type in type_hints.items():
+                    for _param_name, param_type in type_hints.items():
                         if get_origin(param_type) is not None:
                             # Check if it's Annotated[WebSocket, FrameType.X]
                             origin = get_origin(param_type)
-                            if origin is type(type_hints.get("__annotated__", type(None))):  # Annotated type
+                            if origin is type(
+                                type_hints.get("__annotated__", type(None))
+                            ):  # Annotated type
                                 args = get_args(param_type)
                                 if len(args) >= 2 and args[0] is WebSocket:
                                     # Found WebSocket parameter, check for FrameType in annotations
@@ -1050,8 +1052,10 @@ class App:
                 # Create a branch of the container with route settings and WebSocket instance
                 with container.branch() as route_container:
                     from serv.routing import RouteSettings
-                    
-                    route_container.instances[RouteSettings] = RouteSettings(**route_settings)
+
+                    route_container.instances[RouteSettings] = RouteSettings(
+                        **route_settings
+                    )
                     route_container.instances[WebSocket] = websocket
 
                     try:
@@ -1061,16 +1065,20 @@ class App:
                         logger.exception(f"WebSocket handler error: {e}")
                         # Close connection with error code
                         if websocket.is_connected:
-                            await websocket.close(code=1011, reason="Internal server error")
+                            await websocket.close(
+                                code=1011, reason="Internal server error"
+                            )
 
                 await container.call(self._emit.emit, "app.websocket.end")
 
             except Exception as e:
-                logger.exception(f"Unhandled exception during WebSocket processing: {e}")
+                logger.exception(
+                    f"Unhandled exception during WebSocket processing: {e}"
+                )
                 # Attempt to close connection gracefully
                 try:
                     await send({"type": "websocket.close", "code": 1011})
                 except Exception:
                     pass  # Connection may already be closed
-                
+
                 await container.call(self._emit.emit, "app.websocket.end", error=e)
