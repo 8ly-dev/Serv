@@ -563,7 +563,7 @@ class Route:
             response_builder.set_status(handler_result.status_code)
             for header, value in handler_result.headers.items():
                 response_builder.add_header(header, value)
-            response_builder.body(handler_result.render())
+            response_builder.body(container.call(handler_result.render))
         else:
             # This should never happen if _handle_request is working correctly,
             # but provide a detailed error message just in case
