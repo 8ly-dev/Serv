@@ -111,14 +111,31 @@ class StreamingResponse(Response):
         self.content = content
         self.headers["Content-Type"] = media_type
 
-    async def render(self) -> AsyncGenerator[bytes]:
-        async for chunk in self.content:
-            if isinstance(chunk, str):
-                yield chunk.encode("utf-8")
-            elif isinstance(chunk, bytes):
-                yield chunk
-            else:
-                yield str(chunk).encode("utf-8")
+        self._running_renderer = None
+
+    async def render(self, app: "app.App" = dependency()) -> AsyncGenerator[bytes]:
+        self._running_renderer = self._render()
+        app.on_shutdown(self._shutdown)
+        return self._running_renderer
+
+    async def _shutdown(self):
+        if self._running_renderer:
+            await self._running_renderer.athrow(StopAsyncIteration())
+
+    async def _render(self):
+        try:
+            async for chunk in self.content:
+                if isinstance(chunk, str):
+                    yield chunk.encode("utf-8")
+                elif isinstance(chunk, bytes):
+                    yield chunk
+                else:
+                    yield str(chunk).encode("utf-8")
+        except Exception as e:
+            e.add_note(f" - Rendering {self}")
+            raise
+        finally:
+            self._running_renderer = None
 
     def __repr__(self):
         return (
