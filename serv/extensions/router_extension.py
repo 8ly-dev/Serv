@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 from bevy import dependency
 
 import serv.routing as r
+from serv.additional_context import ExceptionContext
 from serv.extensions import Listener, on
 
 if TYPE_CHECKING:
@@ -64,7 +65,10 @@ class RouterBuilder:
             )
 
         module, handler = handler_str.split(":")
-        module = self._importer.load_module(module)
+        with ExceptionContext().apply_note(
+            f" - Attempting to import module {module}:{handler} with route config {route}"
+        ):
+            module = self._importer.load_module(module)
         return getattr(module, handler)
 
 
