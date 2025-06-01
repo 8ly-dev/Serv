@@ -819,7 +819,7 @@ def _get_configured_app(app_module_str: str | None, args_ns) -> App:
     app_kwargs = {}
 
     if hasattr(args_ns, "config") and args_ns.config:
-        app_kwargs["config_file"] = args_ns.config
+        app_kwargs["config"] = args_ns.config
 
     if hasattr(args_ns, "extension_dirs") and args_ns.extension_dirs:
         app_kwargs["extension_dir"] = args_ns.extension_dirs
