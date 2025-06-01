@@ -522,8 +522,10 @@ class Route:
         request: Request = dependency(),
         container: Container = dependency(),
         response_builder: ResponseBuilder = dependency(),
+        /,
+        **path_params,
     ):
-        handler_result = await self._handle_request(request, container)
+        handler_result = await self._handle_request(request, container, path_params)
 
         if isinstance(handler_result, Response):
             response_builder.set_status(handler_result.status_code)
@@ -723,7 +725,11 @@ class Route:
         return False
 
     async def _extract_handler_parameters(
-        self, handler_info: dict, request: Request, container: Container
+        self,
+        handler_info: dict,
+        request: Request,
+        path_params: dict[str, Any],
+        container: Container,
     ) -> dict:
         """Extract and prepare parameters for handler invocation."""
         sig = handler_info["signature"]
@@ -801,7 +807,6 @@ class Route:
                             handler_line = handler_lines[1]
                 except Exception:
                     pass
-
                 error_msg = (
                     f"Required parameter could not be resolved:\n"
                     f"  Parameter: '{param_name}' (type: {param_annotation})\n"
@@ -818,7 +823,9 @@ class Route:
 
         return kwargs
 
-    async def _handle_request(self, request: Request, container: Container) -> Any:
+    async def _handle_request(
+        self, request: Request, container: Container, path_params
+    ) -> Any:
         method = request.method
         handler = None
         handler_name = None
@@ -837,7 +844,9 @@ class Route:
                             args_to_pass = [parsed_form]
                             break
                         except Exception as e:
-                            return await container.call(self._error_handler, e)
+                            return await container.call(
+                                self._error_handler, e, path_params
+                            )
                     if handler:
                         break
 
@@ -852,10 +861,10 @@ class Route:
                 handler_name = handler_info["name"]
                 try:
                     kwargs_to_pass = await self._extract_handler_parameters(
-                        handler_info, request, container
+                        handler_info, request, path_params, container
                     )
                 except Exception as e:
-                    return await container.call(self._error_handler, e)
+                    return await container.call(self._error_handler, e, path_params)
             else:
                 # Multiple handlers, find the best match
                 compatible_handlers = []
@@ -863,7 +872,7 @@ class Route:
                 for handler_info in handlers:
                     try:
                         kwargs_to_pass_temp = await self._extract_handler_parameters(
-                            handler_info, request, container
+                            handler_info, request, path_params, container
                         )
                         # Count how many injectable parameters actually got values from the request
                         score = self._calculate_handler_specificity(
@@ -885,6 +894,7 @@ class Route:
                                 | self.__form_handlers__.keys()
                             ),
                         ),
+                        path_params,
                     )
 
                 # Sort by score (highest first) and take the best match
@@ -901,6 +911,7 @@ class Route:
                     list(
                         self.__method_handlers__.keys() | self.__form_handlers__.keys()
                     ),
+                    path_params,
                 ),
             )
 
@@ -1011,18 +1022,22 @@ class Route:
             return response
 
         except Exception as e:
-            return await container.call(self._error_handler, e)
+            return await container.call(self._error_handler, e, path_params)
 
     async def _error_handler(
-        self, exception: Exception, container: Container = dependency()
+        self,
+        exception: Exception,
+        path_params: dict[str, Any] | None = None,
+        container: Container = dependency(),
     ) -> Response:
+        path_params = path_params or {}
         for error_type, handler_name in self.__error_handlers__.items():
             if isinstance(exception, error_type):
                 try:
                     handler = getattr(self, handler_name)
-                    return await container.call(handler, exception)
+                    return await container.call(handler, exception, **path_params)
                 except Exception as e:
                     e.__cause__ = exception
-                    return await container.call(self._error_handler, e)
+                    return await container.call(self._error_handler, e, **path_params)
 
         raise exception
