@@ -1292,6 +1292,7 @@ async def handle_launch_command(args_ns):
                     "access_log": True,
                     "use_colors": True,
                     "server_header": False,  # Reduce noise in dev mode
+                    "timeout_graceful_shutdown": 5,
                 }
             )
 
