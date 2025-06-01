@@ -1,0 +1,2 @@
+# No extra dependencies needed for SSE dashboard demo
+# Serv provides everything needed for Server-Sent Events 
