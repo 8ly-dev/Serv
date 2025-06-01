@@ -50,6 +50,19 @@ class Response:
     def set_created_by(self, handler: Any) -> None:
         self.created_by = handler
 
+    def __repr__(self):
+        body_preview = self.body[:20].decode("utf-8", errors="replace")
+        if len(self.body) > 20:
+            body_preview += "..."
+
+        return (
+            f"<{self.__class__.__name__} "
+            f"status={self.status_code} "
+            f"headers={self.headers} "
+            f"body={body_preview!r}"
+            f">"
+        )
+
 
 class JsonResponse(Response):
     def __init__(self, data: Any, status_code: int = 200):
@@ -107,6 +120,15 @@ class StreamingResponse(Response):
             else:
                 yield str(chunk).encode("utf-8")
 
+    def __repr__(self):
+        return (
+            f"<{self.__class__.__name__}"
+            f" status={self.status_code}"
+            f" headers={self.headers}"
+            f" content={self.content!r}"
+            f">"
+        )
+
 
 class ServerSentEventsResponse(StreamingResponse):
     def __init__(
@@ -160,6 +182,16 @@ class Jinja2Response(Response):
             Path.cwd() / "templates" / extension.name,
             extension.path / "templates",
         ]
+
+    def __repr__(self):
+        return (
+            f"<{self.__class__.__name__}"
+            f" status={self.status_code}"
+            f" headers={self.headers}"
+            f" template={self.template!r}"
+            f" context={self.context!r}"
+            f">"
+        )
 
 
 class GetRequest(Request):
