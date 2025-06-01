@@ -765,6 +765,9 @@ class Route:
                     elif isinstance(marker, Query):
                         value = request.query_params.get(marker.name, marker.default)
 
+            if value is None and param_name in path_params:
+                value = path_params[param_name]
+
             # If no injection marker found and no value extracted, try container injection
             if value is None:
                 try:
