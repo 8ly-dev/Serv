@@ -472,6 +472,7 @@ class App:
             spec = module.__extension_spec__
 
         self._extensions[spec.path].append(extension)
+        self._container.add(extension)
 
     def get_extension(self, path: Path) -> Listener | None:
         return self._extensions.get(path, [None])[0]
