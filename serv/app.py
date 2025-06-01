@@ -296,6 +296,10 @@ class App:
         """Set the development mode setting."""
         self._dev_mode = value
 
+    def on_shutdown(self, callback: Callable[[], Awaitable[None]]):
+        """Add a callback to be called when the application is shutting down."""
+        self._async_exit_stack.push_async_callback(callback)
+
     def add_error_handler(
         self,
         error_type: type[Exception],
@@ -517,13 +521,13 @@ class App:
 
                 case {"type": "lifespan.shutdown"}:
                     logger.debug("Lifespan shutdown event")
+                    await send(
+                        LifespanShutdownCompleteEvent(type="lifespan.shutdown.complete")
+                    )
                     await self.emit(
                         "app.shutdown", scope=scope, container=self._container
                     )
                     await self._async_exit_stack.aclose()
-                    await send(
-                        LifespanShutdownCompleteEvent(type="lifespan.shutdown.complete")
-                    )
 
     def _get_template_locations(self) -> list[Path]:
         """Get the template locations for this app.
