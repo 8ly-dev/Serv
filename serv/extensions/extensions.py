@@ -12,8 +12,8 @@ from typing import Any
 from bevy import dependency, get_container, inject
 from bevy.containers import Container
 
-import serv.app as app
 import serv.extensions.loader as pl
+from serv.protocols import EventEmitterProtocol
 
 type ListenerMapping = dict[str, list[str]]
 
@@ -352,7 +352,7 @@ class Listener:
     @inject
     @staticmethod
     async def emit(
-        event_name: str, _emitter: "app.EventEmitter" = dependency(), **kwargs: Any
+        event_name: str, _emitter: EventEmitterProtocol = dependency(), **kwargs: Any
     ):
         await _emitter.emit(event_name, **kwargs)
 
