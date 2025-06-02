@@ -32,6 +32,7 @@ from serv.extensions import Listener
 from serv.extensions.importer import Importer
 from serv.extensions.loader import ExtensionLoader
 from serv.injectors import inject_request_object, inject_websocket_object
+from serv.protocols import EventEmitterProtocol, AppContextProtocol, RouterProtocol
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routing import HTTPNotFoundException, Router
@@ -95,7 +96,7 @@ class EventEmitter:
                 )
 
 
-class App:
+class App(EventEmitterProtocol, AppContextProtocol):
     """The main ASGI application class for Serv web framework.
 
     This class serves as the central orchestrator for your web application, handling
@@ -281,6 +282,10 @@ class App:
         # Set up container instances
         self._container.add(App, self)
         self._container.add(EventEmitter, self._emit)
+        
+        # Register protocol implementations
+        self._container.add(EventEmitterProtocol, self._emit)
+        self._container.add(AppContextProtocol, self)
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
@@ -502,10 +507,14 @@ class App:
     # Extension loading methods removed - extensions are now loaded via configuration
     # Use the extensions: key in serv.config.yaml to specify extensions to load
 
-    def emit(
+    def emit_sync(
         self, event: str, *, container: Container = dependency(), **kwargs
     ) -> Task:
         return self._emit.emit_sync(event, container=container, **kwargs)
+    
+    async def emit(self, event: str, *, container: Container = dependency(), **kwargs) -> None:
+        """Async emit method for EventEmitterProtocol compliance."""
+        await self._emit.emit(event, container=container, **kwargs)
 
     async def handle_lifespan(self, scope: Scope, receive: Receive, send: Send):
         async for event in self._lifespan_iterator(receive):
