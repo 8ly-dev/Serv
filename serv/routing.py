@@ -1,11 +1,14 @@
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any, dataclass_transform, overload
+from typing import Any, dataclass_transform, overload, TYPE_CHECKING
 
 from bevy import dependency, inject
 from bevy.containers import Container
 
-import serv.routes as routes
 from serv.exceptions import HTTPMethodNotAllowedException, HTTPNotFoundException
+from serv.protocols import RouterProtocol
+
+if TYPE_CHECKING:
+    import serv.routes as routes
 
 
 @dataclass_transform()
@@ -14,7 +17,7 @@ class RouteSettings:
         self.__dict__.update(kwargs)
 
 
-class Router:
+class Router(RouterProtocol):
     """HTTP request router for mapping URLs to handlers.
 
     The Router class is responsible for matching incoming HTTP requests to the
@@ -93,7 +96,7 @@ class Router:
         # Stores WebSocket routes as tuples of (path_pattern, handler_callable, settings)
         self._websocket_routes: list[tuple[str, Callable, dict[str, Any]]] = []
         # Stores mapping of (route_class -> path_pattern) for url_for lookups
-        self._route_class_paths: dict[type[routes.Route], list[str]] = {}
+        self._route_class_paths: dict[type["routes.Route"], list[str]] = {}
         # Stores mapping of route path patterns to settings
         self._route_settings: dict[str, dict[str, Any]] = {}
         # Stores tuples of (mount_path, router_instance)
@@ -248,7 +251,7 @@ class Router:
 
         self._mounted_routers.append((path, router))
 
-    def url_for(self, handler: Callable | type[routes.Route], **kwargs) -> str:
+    def url_for(self, handler: Callable | type["routes.Route"], **kwargs) -> str:
         """Builds a URL for a registered route handler with the given path parameters.
 
         Args:
@@ -263,6 +266,8 @@ class Router:
                        parameters are missing from kwargs.
         """
         # First check if handler is a Route class
+        # Import routes at runtime to avoid circular dependency
+        import serv.routes as routes
         if isinstance(handler, type) and issubclass(handler, routes.Route):
             # Look for route class in the _route_class_paths dictionary
             if handler in self._route_class_paths:
@@ -295,16 +300,17 @@ class Router:
                 )
 
         # Handle methods on Route instances (less common case)
-        elif hasattr(handler, "__self__") and isinstance(
-            handler.__self__, routes.Route
-        ):
-            route_instance = handler.__self__
-            handler = route_instance.__call__
-            path = self._find_handler_path(handler)
-            if not path:
-                raise ValueError(
-                    f"Route instance method {handler.__name__} not found in any router"
-                )
+        elif hasattr(handler, "__self__"):
+            # Import routes at runtime to avoid circular dependency
+            import serv.routes as routes
+            if isinstance(handler.__self__, routes.Route):
+                route_instance = handler.__self__
+                handler = route_instance.__call__
+                path = self._find_handler_path(handler)
+                if not path:
+                    raise ValueError(
+                        f"Route instance method {handler.__name__} not found in any router"
+                    )
 
         # For function handlers
         else:
@@ -339,6 +345,8 @@ class Router:
         try:
             return self._build_url_from_path(path, kwargs)
         except ValueError as e:
+            # Import routes at runtime to avoid circular dependency  
+            import serv.routes as routes
             if isinstance(handler, type) and issubclass(handler, routes.Route):
                 # For Route classes, try other paths if available
                 path_list = self._route_class_paths[handler]
