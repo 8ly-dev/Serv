@@ -5,11 +5,12 @@ This module defines abstract protocols to break circular dependencies
 between core modules while maintaining type safety and clear interfaces.
 """
 
-from typing import Protocol, Any, Dict, List, Callable, Optional
+from typing import Protocol, Any, Dict, List, Callable, Optional, runtime_checkable
 from abc import abstractmethod
 from pathlib import Path
 
 
+@runtime_checkable
 class EventEmitterProtocol(Protocol):
     """Protocol for event emission capabilities."""
     
@@ -19,6 +20,7 @@ class EventEmitterProtocol(Protocol):
         ...
 
 
+@runtime_checkable
 class RouterProtocol(Protocol):
     """Protocol for request routing capabilities."""
     
@@ -38,6 +40,7 @@ class RouterProtocol(Protocol):
         ...
 
 
+@runtime_checkable
 class ContainerProtocol(Protocol):
     """Protocol for dependency injection container."""
     
@@ -57,6 +60,7 @@ class ContainerProtocol(Protocol):
         ...
 
 
+@runtime_checkable
 class ExtensionSpecProtocol(Protocol):
     """Protocol for extension specifications."""
     
@@ -70,6 +74,7 @@ class ExtensionSpecProtocol(Protocol):
         ...
 
 
+@runtime_checkable
 class AppContextProtocol(Protocol):
     """Protocol for application context."""
     
@@ -92,6 +97,7 @@ class AppContextProtocol(Protocol):
         ...
 
 
+@runtime_checkable
 class ResponseBuilderProtocol(Protocol):
     """Protocol for response building."""
     

@@ -283,9 +283,9 @@ class App(EventEmitterProtocol, AppContextProtocol):
         self._container.add(App, self)
         self._container.add(EventEmitter, self._emit)
         
-        # Register protocol implementations
-        self._container.add(EventEmitterProtocol, self._emit)
-        self._container.add(AppContextProtocol, self)
+        # Register protocol implementations using instances dict for protocols
+        self._container.instances[EventEmitterProtocol] = self._emit
+        self._container.instances[AppContextProtocol] = self
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
