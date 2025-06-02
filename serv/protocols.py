@@ -85,6 +85,11 @@ class AppContextProtocol(Protocol):
     def add_extension(self, extension: Any) -> None:
         """Add extension to app."""
         ...
+    
+    @abstractmethod
+    def on_shutdown(self, callback: Callable[[], Any]) -> None:
+        """Register a shutdown callback."""
+        ...
 
 
 class ResponseBuilderProtocol(Protocol):

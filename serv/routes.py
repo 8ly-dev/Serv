@@ -19,12 +19,11 @@ from typing import (
 from bevy import dependency, inject
 from bevy.containers import Container
 
-import serv
-import serv.app as app
 import serv.extensions.loader as pl
 from serv.exceptions import HTTPMethodNotAllowedException
 from serv.extensions import Listener
 from serv.injectors import Cookie, Header, Query
+from serv.protocols import EventEmitterProtocol, AppContextProtocol, ResponseBuilderProtocol
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
@@ -113,9 +112,9 @@ class StreamingResponse(Response):
 
         self._running_renderer = None
 
-    async def render(self, app: "app.App" = dependency()) -> AsyncGenerator[bytes]:
+    async def render(self, app_context: AppContextProtocol = dependency()) -> AsyncGenerator[bytes]:
         self._running_renderer = self._render()
-        app.on_shutdown(self._shutdown)
+        app_context.on_shutdown(self._shutdown)
         return self._running_renderer
 
     async def _shutdown(self):
@@ -607,8 +606,7 @@ class Route:
             raise TypeError(error_msg)
 
     @property
-    @inject
-    def extension(self, app: "serv.App" = dependency()) -> Listener | None:
+    def extension(self) -> Listener | None:
         if hasattr(self, "_extension"):
             return self._extension
 
@@ -623,7 +621,7 @@ class Route:
 
     @inject
     async def emit(
-        self, event: str, emitter: "app.EventEmitter" = dependency(), /, **kwargs: Any
+        self, event: str, emitter: EventEmitterProtocol = dependency(), /, **kwargs: Any
     ):
         return await emitter.emit(event, **kwargs)
 
