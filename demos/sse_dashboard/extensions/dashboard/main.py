@@ -70,7 +70,7 @@ class DashboardExtension(Listener):
             for connection in connections_copy:
                 try:
                     connection.put_nowait(None)  # Non-blocking sentinel
-                except:
+                except Exception:
                     pass
 
         # Give tasks a brief moment to cancel, then move on
@@ -127,7 +127,7 @@ class DashboardExtension(Listener):
             event_lines.append(f"event: {data['event']}")
 
         if "data" in data:
-            if isinstance(data["data"], (dict, list)):
+            if isinstance(data["data"], dict | list):
                 json_data = json.dumps(data["data"])
                 event_lines.append(f"data: {json_data}")
             else:
@@ -435,11 +435,11 @@ class MetricsSSERoute(Route):
                                 "data": {"timestamp": datetime.now().isoformat()},
                             }
                         )
-                    except:
+                    except Exception:
                         # Exit on any other exception
                         return
 
-            except:
+            except Exception:
                 # Exit on any exception
                 return
             finally:
@@ -549,11 +549,11 @@ class AllEventsSSERoute(Route):
                                 "data": {"timestamp": datetime.now().isoformat()},
                             }
                         )
-                    except:
+                    except Exception:
                         # Exit on any other exception
                         return
 
-            except:
+            except Exception:
                 # Exit on any exception
                 return
             finally:
@@ -603,4 +603,4 @@ class StaticFileRoute(Route):
 
         except Exception as e:
             logger.error(f"Error serving static file {filename}: {e}")
-            raise FileNotFoundError(f"File not found: {file_path}")
+            raise FileNotFoundError(f"File not found: {file_path}") from e
