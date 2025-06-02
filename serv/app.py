@@ -872,6 +872,8 @@ class App(EventEmitterProtocol, AppContextProtocol):
             container.instances[ResponseBuilder] = response_builder
             container.instances[Container] = container
             container.instances[Router] = router_instance_for_request
+            # Register router for protocol-based access
+            container.instances[RouterProtocol] = router_instance_for_request
 
             error_to_propagate = None
             try:
@@ -1010,6 +1012,8 @@ class App(EventEmitterProtocol, AppContextProtocol):
             router_instance_for_request = Router()
             container.instances[Container] = container
             container.instances[Router] = router_instance_for_request
+            # Register router for protocol-based access
+            container.instances[RouterProtocol] = router_instance_for_request
 
             try:
                 # Emit websocket connection begin event
