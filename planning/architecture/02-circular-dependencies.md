@@ -151,28 +151,28 @@ class Route:
 ## Action Checklist
 
 ### Phase 1: Identify All Circular Dependencies (Week 1)
-- [ ] Map all import relationships in codebase
-- [ ] Identify direct and indirect circular dependencies
-- [ ] Prioritize by severity and frequency of problems
-- [ ] Create dependency graph visualization
+- [x] Map all import relationships in codebase
+- [x] Identify direct and indirect circular dependencies
+- [x] Prioritize by severity and frequency of problems
+- [x] Create dependency graph visualization
 
 ### Phase 2: Create Protocol Interfaces (Week 1)
-- [ ] Design abstract protocols for all shared interfaces
-- [ ] Create `serv/protocols.py` with all needed protocols
-- [ ] Define clear interface contracts
-- [ ] Add comprehensive type hints
+- [x] Design abstract protocols for all shared interfaces
+- [x] Create `serv/protocols.py` with all needed protocols
+- [x] Define clear interface contracts
+- [x] Add comprehensive type hints
 
 ### Phase 3: Refactor Core Modules (Week 2)
-- [ ] Update `serv/routes.py` to use protocols
-- [ ] Update `serv/app.py` to implement protocols
-- [ ] Remove direct imports between circular modules
-- [ ] Update dependency injection to work with protocols
+- [x] Update `serv/routes.py` to use protocols
+- [x] Update `serv/app.py` to implement protocols
+- [x] Remove direct imports between circular modules
+- [x] Update dependency injection to work with protocols
 
 ### Phase 4: Testing & Validation (Week 2)
-- [ ] Ensure all tests still pass
-- [ ] Add unit tests for previously untestable modules
-- [ ] Verify no import errors in any import order
-- [ ] Test modules can be imported independently
+- [x] Ensure all tests still pass
+- [x] Add unit tests for previously untestable modules
+- [x] Verify no import errors in any import order
+- [x] Test modules can be imported independently
 
 ### New Architecture Design
 
@@ -364,12 +364,12 @@ def test_no_circular_imports():
 
 ### Day 1: Setup and Protocol Design
 
-- [ ] **Create new protocol module**
+- [x] **Create new protocol module**
   ```bash
   touch serv/protocols.py
   ```
 
-- [ ] **Implement all required protocols** in `serv/protocols.py`:
+- [x] **Implement all required protocols** in `serv/protocols.py`:
   ```python
   from typing import Protocol, Any, Dict, List, Callable, Optional
   from abc import abstractmethod
@@ -411,7 +411,7 @@ def test_no_circular_imports():
       def add_extension(self, extension: Any) -> None: ...
   ```
 
-- [ ] **Map all current circular dependencies**:
+- [x] **Map all current circular dependencies**:
   ```bash
   # Create dependency analysis script
   python -c "
@@ -444,7 +444,7 @@ def test_no_circular_imports():
 
 ### Day 2: Refactor Route Module
 
-- [ ] **BREAKING: Update `serv/routes.py` imports**:
+- [x] **BREAKING: Update `serv/routes.py` imports**:
   ```python
   # REMOVE these imports:
   # import serv.app as app
@@ -454,7 +454,7 @@ def test_no_circular_imports():
   from serv.protocols import EventEmitterProtocol, ContainerProtocol, AppContextProtocol
   ```
 
-- [ ] **BREAKING: Refactor Route class `emit` method**:
+- [x] **BREAKING: Refactor Route class `emit` method**:
   ```python
   # OLD (REMOVE):
   async def emit(self, event: str, emitter: "app.EventEmitter" = dependency(), /, **kwargs: Any):
@@ -465,7 +465,7 @@ def test_no_circular_imports():
       return await emitter.emit(event, **kwargs)
   ```
 
-- [ ] **BREAKING: Update Route extension property**:
+- [x] **BREAKING: Update Route extension property**:
   ```python
   # OLD (REMOVE):
   @property
@@ -493,7 +493,7 @@ def test_no_circular_imports():
 
 ### Day 3: Refactor App Module
 
-- [ ] **BREAKING: Update `serv/app.py` to implement protocols**:
+- [x] **BREAKING: Update `serv/app.py` to implement protocols**:
   ```python
   # ADD to class definition:
   class App(EventEmitterProtocol, AppContextProtocol):
@@ -504,7 +504,7 @@ def test_no_circular_imports():
   # UPDATE to use protocols only
   ```
 
-- [ ] **BREAKING: Implement EventEmitterProtocol in App**:
+- [x] **BREAKING: Implement EventEmitterProtocol in App**:
   ```python
   # App class already has emit method, ensure it matches protocol:
   async def emit(self, event: str, **kwargs) -> None:
@@ -513,7 +513,7 @@ def test_no_circular_imports():
           await self.container.call(listener, **kwargs)
   ```
 
-- [ ] **BREAKING: Implement AppContextProtocol in App**:
+- [x] **BREAKING: Implement AppContextProtocol in App**:
   ```python
   # Ensure App has these methods (add if missing):
   def get_extension(self, name: str) -> Any:
@@ -527,7 +527,7 @@ def test_no_circular_imports():
 
 ### Day 4: Refactor Extensions Module
 
-- [ ] **BREAKING: Update `serv/extensions/loader.py`**:
+- [x] **BREAKING: Update `serv/extensions/loader.py`**:
   ```python
   # REMOVE any app imports that create cycles
   # UPDATE to use protocols only
@@ -539,7 +539,7 @@ def test_no_circular_imports():
   from serv.protocols import AppContextProtocol, ExtensionSpecProtocol
   ```
 
-- [ ] **BREAKING: Update `serv/extensions/extensions.py`**:
+- [x] **BREAKING: Update `serv/extensions/extensions.py`**:
   ```python
   # Remove circular imports with loader
   # Use protocols for any cross-references
@@ -547,7 +547,7 @@ def test_no_circular_imports():
 
 ### Day 5: Refactor Routing Module
 
-- [ ] **BREAKING: Update `serv/routing.py`**:
+- [x] **BREAKING: Update `serv/routing.py`**:
   ```python
   # REMOVE imports that create cycles with routes:
   # from serv.routes import Route
@@ -569,7 +569,7 @@ def test_no_circular_imports():
 
 ### Day 6: Update Container Registration
 
-- [ ] **BREAKING: Update dependency injection container**:
+- [x] **BREAKING: Update dependency injection container**:
   ```python
   # In serv/app.py App.__init__ method:
   
@@ -582,7 +582,7 @@ def test_no_circular_imports():
   self.container.register(ContainerProtocol, self.container)
   ```
 
-- [ ] **Create container configuration helper** in new file `serv/container.py`:
+- [x] **Create container configuration helper** in new file `serv/container.py`:
   ```python
   from bevy import Container
   from serv.protocols import *
@@ -602,7 +602,7 @@ def test_no_circular_imports():
 
 ### Day 7: Remove All Circular Imports
 
-- [ ] **BREAKING: Clean up all remaining circular imports**:
+- [x] **BREAKING: Clean up all remaining circular imports**:
   ```bash
   # Search for remaining problematic imports:
   grep -r "import serv\.app" serv/ --exclude-dir=__pycache__
@@ -610,25 +610,25 @@ def test_no_circular_imports():
   grep -r "import.*routes" serv/app.py
   ```
 
-- [ ] **Remove TYPE_CHECKING imports where no longer needed**:
+- [x] **Remove TYPE_CHECKING imports where no longer needed**:
   ```python
   # Clean up any TYPE_CHECKING blocks that are now unnecessary
   ```
 
-- [ ] **Add missing protocol imports**:
+- [x] **Add missing protocol imports**:
   ```python
   # Ensure every module using dependency injection imports appropriate protocols
   ```
 
 ### Day 8: Update All Tests
 
-- [ ] **BREAKING: Fix all failing tests due to circular dependency removal**:
+- [x] **BREAKING: Fix all failing tests due to circular dependency removal**:
   ```bash
   # Run tests to identify failures:
   pytest tests/ -v
   ```
 
-- [ ] **Update test imports**:
+- [x] **Update test imports**:
   ```python
   # Replace any direct app/route cross-imports in tests
   # Use protocol mocks instead
@@ -641,7 +641,7 @@ def test_no_circular_imports():
       # ... test logic
   ```
 
-- [ ] **Add new isolation tests**:
+- [x] **Add new isolation tests**:
   ```python
   # tests/test_no_circular_imports.py
   def test_route_can_import_independently():
@@ -663,7 +663,7 @@ def test_no_circular_imports():
 
 ### Day 9: Validation and Cleanup
 
-- [ ] **Verify no circular imports remain**:
+- [x] **Verify no circular imports remain**:
   ```python
   # Create and run circular import detection script:
   import importlib
@@ -687,12 +687,12 @@ def test_no_circular_imports():
           print(f"✗ Order {order} failed: {e}")
   ```
 
-- [ ] **Run full test suite**:
+- [x] **Run full test suite**:
   ```bash
   pytest tests/ -v --tb=short
   ```
 
-- [ ] **Performance benchmark**:
+- [x] **Performance benchmark**:
   ```python
   # Measure import time before/after
   import time
@@ -705,7 +705,7 @@ def test_no_circular_imports():
 
 ### Day 10: Documentation and Final Steps
 
-- [ ] **Update architecture documentation**:
+- [x] **Update architecture documentation**:
   ```markdown
   # Update docs/guides/architecture.md
   
@@ -718,7 +718,7 @@ def test_no_circular_imports():
   - This enables clean testing and modular architecture
   ```
 
-- [ ] **Update developer guide**:
+- [x] **Update developer guide**:
   ```markdown
   # Add to CLAUDE.md or dev docs
   
@@ -730,7 +730,7 @@ def test_no_circular_imports():
   3. Never import concrete classes across module boundaries
   ```
 
-- [ ] **Update examples and demos**:
+- [x] **Update examples and demos**:
   ```python
   # Update any examples that might be affected by the changes
   # Ensure all demos still work with new architecture
@@ -738,12 +738,12 @@ def test_no_circular_imports():
 
 ### Final Verification Checklist
 
-- [ ] ✅ **Zero circular imports**: All modules can be imported in any order
-- [ ] ✅ **All tests pass**: No regressions from refactoring
-- [ ] ✅ **Clean dependencies**: Modules are loosely coupled via protocols
-- [ ] ✅ **Improved testability**: Route and other classes can be unit tested in isolation
-- [ ] ✅ **Performance maintained**: No significant performance regression
-- [ ] ✅ **Type safety**: All protocol usage is properly type-hinted
+- [x] ✅ **Zero circular imports**: All modules can be imported in any order
+- [x] ✅ **All tests pass**: No regressions from refactoring
+- [x] ✅ **Clean dependencies**: Modules are loosely coupled via protocols
+- [x] ✅ **Improved testability**: Route and other classes can be unit tested in isolation
+- [x] ✅ **Performance maintained**: No significant performance regression
+- [x] ✅ **Type safety**: All protocol usage is properly type-hinted
 
 ### Expected Breaking Changes for Users
 
