@@ -49,7 +49,11 @@ async def test_listener_emit():
             await self.emit("test.event", arg1="value1", arg2="value2")
 
     listener = TestListener()
-    get_container().instances[EventEmitter] = EventEmitter({Path("."): [listener]})
+    event_emitter = EventEmitter({Path("."): [listener]})
+    get_container().instances[EventEmitter] = event_emitter
+    # Register protocol for new architecture
+    from serv.protocols import EventEmitterProtocol
+    get_container().instances[EventEmitterProtocol] = event_emitter
 
     await listener.send_event()
     assert events_seen == [("value1", "value2")]
@@ -70,7 +74,11 @@ async def test_emit_from_route():
 
     route = TestRoute()
     listener = TestListener()
-    get_container().instances[EventEmitter] = EventEmitter({Path("."): [listener]})
+    event_emitter = EventEmitter({Path("."): [listener]})
+    get_container().instances[EventEmitter] = event_emitter
+    # Register protocol for new architecture
+    from serv.protocols import EventEmitterProtocol
+    get_container().instances[EventEmitterProtocol] = event_emitter
 
     await route.send_event()
     assert events_seen == [("value1", "value2")]
