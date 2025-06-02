@@ -574,7 +574,9 @@ class Route:
         /,
         **path_params,
     ):
-        handler_result = await self._handle_request(request, container, path_params)
+        handler_result, handler_info = await self._handle_request(
+            request, container, path_params
+        )
 
         if isinstance(handler_result, Response):
             response_builder.set_status(handler_result.status_code)
@@ -584,25 +586,18 @@ class Route:
         else:
             # This should never happen if _handle_request is working correctly,
             # but provide a detailed error message just in case
-            import inspect
-
-            # Try to determine which handler was called
-            handler_info = "unknown"
-            try:
-                # Get the current frame and look for handler information
-                frame = inspect.currentframe()
-                if frame and frame.f_back:
-                    local_vars = frame.f_back.f_locals
-                    if "handler_name" in local_vars:
-                        handler_info = (
-                            f"{type(self).__name__}.{local_vars['handler_name']}()"
-                        )
-            except Exception:
-                pass
+            handler_name = (
+                handler_info.get("name", "unknown") if handler_info else "unknown"
+            )
+            handler_display = (
+                f"{type(self).__name__}.{handler_name}()"
+                if handler_name != "unknown"
+                else "unknown"
+            )
 
             error_msg = (
                 f"Route __call__ received non-Response object:\n"
-                f"  Handler: {handler_info}\n"
+                f"  Handler: {handler_display}\n"
                 f"  Route: {request.method} '{request.path}'\n"
                 f"  Received: {type(handler_result).__name__!r} ({repr(handler_result)[:100]}{'...' if len(repr(handler_result)) > 100 else ''})\n"
                 f"  Expected: Response instance\n"
@@ -877,10 +872,10 @@ class Route:
 
     async def _handle_request(
         self, request: Request, container: Container, path_params
-    ) -> Any:
+    ) -> tuple[Any, dict | None]:
         method = request.method
         handler = None
-        handler_name = None
+        handler_info = None
         args_to_pass = []
 
         # Handle form submissions first
@@ -892,13 +887,14 @@ class Route:
                         try:
                             parsed_form = await request.form(form_type, data=form_data)
                             handler = getattr(self, name_in_list)
-                            handler_name = name_in_list
+                            handler_info = {"name": name_in_list, "method": handler}
                             args_to_pass = [parsed_form]
                             break
                         except Exception as e:
-                            return await container.call(
+                            error_response = await container.call(
                                 self._error_handler, e, path_params
                             )
+                            return error_response, None
                     if handler:
                         break
 
@@ -910,13 +906,15 @@ class Route:
                 # Only one handler, use it
                 handler_info = handlers[0]
                 handler = handler_info["method"]
-                handler_name = handler_info["name"]
                 try:
                     kwargs_to_pass = await self._extract_handler_parameters(
                         handler_info, request, path_params, container
                     )
                 except Exception as e:
-                    return await container.call(self._error_handler, e, path_params)
+                    error_response = await container.call(
+                        self._error_handler, e, path_params
+                    )
+                    return error_response, None
             else:
                 # Multiple handlers, find the best match
                 compatible_handlers = []
@@ -937,7 +935,7 @@ class Route:
                         continue  # Handler is not compatible
 
                 if not compatible_handlers:
-                    return await container.call(
+                    error_response = await container.call(
                         self._error_handler,
                         HTTPMethodNotAllowedException(
                             f"No compatible handler found for {method} request with provided parameters.",
@@ -948,24 +946,26 @@ class Route:
                         ),
                         path_params,
                     )
+                    return error_response, None
 
                 # Sort by score (highest first) and take the best match
                 compatible_handlers.sort(key=lambda x: x[0], reverse=True)
-                score, handler_info, kwargs_to_pass = compatible_handlers[0]
-                handler = handler_info["method"]
-                handler_name = handler_info["name"]
+                score, selected_handler_info, kwargs_to_pass = compatible_handlers[0]
+                handler = selected_handler_info["method"]
+                handler_info = selected_handler_info
 
         if not handler:
-            return await container.call(
+            error_response = await container.call(
                 self._error_handler,
                 HTTPMethodNotAllowedException(
                     f"{type(self).__name__} does not support {method} or a matching form handler for provided data.",
                     list(
                         self.__method_handlers__.keys() | self.__form_handlers__.keys()
                     ),
-                    path_params,
                 ),
+                path_params,
             )
+            return error_response, None
 
         try:
             # Call handler with extracted parameters
@@ -979,6 +979,7 @@ class Route:
             else:
                 handler_output_data = await container.call(handler, self)
 
+            handler_name = handler_info.get("name") if handler_info else None
             if handler_name and handler_name in self.__annotated_response_wrappers__:
                 wrapper_class = self.__annotated_response_wrappers__[handler_name]
                 if isinstance(handler_output_data, tuple):
@@ -1071,10 +1072,11 @@ class Route:
                 raise TypeError(error_msg)
 
             response.set_created_by(self.extension)
-            return response
+            return response, handler_info
 
         except Exception as e:
-            return await container.call(self._error_handler, e, path_params)
+            error_response = await container.call(self._error_handler, e, path_params)
+            return error_response, handler_info
 
     async def _error_handler(
         self,
