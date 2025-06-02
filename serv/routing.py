@@ -1,5 +1,5 @@
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any, dataclass_transform, overload, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, dataclass_transform, overload
 
 from bevy import dependency, inject
 from bevy.containers import Container
@@ -96,7 +96,7 @@ class Router(RouterProtocol):
         # Stores WebSocket routes as tuples of (path_pattern, handler_callable, settings)
         self._websocket_routes: list[tuple[str, Callable, dict[str, Any]]] = []
         # Stores mapping of (route_class -> path_pattern) for url_for lookups
-        self._route_class_paths: dict[type["routes.Route"], list[str]] = {}
+        self._route_class_paths: dict[type[routes.Route], list[str]] = {}
         # Stores mapping of route path patterns to settings
         self._route_settings: dict[str, dict[str, Any]] = {}
         # Stores tuples of (mount_path, router_instance)
@@ -268,6 +268,7 @@ class Router(RouterProtocol):
         # First check if handler is a Route class
         # Import routes at runtime to avoid circular dependency
         import serv.routes as routes
+
         if isinstance(handler, type) and issubclass(handler, routes.Route):
             # Look for route class in the _route_class_paths dictionary
             if handler in self._route_class_paths:
@@ -303,6 +304,7 @@ class Router(RouterProtocol):
         elif hasattr(handler, "__self__"):
             # Import routes at runtime to avoid circular dependency
             import serv.routes as routes
+
             if isinstance(handler.__self__, routes.Route):
                 route_instance = handler.__self__
                 handler = route_instance.__call__
@@ -345,8 +347,9 @@ class Router(RouterProtocol):
         try:
             return self._build_url_from_path(path, kwargs)
         except ValueError as e:
-            # Import routes at runtime to avoid circular dependency  
+            # Import routes at runtime to avoid circular dependency
             import serv.routes as routes
+
             if isinstance(handler, type) and issubclass(handler, routes.Route):
                 # For Route classes, try other paths if available
                 path_list = self._route_class_paths[handler]

@@ -23,7 +23,10 @@ import serv.extensions.loader as pl
 from serv.exceptions import HTTPMethodNotAllowedException
 from serv.extensions import Listener
 from serv.injectors import Cookie, Header, Query
-from serv.protocols import EventEmitterProtocol, AppContextProtocol, ResponseBuilderProtocol
+from serv.protocols import (
+    AppContextProtocol,
+    EventEmitterProtocol,
+)
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 
@@ -112,7 +115,9 @@ class StreamingResponse(Response):
 
         self._running_renderer = None
 
-    async def render(self, app_context: AppContextProtocol = dependency()) -> AsyncGenerator[bytes]:
+    async def render(
+        self, app_context: AppContextProtocol = dependency()
+    ) -> AsyncGenerator[bytes]:
         self._running_renderer = self._render()
         app_context.on_shutdown(self._shutdown)
         return self._running_renderer

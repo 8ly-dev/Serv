@@ -32,7 +32,7 @@ from serv.extensions import Listener
 from serv.extensions.importer import Importer
 from serv.extensions.loader import ExtensionLoader
 from serv.injectors import inject_request_object, inject_websocket_object
-from serv.protocols import EventEmitterProtocol, AppContextProtocol, RouterProtocol
+from serv.protocols import AppContextProtocol, EventEmitterProtocol, RouterProtocol
 from serv.requests import Request
 from serv.responses import ResponseBuilder
 from serv.routing import HTTPNotFoundException, Router
@@ -282,7 +282,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
         # Set up container instances
         self._container.add(App, self)
         self._container.add(EventEmitter, self._emit)
-        
+
         # Register protocol implementations using instances dict for protocols
         self._container.instances[EventEmitterProtocol] = self._emit
         self._container.instances[AppContextProtocol] = self
@@ -511,8 +511,10 @@ class App(EventEmitterProtocol, AppContextProtocol):
         self, event: str, *, container: Container = dependency(), **kwargs
     ) -> Task:
         return self._emit.emit_sync(event, container=container, **kwargs)
-    
-    async def emit(self, event: str, *, container: Container = dependency(), **kwargs) -> None:
+
+    async def emit(
+        self, event: str, *, container: Container = dependency(), **kwargs
+    ) -> None:
         """Async emit method for EventEmitterProtocol compliance."""
         await self._emit.emit(event, container=container, **kwargs)
 
