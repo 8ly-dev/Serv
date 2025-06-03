@@ -130,3 +130,6 @@ extensions/
 - If you can't figure out how something works, even after looking it up, ask for help.
 - When directed to work off of a planning document, check off what you've done in the action checklist as you go.
 - Group changes into logical commits and commit as you go.
+- When working with DI reference ai_docs/bevy-quickstart.md
+- When working with ommi reference ai_docs/ommi-quickstart.md
+- When working with websockets reference ai_docs/websockets.md
