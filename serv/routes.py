@@ -16,7 +16,7 @@ from typing import (
     get_type_hints,
 )
 
-from bevy import dependency, inject
+from bevy import injectable, Inject
 from bevy.containers import Container
 
 import serv.extensions.loader as pl
@@ -115,8 +115,9 @@ class StreamingResponse(Response):
 
         self._running_renderer = None
 
+    @injectable
     async def render(
-        self, app_context: AppContextProtocol = dependency()
+        self, app_context: Inject[AppContextProtocol]
     ) -> AsyncGenerator[bytes]:
         self._running_renderer = self._render()
         app_context.on_shutdown(self._shutdown)
@@ -570,11 +571,12 @@ class Route:
                 ):
                     cls.__error_handlers__[second_arg_annotation] = name
 
+    @injectable
     async def __call__(
         self,
-        request: Request = dependency(),
-        container: Container = dependency(),
-        response_builder: ResponseBuilder = dependency(),
+        request: Inject[Request],
+        container: Inject[Container],
+        response_builder: Inject[ResponseBuilder],
         /,
         **path_params,
     ):
@@ -624,9 +626,9 @@ class Route:
 
         return self._extension
 
-    @inject
+    @injectable
     async def emit(
-        self, event: str, emitter: EventEmitterProtocol = dependency(), /, **kwargs: Any
+        self, event: str, emitter: Inject[EventEmitterProtocol], /, **kwargs: Any
     ):
         return await emitter.emit(event, **kwargs)
 
@@ -1081,11 +1083,12 @@ class Route:
             error_response = await container.call(self._error_handler, e, path_params)
             return error_response, handler_info
 
+    @injectable
     async def _error_handler(
         self,
         exception: Exception,
         path_params: dict[str, Any] | None = None,
-        container: Container = dependency(),
+        container: Inject[Container],
     ) -> Response:
         path_params = path_params or {}
         for error_type, handler_name in self.__error_handlers__.items():
