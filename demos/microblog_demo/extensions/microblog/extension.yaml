@@ -1,0 +1,17 @@
+name: Microblog
+version: 1.0.0
+description: A simple micro-blogging extension demonstrating database integration
+author: Serv Framework
+
+listeners:
+  - microblog:MicroblogExtension
+
+routers:
+  - name: main_router
+    routes:
+      - path: /
+        handler: routes:HomeRoute
+      - path: /post
+        handler: routes:CreatePostRoute
+      - path: /posts/{post_id}
+        handler: routes:ViewPostRoute

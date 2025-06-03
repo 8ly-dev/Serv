@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Microblog | Serv Framework{% endblock %}
+
+{% block content %}
+<div class="header fade-in">
+    <h1>✨ Microblog</h1>
+    <p>Powered by Serv Framework &amp; Ommi ORM</p>
+    <div class="badge">Database Integration Demo</div>
+</div>
+
+<div class="main-content fade-in">
+    <div class="nav">
+        <a href="/post" class="btn">
+            <span>✍️</span>
+            Create New Post
+        </a>
+    </div>
+    
+    <div class="posts">
+        {% if posts %}
+            {% for post in posts %}
+            <article class="post">
+                <h3><a href="/posts/{{ post.id }}">{{ post.title }}</a></h3>
+                <div class="post-content">{{ post.content[:300] }}{% if post.content|length > 300 %}...{% endif %}</div>
+                <div class="post-meta">
+                    <div class="date">
+                        <span>📅</span>
+                        <span>{{ post.formatted_date }}</span>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        {% else %}
+            <div class="no-posts">
+                <h3>🌟 Welcome to your Microblog!</h3>
+                <p>No posts yet. Start sharing your thoughts with the world!</p>
+                <a href="/post" class="btn" style="margin-top: 1rem;">
+                    <span>✍️</span>
+                    Write your first post
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

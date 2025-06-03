@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Error | Microblog{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">
+    <span>←</span>
+    Back to Home
+</a>
+
+<div class="header fade-in">
+    <h1>❌ Oops!</h1>
+</div>
+
+<div class="main-content fade-in">
+    <div class="error" style="margin: 2rem; text-align: center;">
+        <h2 style="margin-bottom: 1rem;">Something went wrong</h2>
+        <p>{{ error_message }}</p>
+    </div>
+    
+    <div class="actions">
+        <a href="/" class="btn btn-large">
+            <span>🏠</span>
+            Go back home
+        </a>
+    </div>
+</div>
+{% endblock %}

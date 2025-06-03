@@ -1,0 +1,13 @@
+site_info:
+  name: Micro-blog Demo
+  description: A simple micro-blogging site demonstrating Serv's database integration
+
+# Database configuration using Ommi ORM with SQLite
+databases:
+  blog:
+    provider: "serv.bundled.database.ommi:create_ommi"
+    connection_string: "sqlite:///blog.db"
+
+# Extensions to load
+extensions:
+  - extension: microblog

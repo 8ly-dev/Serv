@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Post Created | Microblog{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">
+    <span>←</span>
+    Back to Home
+</a>
+
+<div class="header fade-in">
+    <h1>✨ Microblog</h1>
+</div>
+
+<div class="main-content fade-in">
+    <div class="success-message">
+        <h2>✅ Post Created Successfully!</h2>
+        <p>Your post "<strong>{{ title }}</strong>" has been published and is now live!</p>
+    </div>
+    
+    <div class="actions">
+        <a href="/" class="btn btn-large">
+            <span>🏠</span>
+            Back to Home
+        </a>
+        <a href="/post" class="btn btn-secondary">
+            <span>✍️</span>
+            Create Another Post
+        </a>
+    </div>
+</div>
+{% endblock %}
