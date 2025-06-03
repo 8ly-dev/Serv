@@ -1,0 +1,93 @@
+# Database Configuration Templates for Serv Framework
+# Use these templates as starting points for your database configurations.
+# Copy the relevant sections to your serv.config.yaml file under the "databases:" key.
+
+# PRIMARY: Ommi PostgreSQL (recommended for production)
+ommi_postgresql_primary:
+  provider: "serv.bundled.database.ommi:create_ommi"
+  connection_string: "${DATABASE_URL}"
+  qualifier: "primary"
+  pool_size: 10
+
+# Ommi SQLite (recommended for development/local)
+ommi_sqlite_local:
+  provider: "serv.bundled.database.ommi:create_ommi"
+  connection_string: "sqlite:///app.db"
+  qualifier: "local"
+
+# Ommi in-memory (recommended for testing)
+ommi_test:
+  provider: "serv.bundled.database.ommi:create_ommi"
+  connection_string: "sqlite:///:memory:"
+  qualifier: "test"
+
+# Multiple Ommi instances example
+ommi_auth:
+  provider: "serv.bundled.database.ommi:create_ommi"
+  connection_string: "sqlite:///auth.db"
+  qualifier: "auth"
+
+ommi_analytics:
+  provider: "serv.bundled.database.ommi:create_ommi"
+  connection_string: "postgresql://user:pass@analytics-host/analytics"
+  qualifier: "analytics"
+
+# OPTIONAL: Redis cache (non-ORM)
+redis_cache:
+  provider: "redis:Redis"
+  host: "${REDIS_HOST:-localhost}"
+  port: 6379
+  db: 0
+  qualifier: "cache"
+
+# LEGACY: SQLAlchemy (use Ommi instead)
+sqlalchemy_legacy:
+  provider: "sqlalchemy:create_engine"
+  settings:
+    url: "${DATABASE_URL}"
+    pool_size: 10
+    echo: false
+  qualifier: "legacy"
+
+# NESTED: Configuration style example (backward compatibility)
+nested_example:
+  provider: "external_provider:create_engine"
+  settings:
+    url: "${DATABASE_URL}"
+    pool_size: 10
+    echo: false
+    custom_param: "value"
+  qualifier: "nested"
+
+# FLAT: Configuration style example (recommended)
+flat_example:
+  provider: "serv.bundled.database.ommi:create_ommi"
+  connection_string: "postgresql://user:pass@localhost/myapp"
+  qualifier: "flat"
+  pool_size: 5
+  timeout: 30
+
+# Environment Variable Examples:
+# Use these patterns to reference environment variables in your configurations
+env_variable_examples:
+  provider: "serv.bundled.database.ommi:create_ommi"
+  connection_string: "${DATABASE_URL}"                    # Required variable
+  pool_size: "${POOL_SIZE:-10}"                          # Optional with default
+  timeout: "${DB_TIMEOUT:-30}"                           # Optional with default
+  ssl_mode: "${SSL_MODE:-require}"                       # SSL configuration
+  qualifier: "${DATABASE_QUALIFIER:-primary}"           # Dynamic qualifier
+
+# Complete Example for serv.config.yaml:
+# Copy this structure to your serv.config.yaml file and customize as needed
+#
+# databases:
+#   primary:
+#     provider: "serv.bundled.database.ommi:create_ommi"
+#     connection_string: "${DATABASE_URL}"
+#     qualifier: "primary"
+#     pool_size: 10
+#   
+#   test:
+#     provider: "serv.bundled.database.ommi:create_ommi"
+#     connection_string: "sqlite:///:memory:"
+#     qualifier: "test"
