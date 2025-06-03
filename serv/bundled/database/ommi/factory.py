@@ -60,7 +60,20 @@ async def create_ommi(
     # Auto-detect driver from connection string scheme
     if connection_string.startswith("sqlite"):
         SQLiteDriver = _import_sqlite_driver()
-        driver = SQLiteDriver.connect(connection_string, **kwargs)
+        from ommi.ext.drivers.sqlite.driver import SQLiteSettings
+        
+        # Extract database path from connection string
+        # Format: sqlite:///path/to/db.db -> path/to/db.db
+        if connection_string.startswith("sqlite:///"):
+            database_path = connection_string[10:]  # Remove "sqlite:///"
+        elif connection_string.startswith("sqlite://"):
+            database_path = connection_string[9:]   # Remove "sqlite://"
+        else:
+            database_path = connection_string
+        
+        # Create SQLiteSettings with the database path
+        settings = SQLiteSettings(database_path=database_path)
+        driver = SQLiteDriver.connect(settings)
     elif connection_string.startswith("postgresql"):
         PostgreSQLDriver = _import_postgresql_driver()
         driver = PostgreSQLDriver.connect(connection_string, **kwargs)
@@ -133,9 +146,7 @@ async def create_ommi_postgresql(
     return await create_ommi(name, connection_string, qualifier, **kwargs)
 
 
-async def create_ommi_nested(
-    name: str, settings: dict[str, Any] | None = None
-) -> Any:
+async def create_ommi_nested(name: str, settings: dict[str, Any] | None = None) -> Any:
     """Create Ommi instance with nested settings (backward compatibility).
 
     Args:
