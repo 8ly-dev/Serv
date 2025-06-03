@@ -137,17 +137,12 @@ class Request:
         http_version: HTTP version string
     """
 
-    def __init__(self, scope=None, receive=None):
-        if scope is None:
-            # This should only happen during auto-creation by DI container
-            # which shouldn't happen, but we'll create a dummy request to prevent crashes
-            self.scope = {"type": "http", "method": "GET", "path": "/", "scheme": "http"}
-            self._receive = None
-        else:
-            if scope["type"] != "http":
-                raise RuntimeError("Request only supports HTTP scope")
-            self.scope = scope
-            self._receive = receive
+    def __init__(self, scope, receive):
+        if scope["type"] != "http":
+            raise RuntimeError("Request only supports HTTP scope")
+
+        self.scope = scope
+        self._receive = receive
 
         self._body_consumed = False
         self._buffer = bytearray()
@@ -443,11 +438,7 @@ class Request:
             ) from e
 
     def __repr__(self):
-        try:
-            return (
-                f"<Request {self.method} {self.scheme}://"
-                f"{self.headers.get('host', '')}{self.path}>"
-            )
-        except AttributeError:
-            # Fallback for improperly initialized Request objects
-            return f"<Request [uninitialized: {id(self)}]>"
+        return (
+            f"<Request {self.method} {self.scheme}://"
+            f"{self.headers.get('host', '')}{self.path}>"
+        )
