@@ -168,9 +168,7 @@ class Router(RouterProtocol):
                     container = get_registry().create_container()
 
                 with container.branch() as branch_container:
-                    branch_container.add(RouteSettings, RouteSettings(
-                        **settings or {}
-                    ))
+                    branch_container.add(RouteSettings, RouteSettings(**settings or {}))
                     # Create route instance directly instead of using container.call
                     try:
                         route_instance = route()

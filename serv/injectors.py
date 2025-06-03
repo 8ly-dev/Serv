@@ -41,7 +41,9 @@ class Query(_Marker):
 
 @hooks.CREATE_INSTANCE
 @injectable
-def inject_request_object(container: Inject[Container], annotation: Any) -> Optional[Any]:
+def inject_request_object(
+    container: Inject[Container], annotation: Any
+) -> Optional[Any]:
     origin = get_origin(annotation)
     if origin is Annotated:
         annotation_type, marker = get_args(annotation)
@@ -59,7 +61,9 @@ def inject_request_object(container: Inject[Container], annotation: Any) -> Opti
 
 @hooks.CREATE_INSTANCE
 @injectable
-def inject_websocket_object(container: Inject[Container], annotation: Any) -> Optional[Any]:
+def inject_websocket_object(
+    container: Inject[Container], annotation: Any
+) -> Optional[Any]:
     """Inject WebSocket instances with proper frame type configuration.
 
     Handles both plain WebSocket injection and Annotated[WebSocket, FrameType.X] patterns.
@@ -93,5 +97,3 @@ def inject_websocket_object(container: Inject[Container], annotation: Any) -> Op
                 return Optional.Some(websocket)
 
     return Optional.Nothing()
-
-

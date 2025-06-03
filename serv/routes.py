@@ -628,7 +628,13 @@ class Route:
 
     @injectable
     async def emit(
-        self, event: str, emitter: Inject[EventEmitterProtocol], /, *, container: Inject[Container], **kwargs: Any
+        self,
+        event: str,
+        emitter: Inject[EventEmitterProtocol],
+        /,
+        *,
+        container: Inject[Container],
+        **kwargs: Any,
     ):
         return await emitter.emit(event, container=container, **kwargs)
 
@@ -826,13 +832,21 @@ class Route:
 
                 # Special handling for request types - create from the incoming request
                 if injection_type != param.empty and injection_type is not type(None):
-                    if (hasattr(injection_type, '__mro__') and 
-                        any(base.__name__ == 'Request' for base in injection_type.__mro__)):
+                    if hasattr(injection_type, "__mro__") and any(
+                        base.__name__ == "Request" for base in injection_type.__mro__
+                    ):
                         # This is a request type, create it from the incoming request
-                        if injection_type.__name__ in ['GetRequest', 'PostRequest', 'PutRequest', 
-                                                     'DeleteRequest', 'PatchRequest', 'OptionsRequest', 'HeadRequest']:
+                        if injection_type.__name__ in [
+                            "GetRequest",
+                            "PostRequest",
+                            "PutRequest",
+                            "DeleteRequest",
+                            "PatchRequest",
+                            "OptionsRequest",
+                            "HeadRequest",
+                        ]:
                             value = injection_type(request.scope, request._receive)
-                    
+
                 # If not a request type, try container injection
                 if value is None:
                     try:
@@ -1088,7 +1102,9 @@ class Route:
             return response, handler_info
 
         except Exception as e:
-            error_response = await container.call(self._error_handler, e, container, path_params)
+            error_response = await container.call(
+                self._error_handler, e, container, path_params
+            )
             return error_response, handler_info
 
     @injectable
@@ -1106,6 +1122,8 @@ class Route:
                     return await container.call(handler, exception, **path_params)
                 except Exception as e:
                     e.__cause__ = exception
-                    return await container.call(self._error_handler, e, container, path_params)
+                    return await container.call(
+                        self._error_handler, e, container, path_params
+                    )
 
         raise exception

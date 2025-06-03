@@ -11,8 +11,7 @@ from httpx import AsyncClient
 
 from serv.app import App
 from serv.extensions import Extension, on
-from serv.requests import Request
-from serv.routes import JsonResponse, Route, handle, PostRequest
+from serv.routes import JsonResponse, PostRequest, Route, handle
 from serv.routing import Router
 
 
@@ -48,9 +47,7 @@ class DirectHandlerExtension(Extension):
 # Test Route 1: Single file and text fields
 class DirectSingleFileRoute(Route):
     @handle.POST
-    async def post_handler(
-        self, request: PostRequest
-    ) -> Annotated[dict, JsonResponse]:
+    async def post_handler(self, request: PostRequest) -> Annotated[dict, JsonResponse]:
         form_data = await request.form()
 
         errors = []
@@ -151,9 +148,7 @@ async def test_direct_multipart_single_file(app: App, client: AsyncClient):
 # Test Route 2: Multiple files (one optional present, one optional absent)
 class DirectMultipleFilesRoute(Route):
     @handle.POST
-    async def post_handler(
-        self, request: PostRequest
-    ) -> Annotated[dict, JsonResponse]:
+    async def post_handler(self, request: PostRequest) -> Annotated[dict, JsonResponse]:
         form_data = await request.form()
 
         # Basic checks (can be more thorough like above)

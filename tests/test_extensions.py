@@ -186,6 +186,7 @@ async def test_extensions_with_unfilled_dependency():
     plugin_instance.__extension_spec__ = spec
 
     from bevy.injection_types import DependencyResolutionError
+
     with pytest.raises(DependencyResolutionError):
         await plugin_instance.on("user_create")
 

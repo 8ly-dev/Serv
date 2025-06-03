@@ -107,9 +107,7 @@ class RouterExtension(Listener):
             router_builder.build(main_router)
 
     @on("app.websocket.begin")
-    async def setup_websocket_routes(
-        self, main_router: Inject["r.Router"]
-    ) -> None:
+    async def setup_websocket_routes(self, main_router: Inject["r.Router"]) -> None:
         """Set up routes for WebSocket connections.
 
         WebSocket connections use a fresh router instance, so we need to register
