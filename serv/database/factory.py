@@ -119,7 +119,17 @@ class FactoryLoader:
             # Skip first parameter (name) as it's handled separately
             params = list(sig.parameters.values())[1:]
 
+            # Check if function accepts **kwargs
+            has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
+
+            # Get parameter names (excluding VAR_KEYWORD)
+            param_names = {p.name for p in params if p.kind != inspect.Parameter.VAR_KEYWORD}
+
             for param in params:
+                # Skip **kwargs parameters
+                if param.kind == inspect.Parameter.VAR_KEYWORD:
+                    continue
+
                 if param.name in config:
                     bound_kwargs[param.name] = config[param.name]
                 elif param.default is inspect.Parameter.empty:
@@ -127,6 +137,12 @@ class FactoryLoader:
                     raise DatabaseFactoryError(
                         f"Required parameter '{param.name}' missing from config"
                     )
+
+            # If function accepts **kwargs, pass any extra config parameters
+            if has_var_keyword:
+                for key, value in config.items():
+                    if key not in param_names and key not in ["provider", "qualifier"]:
+                        bound_kwargs[key] = value
 
             return (), bound_kwargs
 
