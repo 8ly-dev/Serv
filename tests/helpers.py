@@ -78,8 +78,11 @@ class RouteAddingExtension(Listener):
             "container": container,
         }  # For inspection
 
+        # Ensure ResponseBuilder is available for injection in Bevy 3.1+
+        # This is needed due to a behavior change in how container.add() works
+        container.get(ResponseBuilder)
+        
         # Call the original handler using the same container.
-        # This should work because both are using the same HTTP request container.
         await container.call(self.handler, **path_params)
 
 

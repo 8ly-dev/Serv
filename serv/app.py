@@ -880,6 +880,11 @@ class App(EventEmitterProtocol, AppContextProtocol):
             container.add(ResponseBuilder, response_builder)
             container.add(Container, container)
             container.add(Router, router_instance_for_request)
+            
+            # In Bevy 3.1+, we need to "pre-warm" the container by accessing the objects
+            # to make them available for dependency injection
+            container.get(Request)
+            container.get(ResponseBuilder)
             # Register router for protocol-based access
             container.instances[RouterProtocol] = router_instance_for_request
 
