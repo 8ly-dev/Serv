@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import pytest
-from bevy import dependency
+from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv.app import App
@@ -278,7 +278,8 @@ class RouteTestExtension(Extension):
         self._stand_alone = True
 
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, router: Inject[Router]) -> None:
         # Using app.request.begin as it seems to be a point where router_instance is available
         # A dedicated app.startup or app.plugins.loaded event might be cleaner if available.
         router.add_route(self.path, self.route_class)

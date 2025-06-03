@@ -130,7 +130,7 @@ class TestCliCommands:
         # Create main.py
         plugin_code = """
 from serv.extensions import Extension, on
-from bevy import dependency
+from bevy import injectable, Inject
 from serv.routing import Router
 from serv.responses import ResponseBuilder
 
@@ -140,10 +140,12 @@ class TestExtension(Extension):
         self._stand_alone = True
 
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, router: Inject[Router]) -> None:
         router.add_route("/hello", self._hello_handler, methods=["GET"])
 
-    async def _hello_handler(self, response: ResponseBuilder = dependency()):
+    @injectable
+    async def _hello_handler(self, response: Inject[ResponseBuilder]):
         response.content_type("text/plain")
         response.body("Hello from test_extension!")
 """

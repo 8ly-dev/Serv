@@ -5,7 +5,7 @@ Simplified end-to-end tests to validate the basic setup.
 from pathlib import Path
 
 import pytest
-from bevy import dependency
+from bevy import Inject, injectable
 
 from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
@@ -43,10 +43,12 @@ class SimpleExtension(Extension):
         self._stand_alone = True
 
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, router: Inject[Router]) -> None:
         router.add_route("/hello", self._hello_handler, methods=["GET"])
 
-    async def _hello_handler(self, response: ResponseBuilder = dependency()):
+    @injectable
+    async def _hello_handler(self, response: Inject[ResponseBuilder]):
         response.content_type("text/plain")
         response.body("Hello, World!")
 

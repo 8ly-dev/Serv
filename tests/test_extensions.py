@@ -1,7 +1,7 @@
 import sys
 
 import pytest
-from bevy import injectable, Inject, get_container
+from bevy import Inject, get_container, injectable
 
 from serv.extensions import Extension, on
 from tests.helpers import create_test_extension_spec

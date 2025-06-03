@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-from bevy import injectable, Inject
+from bevy import Inject, injectable
 from bevy.containers import Container
 
 from serv.extensions import Listener, on
@@ -79,7 +79,7 @@ class RouteAddingExtension(Listener):
         }  # For inspection
 
         # No auto-creation - objects should be properly injected from container
-        
+
         # Call the original handler using the same container.
         await container.call(self.handler, **path_params)
 

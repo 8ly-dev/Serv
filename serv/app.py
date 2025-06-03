@@ -332,11 +332,12 @@ class App(EventEmitterProtocol, AppContextProtocol):
             ```python
             from serv.exceptions import HTTPNotFoundException
             from serv.responses import ResponseBuilder
-            from bevy import dependency
+            from bevy import injectable, Inject
 
+            @injectable
             async def custom_404_handler(
                 error: HTTPNotFoundException,
-                response: ResponseBuilder = dependency()
+                response: Inject[ResponseBuilder]
             ):
                 response.set_status(404)
                 response.content_type("text/html")
@@ -353,9 +354,10 @@ class App(EventEmitterProtocol, AppContextProtocol):
                     self.message = message
                     self.field = field
 
+            @injectable
             async def validation_error_handler(
                 error: ValidationError,
-                response: ResponseBuilder = dependency()
+                response: Inject[ResponseBuilder]
             ):
                 response.set_status(400)
                 response.content_type("application/json")
@@ -373,10 +375,11 @@ class App(EventEmitterProtocol, AppContextProtocol):
             ```python
             import logging
 
+            @injectable
             async def generic_error_handler(
                 error: Exception,
-                response: ResponseBuilder = dependency(),
-                request: Request = dependency()
+                response: Inject[ResponseBuilder],
+                request: Inject[Request]
             ):
                 logging.error(f"Unhandled error on {request.path}: {error}")
                 response.set_status(500)
@@ -405,10 +408,11 @@ class App(EventEmitterProtocol, AppContextProtocol):
             ```python
             import logging
             from serv.requests import Request
-            from bevy import dependency
+            from bevy import injectable, Inject
 
+            @injectable
             async def logging_middleware(
-                request: Request = dependency()
+                request: Inject[Request]
             ):
                 logging.info(f"Request: {request.method} {request.path}")
                 start_time = time.time()
@@ -426,11 +430,12 @@ class App(EventEmitterProtocol, AppContextProtocol):
             ```python
             from serv.responses import ResponseBuilder
             from serv.requests import Request
-            from bevy import dependency
+            from bevy import injectable, Inject
 
+            @injectable
             async def auth_middleware(
-                request: Request = dependency(),
-                response: ResponseBuilder = dependency()
+                request: Inject[Request],
+                response: Inject[ResponseBuilder]
             ):
                 # Check for authentication
                 auth_header = request.headers.get("authorization")
@@ -448,9 +453,10 @@ class App(EventEmitterProtocol, AppContextProtocol):
             CORS middleware:
 
             ```python
+            @injectable
             async def cors_middleware(
-                request: Request = dependency(),
-                response: ResponseBuilder = dependency()
+                request: Inject[Request],
+                response: Inject[ResponseBuilder]
             ):
                 # Add CORS headers
                 response.add_header("Access-Control-Allow-Origin", "*")

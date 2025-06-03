@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 
 import pytest
-from bevy import injectable, Inject
+from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv.app import App

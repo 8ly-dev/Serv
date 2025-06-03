@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from bevy import dependency
+from bevy import Inject, injectable
 from bevy.registries import Registry
 
 from serv.extensions import Extension, on
@@ -29,21 +29,24 @@ def create_plugin_with_config(extension_yaml_content):
 
     class TestExtension(Extension):
         # Test handler method
-        async def handle_test(self, response: ResponseBuilder = dependency()):
+        @injectable
+        async def handle_test(self, response: Inject[ResponseBuilder]):
             response.content_type("text/plain")
             response.body("test response")
 
         # Handler with dependency injection
+        @injectable
         async def handle_with_settings(
             self,
-            response: ResponseBuilder = dependency(),
-            test_setting: str = dependency(),
+            response: Inject[ResponseBuilder],
+            test_setting: Inject[str],
         ):
             response.content_type("text/plain")
             response.body(f"Setting value: {test_setting}")
 
         @on("app.request.begin")
-        async def setup_routes(self, router: Router = dependency()):
+        @injectable
+        async def setup_routes(self, router: Inject[Router]):
             # Use settings from self.__extension_spec__ if available, otherwise default
             route_settings_from_spec = (
                 getattr(self.__extension_spec__, "_config", {})

@@ -126,14 +126,15 @@ class TestCLIDeclarativeRouters:
             handler_functions = []
             for class_name, path in handlers:
                 handler_functions.append(f"""
-async def {class_name}(response: ResponseBuilder = dependency()):
+@injectable
+async def {class_name}(response: Inject[ResponseBuilder]):
     response.content_type("text/plain")
     response.body("Hello from {class_name} via CLI at {path}")
 """)
 
             handler_code = f"""
 from serv.responses import ResponseBuilder
-from bevy import dependency
+from bevy import injectable, Inject
 {"".join(handler_functions)}
 """
             module_file.write_text(handler_code)
@@ -493,10 +494,11 @@ from bevy import dependency
         # Create main.py with the handler
         main_code = """
 from serv.responses import ResponseBuilder
-from bevy import dependency
+from bevy import injectable, Inject
 
 class StructureTestHandler:
-    async def __call__(self, response: ResponseBuilder = dependency()):
+    @injectable
+    async def __call__(self, response: Inject[ResponseBuilder]):
         response.content_type("text/plain")
         response.body("Structure test successful!")
 """

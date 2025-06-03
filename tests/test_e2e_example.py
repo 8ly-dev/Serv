@@ -10,7 +10,7 @@ This file contains examples of how to use the end-to-end testing tools:
 from pathlib import Path
 
 import pytest
-from bevy import dependency
+from bevy import Inject, injectable
 
 from serv.app import App
 from serv.extensions import Extension, on
@@ -51,10 +51,12 @@ class SimpleTextExtension(Extension):
         self._stand_alone = True
 
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, router: Inject[Router]) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
 
-    async def _handler(self, response: ResponseBuilder = dependency()):
+    @injectable
+    async def _handler(self, response: Inject[ResponseBuilder]):
         response.content_type("text/plain")
         response.body(self.text)
 
@@ -90,10 +92,12 @@ class JsonExtension(Extension):
         self._stand_alone = True
 
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, router: Inject[Router]) -> None:
         router.add_route(self.path, self._handler, methods=["GET"])
 
-    async def _handler(self, response: ResponseBuilder = dependency()):
+    @injectable
+    async def _handler(self, response: Inject[ResponseBuilder]):
         import json
 
         response.content_type("application/json")

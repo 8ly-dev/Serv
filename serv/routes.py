@@ -69,21 +69,21 @@ class Response:
 class JsonResponse(Response):
     def __init__(self, data: Any, status_code: int = 200):
         super().__init__(status_code)
-        self.body = json.dumps(data)
+        self.body = json.dumps(data).encode("utf-8")
         self.headers["Content-Type"] = "application/json"
 
 
 class TextResponse(Response):
     def __init__(self, text: str, status_code: int = 200):
         super().__init__(status_code)
-        self.body = text
+        self.body = text.encode("utf-8")
         self.headers["Content-Type"] = "text/plain"
 
 
 class HtmlResponse(Response):
     def __init__(self, html: str, status_code: int = 200):
         super().__init__(status_code)
-        self.body = html
+        self.body = html.encode("utf-8")
         self.headers["Content-Type"] = "text/html"
 
 
@@ -497,7 +497,7 @@ class Route:
     """
 
     __method_handlers__: dict[str, list[dict]]
-    __error_handlers__: dict[type[Exception], list[str]]
+    __error_handlers__: dict[type[Exception], str]
     __form_handlers__: dict[str, dict[type[Form], list[str]]]
     __annotated_response_wrappers__: dict[str, type[Response]]
 
@@ -505,7 +505,7 @@ class Route:
 
     def __init_subclass__(cls) -> None:
         cls.__method_handlers__ = defaultdict(list)
-        cls.__error_handlers__ = defaultdict(list)
+        cls.__error_handlers__ = {}
         cls.__form_handlers__ = defaultdict(lambda: defaultdict(list))
         cls.__annotated_response_wrappers__ = {}
 
@@ -628,9 +628,9 @@ class Route:
 
     @injectable
     async def emit(
-        self, event: str, emitter: Inject[EventEmitterProtocol], /, **kwargs: Any
+        self, event: str, emitter: Inject[EventEmitterProtocol], /, *, container: Inject[Container], **kwargs: Any
     ):
-        return await emitter.emit(event, **kwargs)
+        return await emitter.emit(event, container=container, **kwargs)
 
     def _analyze_handler_signature(self, handler_sig, request: Request) -> dict:
         """Analyze a handler's signature and determine what parameters it needs."""
@@ -817,20 +817,28 @@ class Route:
             if value is None and param_name in path_params:
                 value = path_params[param_name]
 
-            # If no injection marker found and no value extracted, try container injection
+            # If no injection marker found and no value extracted, check for request types first
             if value is None:
-                try:
-                    # Extract the actual type if it's an Annotated type
-                    injection_type = param_annotation
-                    if get_origin(param_annotation) is Annotated:
-                        injection_type = get_args(param_annotation)[0]
+                # Extract the actual type if it's an Annotated type
+                injection_type = param_annotation
+                if get_origin(param_annotation) is Annotated:
+                    injection_type = get_args(param_annotation)[0]
 
-                    if injection_type != param.empty and injection_type is not type(
-                        None
-                    ):
+                # Special handling for request types - create from the incoming request
+                if injection_type != param.empty and injection_type is not type(None):
+                    if (hasattr(injection_type, '__mro__') and 
+                        any(base.__name__ == 'Request' for base in injection_type.__mro__)):
+                        # This is a request type, create it from the incoming request
+                        if injection_type.__name__ in ['GetRequest', 'PostRequest', 'PutRequest', 
+                                                     'DeleteRequest', 'PatchRequest', 'OptionsRequest', 'HeadRequest']:
+                            value = injection_type(request.scope, request._receive)
+                    
+                # If not a request type, try container injection
+                if value is None:
+                    try:
                         value = container.get(injection_type)
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
 
             # If still no value and parameter has a default, we'll let the function handle it
             if value is None and param.default != param.empty:
@@ -1080,7 +1088,7 @@ class Route:
             return response, handler_info
 
         except Exception as e:
-            error_response = await container.call(self._error_handler, e, path_params)
+            error_response = await container.call(self._error_handler, e, container, path_params)
             return error_response, handler_info
 
     @injectable
@@ -1098,6 +1106,6 @@ class Route:
                     return await container.call(handler, exception, **path_params)
                 except Exception as e:
                     e.__cause__ = exception
-                    return await container.call(self._error_handler, e, **path_params)
+                    return await container.call(self._error_handler, e, container, path_params)
 
         raise exception

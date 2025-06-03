@@ -189,7 +189,7 @@ class Listener:
         ```python
         from serv.extensions import Listener
         from serv.routing import Router
-        from bevy import dependency
+        from bevy import injectable, Inject
 
         class MyListener(Listener):
             async def on_app_startup(self):
@@ -229,8 +229,10 @@ class Listener:
         ```python
         from serv.requests import Request
         from serv.responses import ResponseBuilder
+        from bevy import injectable, Inject
 
         class AuthListener(Listener):
+            @injectable
             async def on_app_request_begin(
                 self,
                 request: Inject[Request],
@@ -355,9 +357,9 @@ class Listener:
     @injectable
     @staticmethod
     async def emit(
-        event_name: str, _emitter: Inject[EventEmitterProtocol], **kwargs: Any
+        event_name: str, _emitter: Inject[EventEmitterProtocol], *, container: Inject[Container], **kwargs: Any
     ):
-        await _emitter.emit(event_name, **kwargs)
+        await _emitter.emit(event_name, container=container, **kwargs)
 
     async def _prepare_handler_arguments(
         self,

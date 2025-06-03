@@ -1,5 +1,5 @@
 import pytest
-from bevy import dependency
+from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv.app import App
@@ -29,9 +29,8 @@ class YetAnotherError(Exception):
 async def test_custom_error_handler_invoked(app: App, client: AsyncClient):
     custom_handler_called_with = None
 
-    async def my_error_handler(
-        error: MyCustomError, response: ResponseBuilder = dependency()
-    ):
+    @injectable
+    async def my_error_handler(error: MyCustomError, response: Inject[ResponseBuilder]):
         nonlocal custom_handler_called_with
         custom_handler_called_with = error
         response.set_status(error.status_code)
@@ -40,7 +39,8 @@ async def test_custom_error_handler_invoked(app: App, client: AsyncClient):
 
     app.add_error_handler(MyCustomError, my_error_handler)
 
-    async def route_that_raises(request: Request = dependency()):
+    @injectable
+    async def route_that_raises(request: Inject[Request]):
         raise MyCustomError("Something custom went wrong")
 
     plugin = RouteAddingExtension("/custom_error", route_that_raises, methods=["GET"])
@@ -59,7 +59,8 @@ async def test_default_handler_for_serv_exception_subclass(
     app: App, client: AsyncClient
 ):
     # This error type does not have a specific handler registered
-    async def route_that_raises_another(request: Request = dependency()):
+    @injectable
+    async def route_that_raises_another(request: Inject[Request]):
         raise AnotherCustomError("This is another custom error")
 
     plugin = RouteAddingExtension(
@@ -77,7 +78,8 @@ async def test_default_handler_for_serv_exception_subclass(
 
 @pytest.mark.asyncio
 async def test_default_handler_for_generic_exception(app: App, client: AsyncClient):
-    async def route_that_raises_generic(request: Request = dependency()):
+    @injectable
+    async def route_that_raises_generic(request: Inject[Request]):
         raise YetAnotherError("A generic problem")
 
     plugin = RouteAddingExtension(
@@ -96,8 +98,9 @@ async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncCl
     error_handler_one_called = False
     original_error_message = "Initial problem"
 
+    @injectable
     async def faulty_error_handler(
-        error: MyCustomError, response: ResponseBuilder = dependency()
+        error: MyCustomError, response: Inject[ResponseBuilder]
     ):
         nonlocal error_handler_one_called
         error_handler_one_called = True
@@ -105,7 +108,8 @@ async def test_error_in_error_handler_falls_to_default(app: App, client: AsyncCl
 
     app.add_error_handler(MyCustomError, faulty_error_handler)
 
-    async def route_that_raises(request: Request = dependency()):
+    @injectable
+    async def route_that_raises(request: Inject[Request]):
         raise MyCustomError(original_error_message)
 
     plugin = RouteAddingExtension(
@@ -129,7 +133,8 @@ async def test_request_end_event_on_handled_error(app: App, client: AsyncClient)
 
     custom_error_message = "Test handled error event"
 
-    async def route_that_raises_my_error(request: Request = dependency()):
+    @injectable
+    async def route_that_raises_my_error(request: Inject[Request]):
         raise MyCustomError(custom_error_message)
 
     # No custom handler for MyCustomError, so _default_error_handler will be used via fallback

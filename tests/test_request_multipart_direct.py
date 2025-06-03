@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import Annotated
 
 import pytest
-from bevy import dependency
+from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv.app import App
 from serv.extensions import Extension, on
 from serv.requests import Request
-from serv.routes import JsonResponse, Route, handle
+from serv.routes import JsonResponse, Route, handle, PostRequest
 from serv.routing import Router
 
 
@@ -39,7 +39,8 @@ class DirectHandlerExtension(Extension):
         self._stand_alone = True
 
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, router: Inject[Router]) -> None:
         router.add_route(self.path, self.route_class)
         self.plugin_registered_route = True
 
@@ -48,7 +49,7 @@ class DirectHandlerExtension(Extension):
 class DirectSingleFileRoute(Route):
     @handle.POST
     async def post_handler(
-        self, request: Request = dependency()
+        self, request: PostRequest
     ) -> Annotated[dict, JsonResponse]:
         form_data = await request.form()
 
@@ -151,7 +152,7 @@ async def test_direct_multipart_single_file(app: App, client: AsyncClient):
 class DirectMultipleFilesRoute(Route):
     @handle.POST
     async def post_handler(
-        self, request: Request = dependency()
+        self, request: PostRequest
     ) -> Annotated[dict, JsonResponse]:
         form_data = await request.form()
 
