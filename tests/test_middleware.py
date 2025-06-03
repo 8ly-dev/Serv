@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 
 import pytest
-from bevy import dependency
+from bevy import injectable, Inject
 from httpx import AsyncClient
 
 from serv.app import App
@@ -17,7 +17,8 @@ from tests.helpers import RouteAddingExtension, example_header_middleware
 async def test_single_middleware_modifies_headers(app: App, client: AsyncClient):
     app.add_middleware(example_header_middleware)  # Adds X-Test-Middleware-Before/After
 
-    async def ok_handler(response: ResponseBuilder = dependency()):
+    @injectable
+    async def ok_handler(response: Inject[ResponseBuilder]):
         response.body("OK")
 
     plugin = RouteAddingExtension("/mw_headers", ok_handler, methods=["GET"])
@@ -39,8 +40,9 @@ async def test_multiple_middleware_order(app: App, client: AsyncClient):
         yield
         order_tracker.append("mw1_after")
 
+    @injectable
     async def middleware_two(
-        response: ResponseBuilder = dependency(),
+        response: Inject[ResponseBuilder],
     ) -> AsyncIterator[None]:
         order_tracker.append("mw2_before")
         response.add_header("X-MW2", "active")
@@ -50,7 +52,8 @@ async def test_multiple_middleware_order(app: App, client: AsyncClient):
     app.add_middleware(middleware_one)
     app.add_middleware(middleware_two)
 
-    async def simple_handler(response: ResponseBuilder = dependency()):
+    @injectable
+    async def simple_handler(response: Inject[ResponseBuilder]):
         order_tracker.append("handler_called")
         response.body("Handler response")
 
@@ -92,7 +95,8 @@ async def test_middleware_exception_before_yield(app: App, client: AsyncClient):
     app.add_middleware(outer_mw)
     app.add_middleware(error_mw_before)
 
-    async def test_route_handler(response: ResponseBuilder = dependency()):
+    @injectable
+    async def test_route_handler(response: Inject[ResponseBuilder]):
         response.body("Should not be reached")
 
     plugin = RouteAddingExtension(
@@ -132,7 +136,8 @@ async def test_middleware_exception_after_yield(app: App, client: AsyncClient):
 
     app.add_middleware(error_mw_after)
 
-    async def test_route_handler(response: ResponseBuilder = dependency()):
+    @injectable
+    async def test_route_handler(response: Inject[ResponseBuilder]):
         response.body("Handler was called")
 
     plugin = RouteAddingExtension(
@@ -170,7 +175,8 @@ async def test_handler_exception_propagates_to_middleware(
 
     app.add_middleware(observing_mw)
 
-    async def error_handler(request: Request = dependency()):
+    @injectable
+    async def error_handler(request: Inject[Request]):
         raise HTTPNotFoundException(f"Simulated error for {request.path}")
 
     plugin = RouteAddingExtension("/handler_error", error_handler, methods=["GET"])
