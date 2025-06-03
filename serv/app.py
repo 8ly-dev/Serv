@@ -27,6 +27,7 @@ from bevy.containers import Container
 from jinja2 import Environment, FileSystemLoader
 
 from serv.config import load_raw_config
+from serv.database import DatabaseManager
 from serv.exceptions import HTTPMethodNotAllowedException, ServException
 from serv.extensions import Listener
 from serv.extensions.importer import Importer
@@ -80,9 +81,7 @@ class EventEmitter:
         self.extensions = extensions
 
     @injectable
-    def emit_sync(
-        self, event: str, *, container: Inject[Container], **kwargs
-    ) -> Task:
+    def emit_sync(self, event: str, *, container: Inject[Container], **kwargs) -> Task:
         return get_running_loop().create_task(
             self.emit(event, container=container, **kwargs)
         )
@@ -255,6 +254,9 @@ class App(EventEmitterProtocol, AppContextProtocol):
         self._extension_loader_instance = ExtensionLoader(self, self._extension_loader)
 
         self._emit = EventEmitter(self._extensions)
+
+        # Initialize database manager
+        self._database_manager = DatabaseManager(self._config, self._container)
 
         self._init_container()
         self._register_default_error_handlers()
@@ -517,15 +519,11 @@ class App(EventEmitterProtocol, AppContextProtocol):
     # Use the extensions: key in serv.config.yaml to specify extensions to load
 
     @injectable
-    def emit_sync(
-        self, event: str, *, container: Inject[Container], **kwargs
-    ) -> Task:
+    def emit_sync(self, event: str, *, container: Inject[Container], **kwargs) -> Task:
         return self._emit.emit_sync(event, container=container, **kwargs)
 
     @injectable
-    async def emit(
-        self, event: str, *, container: Inject[Container], **kwargs
-    ) -> None:
+    async def emit(self, event: str, *, container: Inject[Container], **kwargs) -> None:
         """Async emit method for EventEmitterProtocol compliance."""
         await self._emit.emit(event, container=container, **kwargs)
 
@@ -534,6 +532,8 @@ class App(EventEmitterProtocol, AppContextProtocol):
             match event:
                 case {"type": "lifespan.startup"}:
                     logger.debug("Lifespan startup event")
+                    # Initialize databases before emitting startup event
+                    await self._database_manager.initialize_databases()
                     await self.emit(
                         "app.startup", scope=scope, container=self._container
                     )
@@ -549,6 +549,8 @@ class App(EventEmitterProtocol, AppContextProtocol):
                     await self.emit(
                         "app.shutdown", scope=scope, container=self._container
                     )
+                    # Shutdown databases before exit stack cleanup
+                    await self._database_manager.shutdown_databases()
                     await self._async_exit_stack.aclose()
 
     def _get_template_locations(self) -> list[Path]:
@@ -829,9 +831,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
             response.body(f"405 Method Not Allowed: {message}")
 
     @injectable
-    async def _run_error_handler(
-        self, error: Exception, container: Inject[Container]
-    ):
+    async def _run_error_handler(self, error: Exception, container: Inject[Container]):
         response_builder = container.get(ResponseBuilder)
         if not response_builder._headers_sent:
             response_builder.clear()
@@ -981,9 +981,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
                     # Add route settings to the container using RouteSettings
                     from serv.routing import RouteSettings
 
-                    route_container.add(RouteSettings, RouteSettings(
-                        **route_settings
-                    ))
+                    route_container.add(RouteSettings, RouteSettings(**route_settings))
 
                     try:
                         await route_container.call(handler_callable, **path_params)
@@ -1084,9 +1082,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
                 with container.branch() as route_container:
                     from serv.routing import RouteSettings
 
-                    route_container.add(RouteSettings, RouteSettings(
-                        **route_settings
-                    ))
+                    route_container.add(RouteSettings, RouteSettings(**route_settings))
                     route_container.add(WebSocket, websocket)
 
                     try:

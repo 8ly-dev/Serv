@@ -32,6 +32,7 @@ dependencies = [
     "bevy>=3.1.0b1",
     "jinja2>=3.1.6",
     "nubby>=0.1.2",
+    "ommi>=0.2.0",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.2",
     "tramp>=2025.3.2",
@@ -50,6 +51,10 @@ Changelog = "https://github.com/8ly/Serv/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 jinja = []
 multipart = []
+database = [
+    "aiosqlite>=0.21.0",
+    "asyncpg>=0.30.0",
+]
 
 [dependency-groups]
 dev = [

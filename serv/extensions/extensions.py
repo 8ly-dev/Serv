@@ -357,7 +357,11 @@ class Listener:
     @injectable
     @staticmethod
     async def emit(
-        event_name: str, _emitter: Inject[EventEmitterProtocol], *, container: Inject[Container], **kwargs: Any
+        event_name: str,
+        _emitter: Inject[EventEmitterProtocol],
+        *,
+        container: Inject[Container],
+        **kwargs: Any,
     ):
         await _emitter.emit(event_name, container=container, **kwargs)
 

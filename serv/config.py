@@ -25,10 +25,18 @@ class MiddlewareConfig(TypedDict, total=False):
     config: dict[str, Any]
 
 
+class DatabaseConfig(TypedDict, total=False):
+    provider: str
+    qualifier: str | None
+    connection_string: str
+    settings: dict[str, Any]
+
+
 class ServConfig(TypedDict, total=False):
     site_info: dict[str, Any]
     extensions: list[ExtensionConfig]
     middleware: list[MiddlewareConfig]
+    databases: dict[str, DatabaseConfig]
 
 
 class ServConfigError(Exception):

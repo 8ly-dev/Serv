@@ -20,9 +20,7 @@ class FileUploadTestRoute(Route):
     """Handle file upload using Route class pattern"""
 
     @handle.POST
-    async def post_handler(
-        self, request: PostRequest
-    ) -> Annotated[str, TextResponse]:
+    async def post_handler(self, request: PostRequest) -> Annotated[str, TextResponse]:
         from serv.exceptions import HTTPBadRequestException
 
         # Check content type first
