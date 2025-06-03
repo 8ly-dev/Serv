@@ -45,8 +45,7 @@ class DatabaseManager:
                 self.connections[name] = connection
 
                 # Register with DI container
-                qualifier = db_config.get("qualifier", name)
-                self.register_with_di(name, connection, qualifier)
+                self.register_with_di(name, connection)
 
                 # Register cleanup
                 self.lifecycle.register_cleanup(connection)
@@ -62,20 +61,17 @@ class DatabaseManager:
         self.connections.clear()
 
     def register_with_di(
-        self, name: str, connection: Any, qualifier: str | None = None
+        self, name: str, connection: Any,
     ) -> None:
         """Register database connection with dependency injection using Bevy 3.1 qualifiers.
 
         Args:
             name: Database name
             connection: Database connection instance
-            qualifier: Optional qualifier for Bevy DI
         """
         # Register by factory return type with qualifier
         # This allows multiple instances of the same type (e.g., multiple Ommi instances)
-        # For now, use simple add() method - qualifier support may need to be implemented
-        # differently based on the actual Bevy 3.1 API
-        self.container.add(type(connection), connection)
+        self.container.add(type(connection), connection, qualifier=name)
 
     async def create_connection(self, name: str, config: dict[str, Any]) -> Any:
         """Create single database connection from config with qualifier support.
