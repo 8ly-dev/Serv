@@ -1,4 +1,4 @@
-from bevy import dependency
+from bevy import injectable, Inject
 from bevy.containers import Container
 
 
@@ -7,7 +7,8 @@ class ServMiddleware:
     Base class for Serv middleware, providing enter, leave, and on_error hooks.
     """
 
-    def __init__(self, config: dict | None = None, container: Container = dependency()):
+    @injectable
+    def __init__(self, container: Inject[Container], config: dict | None = None):
         self._container = container
         self._config = config
 

@@ -9,7 +9,7 @@ from inspect import get_annotations, isawaitable, signature
 from pathlib import Path
 from typing import Any
 
-from bevy import dependency, get_container, inject
+from bevy import injectable, Inject, get_container
 from bevy.containers import Container
 
 import serv.extensions.loader as pl
@@ -125,7 +125,8 @@ def on(event_name: str) -> _OnDecorator:
         ```python
         class MyListener(Listener):
             @on("app.request.begin")
-            async def setup_request(self, router: Router = dependency()):
+            @injectable
+            async def setup_request(self, router: Inject[Router]):
                 # Handle app request begin event
                 pass
         ```
@@ -194,11 +195,13 @@ class Listener:
             async def on_app_startup(self):
                 print("Application is starting!")
 
-            async def on_app_request_begin(self, router: Router = dependency()):
+            @injectable
+            async def on_app_request_begin(self, router: Inject[Router]):
                 # Add routes when app starts handling requests
                 router.add_route("/hello", self.hello_handler, ["GET"])
 
-            async def hello_handler(self, response: ResponseBuilder = dependency()):
+            @injectable
+            async def hello_handler(self, response: Inject[ResponseBuilder]):
                 response.body("Hello from my listener!")
 
             async def on_app_shutdown(self):
@@ -230,8 +233,8 @@ class Listener:
         class AuthListener(Listener):
             async def on_app_request_begin(
                 self,
-                request: Request = dependency(),
-                response: ResponseBuilder = dependency()
+                request: Inject[Request],
+                response: Inject[ResponseBuilder]
             ):
                 # Check authentication for protected routes
                 if request.path.startswith("/admin/"):
@@ -349,10 +352,10 @@ class Listener:
             if isawaitable(result):
                 await result
 
-    @inject
+    @injectable
     @staticmethod
     async def emit(
-        event_name: str, _emitter: EventEmitterProtocol = dependency(), **kwargs: Any
+        event_name: str, _emitter: Inject[EventEmitterProtocol], **kwargs: Any
     ):
         await _emitter.emit(event_name, **kwargs)
 

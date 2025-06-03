@@ -871,7 +871,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
                 logger.warning(f"Unsupported ASGI scope type: {scope['type']}")
 
     async def _handle_request(self, scope: Scope, receive: Receive, send: Send):
-        with self._container.child() as container:
+        with self._container.branch() as container:
             request = Request(scope, receive)
             response_builder = ResponseBuilder(send)
             router_instance_for_request = Router()
@@ -971,8 +971,8 @@ class App(EventEmitterProtocol, AppContextProtocol):
             else:
                 handler_callable, path_params, route_settings = resolved_route_info
 
-                # Create a child of the container with route settings
-                with container.child() as route_container:
+                # Create a branch of the container with route settings
+                with container.branch() as route_container:
                     # Add route settings to the container using RouteSettings
                     from serv.routing import RouteSettings
 
@@ -1016,7 +1016,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
 
     async def _handle_websocket(self, scope: Scope, receive: Receive, send: Send):
         """Handle WebSocket connections."""
-        with self._container.child() as container:
+        with self._container.branch() as container:
             router_instance_for_request = Router()
             container.add(Container, container)
             container.add(Router, router_instance_for_request)
@@ -1075,8 +1075,8 @@ class App(EventEmitterProtocol, AppContextProtocol):
                 # Create WebSocket instance
                 websocket = WebSocket(scope, receive, send, frame_type)
 
-                # Create a child of the container with route settings and WebSocket instance
-                with container.child() as route_container:
+                # Create a branch of the container with route settings and WebSocket instance
+                with container.branch() as route_container:
                     from serv.routing import RouteSettings
 
                     route_container.add(RouteSettings, RouteSettings(

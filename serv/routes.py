@@ -1087,8 +1087,8 @@ class Route:
     async def _error_handler(
         self,
         exception: Exception,
-        path_params: dict[str, Any] | None = None,
         container: Inject[Container],
+        path_params: dict[str, Any] | None = None,
     ) -> Response:
         path_params = path_params or {}
         for error_type, handler_name in self.__error_handlers__.items():
