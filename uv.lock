@@ -194,6 +194,9 @@ database = [
     { name = "aiosqlite" },
     { name = "asyncpg" },
 ]
+ommi = [
+    { name = "ommi" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -224,6 +227,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "nubby", specifier = ">=0.1.2" },
     { name = "ommi", specifier = ">=0.2.0" },
+    { name = "ommi", marker = "extra == 'ommi'", specifier = ">=0.2.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "tramp", specifier = ">=2025.3.2" },
@@ -231,7 +235,7 @@ requires-dist = [
     { name = "websockets", specifier = ">=15.0.1" },
     { name = "werkzeug", specifier = ">=3.1.3" },
 ]
-provides-extras = ["jinja", "multipart", "database"]
+provides-extras = ["jinja", "multipart", "database", "ommi"]
 
 [package.metadata.requires-dev]
 dev = [
