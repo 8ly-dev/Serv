@@ -167,6 +167,9 @@ async def create_test_app_client(
                 assert user["name"] == "Test User"
         ```
     """
+    if not Path(config_path).exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
     # Convert Path to string if needed
     config_str = str(config_path) if isinstance(config_path, Path) else config_path
 
