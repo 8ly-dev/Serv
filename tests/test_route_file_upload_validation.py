@@ -6,13 +6,12 @@ from pathlib import Path
 from typing import Annotated
 
 import pytest
-from bevy import dependency
+from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv.app import App
 from serv.extensions import Extension, on
-from serv.requests import Request
-from serv.routes import Route, TextResponse, handle
+from serv.routes import PostRequest, Route, TextResponse, handle
 from serv.routing import Router
 from tests.helpers import create_test_extension_spec
 
@@ -22,7 +21,7 @@ class FileUploadTestRoute(Route):
 
     @handle.POST
     async def post_handler(
-        self, request: Request = dependency()
+        self, request: PostRequest
     ) -> Annotated[str, TextResponse]:
         from serv.exceptions import HTTPBadRequestException
 
@@ -85,7 +84,8 @@ class FileUploadTestExtension(Extension):
         self._stand_alone = True
 
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, router: Inject[Router]) -> None:
         router.add_route("/upload", FileUploadTestRoute)
         self.plugin_registered_route = True
 

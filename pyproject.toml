@@ -110,7 +110,7 @@ line-ending = "auto"
 [tool.uv]
 override-dependencies = [
     "tramp>=2025.0.0,<2026.0.0",
-    "bevy>=3.0.0b6,<4.0.0",
+    "bevy>=3.1.0b1,<4.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]

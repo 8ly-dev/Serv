@@ -6,7 +6,7 @@ The Route class in `serv/routes.py` has become a monolithic class trying to hand
 
 ### Current Complexity Analysis
 
-**File**: `serv/routes.py` (~1100 lines)
+**File**: `serv/routes.py` (1100 lines - VALIDATED 2025)
 
 **Multiple Responsibilities**:
 1. **HTTP Method Routing**: Discovering and calling handle_* methods
@@ -19,20 +19,29 @@ The Route class in `serv/routes.py` has become a monolithic class trying to hand
 
 ### Code Complexity Indicators
 
-**Handler Discovery Mechanisms** (Too Many):
+**Handler Discovery Mechanisms** (CURRENT STATE - 2025):
 ```python
-# 1. Naming convention handlers
-def handle_get(self): pass
-
-# 2. Decorator-based handlers  
+# 1. Decorator-based handlers (@handle decorator) - PRIMARY METHOD
 @handle.GET
 def get_users(self): pass
 
-# 3. Form handlers via type signatures
-def handle_user_form(self, form: UserForm): pass
+# 2. Form handlers using decorators + type signatures (MODERN)
+@handle.POST
+def submit_form(self, form: UserForm): pass
 
-# 4. Error handlers via type signatures
+# 3. Error handlers via type signatures (naming convention)
 def handle_error(self, error: ValueError): pass
+
+# 4. Multiple handlers per method with signature scoring
+@handle.GET
+def get_by_id(self, user_id: Annotated[str, Query("id")]): pass
+@handle.GET  
+def get_all(self): pass  # Fallback handler
+
+# LEGACY ISSUES:
+# - Form.__form_method__ still exists but should be removed
+# - Route.__form_handlers__ indexed by HTTP method (legacy)
+# - Documentation shows handle_ naming but code doesn't support it
 ```
 
 **Complex Handler Selection Logic** (200+ lines):
@@ -64,36 +73,58 @@ def _analyze_handler_signature(self, handler_sig, request: Request) -> dict:
 
 ## Impact Assessment
 
-- **Severity**: 🔴 **CRITICAL**
+- **Severity**: 🔴 **CRITICAL** (CONFIRMED 2025)
 - **Maintainability**: **VERY LOW** (Hard to modify without breaking)
 - **Testability**: **LOW** (Complex interactions, many code paths)
 - **Performance**: **POOR** (O(n) handler selection, repeated analysis)
 - **Developer Experience**: **POOR** (Hard to understand, multiple patterns)
+- **Current Status**: **ACTIVELY PROBLEMATIC** (Recent Bevy update shows integration complexity)
 
-## Recommendations
+### Recent Evidence (2025)
+- **Documentation Inconsistency**: `handle_` examples in docs but no code support (misleading)
+- **Form Handling Inconsistency**: Tests use `@handle.POST` + form params, but Route class still has `Form.__form_method__` logic
+- **Bevy Integration**: Recent updates to `@injectable` and `Inject` show DI complexity
+- **Handler Selection**: Multi-handler selection logic still causes performance issues  
+- **Signature Analysis**: Parameter extraction complexity increased with new DI patterns
+- **Error Handling**: Complex error path through `_error_handler` with container.call recursion
+- **Mixed Patterns**: Modern usage is decorator-only, but legacy form indexing remains in code
 
-### Option 1: Split Route Class by Responsibility (Recommended)
-**Effort**: High | **Impact**: Critical
+## Solution: Split Route Class by Responsibility
 
-Break the Route class into focused, single-responsibility classes:
+### Current Framework Context
+- **Ommi ORM Integration**: New database requirements affect route complexity
+- **Bevy 3.1 DI**: Enhanced dependency injection capabilities (but adds Route complexity)
+- **Extension System**: Mature extension architecture
+- **Performance Focus**: Production usage reveals performance bottlenecks
+- **Breaking Changes**: Recent Bevy updates required Route class modifications
+- **Maintenance Burden**: Complex Route class slows down framework development
+
+### Option 1: Split Route Class by Responsibility (RECOMMENDED)
+**Effort**: High | **Impact**: Critical | **Priority**: HIGH
+
+Break the Route class into focused, single-responsibility classes with modern DI integration:
 
 ```python
 # New focused classes
 class RouteHandler:
     """Handles a single HTTP endpoint with one clear purpose."""
     
-    def __init__(self, method: str, path: str, handler: Callable):
+    def __init__(self, method: str, path: str, handler: Callable, container: Container):
         self.method = method
         self.path = path
         self.handler = handler
+        self.container = container
         self.signature = inspect.signature(handler)
         self.response_wrapper = self._analyze_response_type()
+        self.param_injector = ParameterInjector(container)
     
-    async def handle_request(self, request: Request) -> Response:
-        """Single responsibility: handle one request."""
-        params = await self._extract_parameters(request)
-        result = await self.handler(**params)
-        return self._wrap_response(result)
+    async def handle_request(self, request: Request, **path_params) -> Response:
+        """Single responsibility: handle one request with modern DI."""
+        params = await self.param_injector.extract_parameters(
+            self.signature, request, path_params
+        )
+        result = await self.container.call(self.handler, **params)
+        return self.response_wrapper.wrap_response(result)
 
 class RouteRegistry:
     """Manages collection of route handlers."""
@@ -112,14 +143,22 @@ class RouteRegistry:
         return self._route_tree.resolve(method, path)
 
 class ParameterInjector:
-    """Handles parameter injection from requests."""
+    """Handles parameter injection from requests with Bevy 3.1 support."""
     
     def __init__(self, container: Container):
         self.container = container
     
-    async def extract_parameters(self, handler_sig: Signature, request: Request) -> dict:
-        """Extract and inject parameters for handler."""
-        # Focused responsibility for parameter handling
+    async def extract_parameters(
+        self, 
+        handler_sig: Signature, 
+        request: Request, 
+        path_params: dict,
+        form_data: dict | None = None
+    ) -> dict:
+        """Extract and inject parameters using modern DI patterns."""
+        # Simplified, focused parameter extraction
+        # Support for Header, Cookie, Query, Path, Form, and Container injection
+        # Uses Bevy 3.1 qualifiers for complex injection scenarios
         
 class ResponseWrapper:
     """Handles response type inference and wrapping."""
@@ -130,78 +169,46 @@ class ResponseWrapper:
 
 # New Route class (much simpler)
 class Route:
-    """Declarative route definition using decorators only."""
+    """Declarative route definition using @handles decorator only."""
     
-    @handle.GET
-    async def get_users(self, request: GetRequest) -> Annotated[list, JsonResponse]:
-        return await self.user_service.get_all()
+    @handles.GET
+    async def get_users(
+        self, 
+        request: GetRequest,
+        db: Ommi = dependency(qualifier="primary")
+    ) -> Annotated[list[dict], JsonResponse]:
+        users = await db.find(User).all()
+        return [user.dict() for user in users]
     
-    @handle.POST  
-    async def create_user(self, form: UserForm) -> Annotated[dict, JsonResponse]:
-        user = await self.user_service.create(form)
-        return {"user": user}
+    @handles.POST  
+    async def create_user(
+        self, 
+        form: UserForm,
+        db: Ommi = dependency(qualifier="primary")
+    ) -> Annotated[dict, JsonResponse]:
+        user = await db.create(User(**form.dict()))
+        return {"user": user.dict(), "message": "User created"}
 ```
 
-### Option 2: Use Composition Pattern
-**Effort**: Medium | **Impact**: High
-
-Keep Route class but compose it from smaller components:
-
-```python
-class Route:
-    def __init__(self):
-        self.handler_registry = HandlerRegistry()
-        self.parameter_injector = ParameterInjector()
-        self.response_wrapper = ResponseWrapper()
-        self.form_processor = FormProcessor()
-        self.error_handler = ErrorHandler()
-    
-    async def __call__(self, request: Request, **path_params):
-        # Delegate to focused components
-        handler = self.handler_registry.find_handler(request.method, path_params)
-        params = await self.parameter_injector.extract(handler, request)
-        result = await handler(**params)
-        return self.response_wrapper.wrap(result, handler.response_type)
-```
-
-### Option 3: Plugin-Based Route Architecture
-**Effort**: Very High | **Impact**: High
-
-Make routing completely pluggable:
-
-```python
-class RoutePlugin(Protocol):
-    def can_handle(self, request: Request) -> bool: ...
-    async def handle(self, request: Request) -> Response: ...
-
-class MethodRoutePlugin(RoutePlugin):
-    """Handles HTTP method routing."""
-    
-class FormRoutePlugin(RoutePlugin):
-    """Handles form submissions."""
-    
-class Route:
-    def __init__(self):
-        self.plugins: list[RoutePlugin] = [
-            MethodRoutePlugin(),
-            FormRoutePlugin(),
-            ErrorRoutePlugin()
-        ]
-    
-    async def __call__(self, request: Request):
-        for plugin in self.plugins:
-            if plugin.can_handle(request):
-                return await plugin.handle(request)
-```
 
 ## Action Checklist
 
-### Phase 1: Design New Architecture (Week 1)
-- [ ] Design RouteHandler class interface
-- [ ] Design RouteRegistry with route tree
-- [ ] Design ParameterInjector interface
-- [ ] Design ResponseWrapper interface
+### Phase 0: Clean Up Legacy Code (Week 1) - NEW PRIORITY
+- [ ] Remove `Form.__form_method__` attribute (not used in modern pattern)
+- [ ] Remove `__form_handlers__` HTTP method indexing
+- [ ] Unify form handling to use only `@handle.POST` + type signatures
+- [ ] Remove misleading `handle_` examples from Route docstring
+- [ ] Update all examples to show correct `@handle` decorator usage
+- [ ] Remove unused legacy form processing logic in `_handle_request`
+
+### Phase 1: Design Architecture (Week 1)
+- [ ] Design RouteHandler class with Ommi/Bevy 3.1 integration
+- [ ] Design RouteRegistry with O(1) route tree resolution
+- [ ] Design ParameterInjector with qualifier support
+- [ ] Design ResponseWrapper with modern response types
 - [ ] Create migration plan for existing Route classes
+- [ ] Design integration with existing extension system
+- [ ] Plan database integration with new routing architecture
 
 ### Phase 2: Implement Core Components (Week 2)
 - [ ] Implement RouteHandler class
@@ -264,13 +271,8 @@ class UserRoute(Route):
 
 **Route Registration**:
 ```python
-# Automatic registration via decorators
+# Simple registration
 app.add_routes(UserRoute, prefix="/users")
-
-# Or explicit registration
-router = Router()
-router.add_route("/users", UserRoute)
-app.include_router(router)
 ```
 
 ### Performance Improvements
@@ -305,12 +307,6 @@ class RouteTree:
         return node.get('__handler__')
 ```
 
-### Backwards Compatibility Strategy
-
-1. **Phase 1**: Keep old Route class working alongside new system
-2. **Phase 2**: Add deprecation warnings for old patterns
-3. **Phase 3**: Provide automated migration tools
-4. **Phase 4**: Remove old patterns in next major version
 
 ### Testing Strategy
 
@@ -342,22 +338,38 @@ def test_route_resolution_performance():
     assert duration < 0.001
 ```
 
-### Migration Tools
 
-```python
-# CLI command to migrate existing routes
-$ serv migrate routes --from=legacy --to=decorators
+## Conclusion
 
-# Automated code transformation
-class LegacyRoute(Route):
-    def handle_get(self, request):
-        return {"users": []}
+**VERDICT: KEEP AND UPDATE** - This document remains highly relevant and accurately describes current critical issues.
 
-# Becomes:
-class ModernRoute(Route):
-    @handle.GET
-    async def list_users(self, request: GetRequest) -> Annotated[dict, JsonResponse]:
-        return {"users": []}
-```
+### Key Findings
+- Route class complexity has **increased** since original analysis
+- **Multiple inconsistencies found**:
+  - `handle_` methods shown in examples but not supported in code
+  - `Form.__form_method__` still exists but modern pattern uses `@handle.POST`
+  - Legacy form indexing by HTTP method vs modern decorator approach
+- Only `@handle` decorators actually work for HTTP methods
+- Recent Bevy integration changes demonstrate the maintenance burden
+- File size remains exactly at predicted ~1100 lines
+- Signature analysis and handler selection complexity still critical issues
+- New DI patterns (`@injectable`, `Inject`) add more complexity
+- **Code-usage mismatch**: Tests/examples use modern patterns, implementation has legacy code
 
-This refactoring will significantly improve code maintainability, performance, and developer experience while maintaining the framework's powerful routing capabilities.
+### Immediate Actions Needed
+1. **Fix documentation inconsistency** - Remove misleading `handle_` examples from docstrings
+2. **Remove legacy form logic** - Remove `Form.__form_method__` and HTTP method indexing for forms
+3. **Unify form handling** - Forms should only use `@handle.POST` + type signatures, not separate logic paths
+4. **Prioritize Route refactoring** - This is blocking framework development
+5. **Update examples** to show only `@handle` decorator patterns
+6. **Plan migration strategy** for existing Route classes
+7. **Consider performance impact** of current O(n) handler selection
+
+### Updated Timeline
+Given framework maturity and production usage:
+- **Phase 1 (Design)**: 2 weeks (higher complexity than originally estimated)
+- **Phase 2 (Implementation)**: 3 weeks (integration with Ommi/Bevy 3.1)
+- **Phase 3 (Migration)**: 2 weeks (existing codebase migration)
+- **Phase 4 (Performance)**: 1 week (benchmarking and optimization)
+
+This refactoring will significantly improve code maintainability, performance, and developer experience while maintaining the framework's powerful routing capabilities. **The need for this refactoring has become more urgent, not less.**

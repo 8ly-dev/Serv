@@ -1,7 +1,7 @@
 import sys
 
 import pytest
-from bevy import dependency, get_container
+from bevy import Inject, get_container, injectable
 
 from serv.extensions import Extension, on
 from tests.helpers import create_test_extension_spec
@@ -17,15 +17,16 @@ class _TestUser:
 async def test_extensions():
     class TestExtension(Extension):
         @on("user_create")
+        @injectable
         async def handle_user_create(
             self,
-            user: _TestUser = dependency(),
+            user: Inject[_TestUser],
         ):
             assert user.user_id == 1
             assert user.user_name == "John Doe"
 
     container = get_container().branch()
-    container.instances[_TestUser] = _TestUser(1, "John Doe")
+    container.add(_TestUser(1, "John Doe"))
 
     # Patch the module for this locally defined TestExtension
     test_extension_module = sys.modules[TestExtension.__module__]
@@ -52,15 +53,16 @@ async def test_extensions():
 async def test_extensions_with_args():
     class TestExtension(Extension):
         @on("user_create")
+        @injectable
         async def handle_user_create(
             self,
-            user: _TestUser = dependency(),
+            user: Inject[_TestUser],
         ):
             assert user.user_id == 2
             assert user.user_name == "Jane Doe"
 
     container = get_container().branch()
-    container.instances[_TestUser] = _TestUser(1, "John Doe")
+    container.add(_TestUser(1, "John Doe"))
 
     test_extension_module = sys.modules[TestExtension.__module__]
     original_spec = getattr(test_extension_module, "__extension_spec__", None)
@@ -82,17 +84,18 @@ async def test_extensions_with_args():
 async def test_extensions_with_args_and_dependency():
     class TestExtension(Extension):
         @on("user_create")
+        @injectable
         async def handle_user_create(
             self,
             user_name: str,
-            user: _TestUser = dependency(),
+            user: Inject[_TestUser],
         ):
             assert user.user_id == 1
             assert user.user_name == "John Doe"
             assert user_name == "John Doe"
 
     container = get_container().branch()
-    container.instances[_TestUser] = _TestUser(1, "John Doe")
+    container.add(_TestUser(1, "John Doe"))
 
     test_extension_module = sys.modules[TestExtension.__module__]
     original_spec = getattr(test_extension_module, "__extension_spec__", None)
@@ -166,9 +169,10 @@ async def test_extensions_with_multiple_handlers():
 async def test_extensions_with_unfilled_dependency():
     class TestExtension(Extension):
         @on("user_create")
+        @injectable
         async def handle_user_create(
             self,
-            user: _TestUser = dependency(),
+            user: Inject[_TestUser],
         ): ...
 
     test_extension_module = sys.modules[TestExtension.__module__]
@@ -181,7 +185,8 @@ async def test_extensions_with_unfilled_dependency():
     plugin_instance = TestExtension(stand_alone=True)
     plugin_instance.__extension_spec__ = spec
 
-    with pytest.raises(TypeError):
+    from bevy.injection_types import DependencyResolutionError
+    with pytest.raises(DependencyResolutionError):
         await plugin_instance.on("user_create")
 
     if original_spec is not None:

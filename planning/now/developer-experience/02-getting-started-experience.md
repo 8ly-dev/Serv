@@ -14,10 +14,23 @@ The current getting started experience has several friction points that prevent 
 
 **Example Code Problems**:
 ```python
-# Current tutorial shows old patterns
+# PROBLEM 1: Current tutorial shows old patterns (docs/getting-started/first-app.md)
 class HelloRoute(Route):
-    def handle_get(self, request):  # Missing type hints
-        return "Hello World"        # No response wrapper
+    def handle_get(self, request):  # WRONG: Missing @handles decorator, missing type hints
+        return "Hello World"        # WRONG: No response wrapper
+
+# PROBLEM 2: Method naming without decorators (current first-app.md)
+class AdminRoute(Route):
+    async def show_admin_page(self, request: Request):  # WRONG: Should use @handles.GET
+        pass
+    async def create_post(self, form: CreatePostForm):  # WRONG: Should use @handles.POST  
+        pass
+
+# CORRECT MODERN PATTERN (2025):
+class HelloRoute(Route):
+    @handles.GET
+    async def hello_world(self) -> Annotated[str, TextResponse]:
+        return "Hello World"
 ```
 
 **Missing Quick Wins**:
@@ -28,13 +41,14 @@ class HelloRoute(Route):
 
 ### User Journey Analysis
 
-**Current Painful Journey**:
+**Current Painful Journey (VALIDATED 2025)**:
 1. User installs framework: `pip install getserving`
 2. User follows quick start with incorrect CLI commands → **FRICTION**
-3. User tries first app tutorial with outdated code → **FRICTION**  
-4. User confused by dependency injection without explanation → **FRICTION**
-5. User doesn't understand when/why to use extensions → **FRICTION**
-6. User abandons framework → **FAILURE**
+3. User tries first app tutorial with outdated Route patterns (no @handles decorators) → **FRICTION**  
+4. User confused by inconsistent examples (handle_ methods vs @handles decorators) → **FRICTION**
+5. User confused by dependency injection without explanation → **FRICTION**
+6. User doesn't understand when/why to use extensions → **FRICTION**
+7. User abandons framework → **FAILURE**
 
 **Desired Smooth Journey**:
 1. User installs framework
@@ -61,18 +75,18 @@ Create a series of tutorials that build complexity gradually:
 ```python
 # Step 1: Install and create
 $ pip install getserving
-$ serv create app my-api
-$ cd my-api
+$ serv create app
+$ # Creates serv.config.yaml in current directory
 
 # Step 2: Add a simple route (auto-generated)
-# app already contains working hello world
+# app already contains working hello world with modern @handles pattern
 
 # Step 3: Run and test
 $ serv launch
 # Opens browser to http://localhost:8000 showing "Hello World"
 
 # Step 4: Make first change
-# Edit routes.py to add your name
+# Edit main route to use modern @handles decorator
 # Save and see instant reload
 ```
 
@@ -176,8 +190,8 @@ pip install getserving
 
 ## 2. Create App (30 seconds)
 ```bash
-serv create app hello-api
-cd hello-api
+serv create app
+# Creates serv.config.yaml in current directory
 ```
 
 ## 3. See It Work (30 seconds)
@@ -190,7 +204,8 @@ Visit http://localhost:8000 → See "Hello World"
 Edit `routes.py`:
 ```python
 class HelloRoute(Route):
-    async def handle_get(self) -> Annotated[dict, JsonResponse]:
+    @handles.GET
+    async def hello_world(self) -> Annotated[dict, JsonResponse]:
         return {"message": "Hello from my API!", "timestamp": datetime.now()}
 ```
 
@@ -252,14 +267,16 @@ class UserRoute(Route):
         return {"users": []}
 ```
 
-**After (modern pattern)**:
+**After (modern pattern - CURRENT 2025)**:
 ```python
 class UserRoute(Route):
-    async def handle_get(self, request: GetRequest) -> Annotated[dict, JsonResponse]:
+    @handles.GET
+    async def get_users(self, request: GetRequest) -> Annotated[dict, JsonResponse]:
         users = await self.get_users()
         return {"users": users}
     
-    async def handle_post(self, request: PostRequest) -> Annotated[dict, JsonResponse]:
+    @handles.POST
+    async def create_user(self, request: PostRequest) -> Annotated[dict, JsonResponse]:
         user_data = await request.json()
         user = await self.create_user(user_data)
         return {"user": user}
@@ -270,17 +287,22 @@ class UserRoute(Route):
 Create templates for common use cases:
 
 ```bash
-# REST API template
-serv create app my-api --template=rest-api
-# Creates: routes for CRUD, SQLite setup, testing examples
+# Basic app creation (current implementation)
+serv create app
+# Creates: serv.config.yaml with welcome extension
 
-# Web app template  
-serv create app my-web-app --template=web-app
-# Creates: templates, static files, form handling
+# Extension creation
+serv create extension --name my-api
+# Creates: extensions/my_api/extension.yaml and main.py
 
-# Microservice template
-serv create app my-service --template=microservice
-# Creates: health checks, metrics, Docker setup
+# Route creation
+serv create route --name user-api --path /api/users
+# Creates: route handler in current extension
+
+# Future templates (proposed):
+serv create app --template=rest-api
+serv create app --template=web-app
+serv create app --template=microservice
 ```
 
 ### Testing Strategy

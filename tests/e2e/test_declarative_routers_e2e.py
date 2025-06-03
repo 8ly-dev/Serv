@@ -85,14 +85,15 @@ class TestDeclarativeRoutersE2E:
             handler_functions = []
             for class_name, path in handlers:
                 handler_functions.append(f"""
-async def {class_name}(response: ResponseBuilder = dependency(), **path_params):
+@injectable
+async def {class_name}(response: Inject[ResponseBuilder], **path_params):
     response.content_type("text/plain")
     response.body("Hello from {class_name} at {path} with params: {{path_params}}")
 """)
 
             handler_code = f"""
 from serv.responses import ResponseBuilder
-from bevy import dependency
+from bevy import injectable, Inject
 {"".join(handler_functions)}
 """
             module_file.write_text(handler_code)
@@ -409,13 +410,15 @@ from bevy import dependency
         handlers_file = extension_dir / "handlers.py"
         handlers_code = """
 from serv.responses import ResponseBuilder
-from bevy import dependency
+from bevy import injectable, Inject
 
-async def PublicHandler(response: ResponseBuilder = dependency()):
+@injectable
+async def PublicHandler(response: Inject[ResponseBuilder]):
     response.content_type("application/json")
     response.body('{"message": "Public endpoint", "auth_required": false, "cache_ttl": 3600}')
 
-async def PrivateHandler(response: ResponseBuilder = dependency()):
+@injectable
+async def PrivateHandler(response: Inject[ResponseBuilder]):
     response.content_type("application/json")
     response.body('{"message": "Private endpoint", "auth_required": true, "admin_only": true}')
 """
@@ -491,9 +494,10 @@ async def PrivateHandler(response: ResponseBuilder = dependency()):
         handlers_file = extension_dir / "handlers.py"
         handlers_code = """
 from serv.responses import ResponseBuilder
-from bevy import dependency
+from bevy import injectable, Inject
 
-async def ValidHandler(response: ResponseBuilder = dependency()):
+@injectable
+async def ValidHandler(response: Inject[ResponseBuilder]):
     response.content_type("text/plain")
     response.body("This handler works!")
 """
@@ -567,17 +571,20 @@ async def ValidHandler(response: ResponseBuilder = dependency()):
         handlers_code = """
 from serv.responses import ResponseBuilder
 from serv.requests import Request
-from bevy import dependency
+from bevy import injectable, Inject
 
-async def UserPostHandler(user_id: str, post_id: str, response: ResponseBuilder = dependency()):
+@injectable
+async def UserPostHandler(user_id: str, post_id: str, response: Inject[ResponseBuilder]):
     response.content_type("application/json")
     response.body(f'{{"user_id": "{user_id}", "post_id": "{post_id}"}}')
 
-async def FileHandler(path: str, response: ResponseBuilder = dependency()):
+@injectable
+async def FileHandler(path: str, response: Inject[ResponseBuilder]):
     response.content_type("application/json")
     response.body(f'{{"file_path": "{path}"}}')
 
-async def VersionedDataHandler(version: int, response: ResponseBuilder = dependency()):
+@injectable
+async def VersionedDataHandler(version: int, response: Inject[ResponseBuilder]):
     response.content_type("application/json")
     response.body(f'{{"api_version": {version}, "data": "sample"}}')
 """

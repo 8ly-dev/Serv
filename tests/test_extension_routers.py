@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
-from bevy import dependency
+from bevy import Inject, injectable
 from bevy.registries import Registry
 
 from serv.extensions import Extension, on
@@ -46,7 +46,8 @@ async def sample_handler(response: ResponseBuilder):
 
     class TestExtension(Extension):
         @on("app.request.begin")
-        async def setup_routes(self, router: Router = dependency()):
+        @injectable
+        async def setup_routes(self, router: Inject[Router]):
             # Setup routes from extension_config if they exist
             if not hasattr(self, "__extension_spec__") or not self.__extension_spec__:
                 return
@@ -70,8 +71,9 @@ async def sample_handler(response: ResponseBuilder):
                 # simple functions or need to be mocked. A real plugin might import them.
                 # For now, let's assume a dummy handler if not found, or allow specific
                 # tests to mock/patch this part.
+                @injectable
                 async def dummy_handler(
-                    response: ResponseBuilder = dependency(), current_path: str = path
+                    response: Inject[ResponseBuilder], current_path: str = path
                 ):
                     response.body(f"Handler for {current_path}")
 

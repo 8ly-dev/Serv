@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-from bevy import dependency
+from bevy import Inject, injectable
 from bevy.containers import Container
 
 from serv.extensions import Listener, on
@@ -60,13 +60,15 @@ class RouteAddingExtension(Listener):
         # self._stand_alone = True # No longer needed here for Extension base class init
 
     @on("app.request.begin")
-    async def add_route(self, router: Router = dependency()) -> None:
+    @injectable
+    async def add_route(self, router: Inject[Router]) -> None:
         router.add_route(self.path, self._handler_wrapper, methods=self.methods)
 
+    @injectable
     async def _handler_wrapper(
         self,
-        request: Request = dependency(),
-        container: Container = dependency(),
+        request: Inject[Request],
+        container: Inject[Container],
         **path_params,
     ):
         self.was_called += 1
@@ -76,10 +78,9 @@ class RouteAddingExtension(Listener):
             "container": container,
         }  # For inspection
 
-        # Call the original handler (e.g., hello_handler from the test)
-        # using the per-request container. Path parameters are passed explicitly.
-        # Other dependencies (like Request, ResponseBuilder) should be declared
-        # in self.handler's signature with ` = dependency()` if needed.
+        # No auto-creation - objects should be properly injected from container
+
+        # Call the original handler using the same container.
         await container.call(self.handler, **path_params)
 
 
@@ -143,8 +144,9 @@ class EventWatcherExtension(Listener):
 
 # Example of a simple middleware for testing
 # Middleware are defined as async generator factories
+@injectable
 async def example_header_middleware(
-    request: Request = dependency(), response: ResponseBuilder = dependency()
+    request: Inject[Request], response: Inject[ResponseBuilder]
 ) -> None:
     # Code here runs before the next middleware/handler
     response.add_header("X-Test-Middleware-Before", "active")

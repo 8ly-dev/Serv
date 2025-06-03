@@ -45,9 +45,12 @@ class ServException(Exception):
         Handling in error handlers:
 
         ```python
+        from bevy import injectable, Inject
+
+        @injectable
         async def custom_error_handler(
             error: ServException,
-            response: ResponseBuilder = dependency()
+            response: Inject[ResponseBuilder]
         ):
             response.set_status(error.status_code)
             response.content_type("application/json")

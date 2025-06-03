@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any, dataclass_transform, overload
 
-from bevy import dependency, inject
+from bevy import Inject, injectable
 from bevy.containers import Container
 
 from serv.exceptions import HTTPMethodNotAllowedException, HTTPNotFoundException
@@ -168,9 +168,9 @@ class Router(RouterProtocol):
                     container = get_registry().create_container()
 
                 with container.branch() as branch_container:
-                    branch_container.instances[RouteSettings] = RouteSettings(
+                    branch_container.add(RouteSettings, RouteSettings(
                         **settings or {}
-                    )
+                    ))
                     # Create route instance directly instead of using container.call
                     try:
                         route_instance = route()
@@ -778,8 +778,8 @@ class Router(RouterProtocol):
         return None
 
 
-@inject
-def get_current_router(container: Container = dependency()) -> Router:
+@injectable
+def get_current_router(container: Inject[Container]) -> Router:
     """Retrieves the current request's root Router instance from the Bevy container."""
     try:
         return container.get(Router)

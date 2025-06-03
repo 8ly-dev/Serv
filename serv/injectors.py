@@ -1,5 +1,6 @@
 from typing import Annotated, Any, get_args, get_origin
 
+from bevy import Inject, injectable
 from bevy.containers import Container
 from bevy.hooks import hooks
 from tramp.optionals import Optional
@@ -39,7 +40,8 @@ class Query(_Marker):
 
 
 @hooks.CREATE_INSTANCE
-def inject_request_object(container: Container, annotation: Any) -> Optional[Any]:
+@injectable
+def inject_request_object(container: Inject[Container], annotation: Any) -> Optional[Any]:
     origin = get_origin(annotation)
     if origin is Annotated:
         annotation_type, marker = get_args(annotation)
@@ -56,7 +58,8 @@ def inject_request_object(container: Container, annotation: Any) -> Optional[Any
 
 
 @hooks.CREATE_INSTANCE
-def inject_websocket_object(container: Container, annotation: Any) -> Optional[Any]:
+@injectable
+def inject_websocket_object(container: Inject[Container], annotation: Any) -> Optional[Any]:
     """Inject WebSocket instances with proper frame type configuration.
 
     Handles both plain WebSocket injection and Annotated[WebSocket, FrameType.X] patterns.
@@ -90,3 +93,5 @@ def inject_websocket_object(container: Container, annotation: Any) -> Optional[A
                 return Optional.Some(websocket)
 
     return Optional.Nothing()
+
+

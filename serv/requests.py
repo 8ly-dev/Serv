@@ -143,6 +143,7 @@ class Request:
 
         self.scope = scope
         self._receive = receive
+
         self._body_consumed = False
         self._buffer = bytearray()
 

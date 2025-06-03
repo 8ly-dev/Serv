@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from bevy import dependency
+from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv.app import App
@@ -87,7 +87,8 @@ class MultipartTestRouteExtension(Extension):
         self._stand_alone = True
 
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, router: Inject[Router]) -> None:
         router.add_route(self.path, self.route_class)
         self.plugin_registered_route = True
 

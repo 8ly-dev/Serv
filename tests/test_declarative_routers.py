@@ -41,10 +41,11 @@ def create_declarative_router_plugin(extension_config):
                 if not module_file.exists():
                     module_file.write_text(f"""
 from serv.responses import ResponseBuilder
-from bevy import dependency
+from bevy import injectable, Inject
 
 class {class_name}:
-    async def __call__(self, response: ResponseBuilder = dependency()):
+    @injectable
+    async def __call__(self, response: Inject[ResponseBuilder]):
         response.content_type("text/plain")
         response.body("Hello from {class_name}")
 """)
@@ -570,10 +571,11 @@ def test_declarative_router_integration_with_app():
     handlers_file = extension_dir / "handlers.py"
     handlers_file.write_text("""
 from serv.responses import ResponseBuilder
-from bevy import dependency
+from bevy import injectable, Inject
 
 class IntegrationHandler:
-    async def __call__(self, response: ResponseBuilder = dependency()):
+    @injectable
+    async def __call__(self, response: Inject[ResponseBuilder]):
         response.content_type("text/plain")
         response.body("Integration test successful")
 """)

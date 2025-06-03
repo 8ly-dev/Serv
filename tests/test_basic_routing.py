@@ -1,5 +1,5 @@
 import pytest
-from bevy import dependency  # Added
+from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv.app import App
@@ -9,7 +9,8 @@ from tests.helpers import EventWatcherExtension, RouteAddingExtension
 
 @pytest.mark.asyncio
 async def test_hello_world(app: App, client: AsyncClient):
-    async def hello_handler(response: ResponseBuilder = dependency()):
+    @injectable
+    async def hello_handler(response: Inject[ResponseBuilder]):
         response.content_type("text/plain")
         response.body("Hello, World!")
 
@@ -33,7 +34,8 @@ async def test_not_found(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_method_not_allowed(app: App, client: AsyncClient):
-    async def post_only_handler(response: ResponseBuilder = dependency()):
+    @injectable
+    async def post_only_handler(response: Inject[ResponseBuilder]):
         response.body("Processed POST")
 
     plugin = RouteAddingExtension("/restricted", post_only_handler, methods=["POST"])
@@ -53,7 +55,7 @@ async def test_method_not_allowed(app: App, client: AsyncClient):
 @pytest.mark.asyncio
 async def test_path_parameters(app: App, client: AsyncClient):
     async def user_handler(
-        response: ResponseBuilder = dependency(),
+        response: Inject[ResponseBuilder],
         user_id: str = "",
         item_id: str | None = None,
     ):
@@ -90,7 +92,8 @@ async def test_request_events_emitted(app: App, client: AsyncClient):
     event_watcher = EventWatcherExtension()
     app.add_extension(event_watcher)
 
-    async def dummy_handler(response: ResponseBuilder = dependency()):
+    @injectable
+    async def dummy_handler(response: Inject[ResponseBuilder]):
         response.body("dummy")
 
     route_plugin = RouteAddingExtension("/events", dummy_handler, methods=["GET"])

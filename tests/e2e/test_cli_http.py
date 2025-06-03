@@ -116,16 +116,16 @@ class TestCliHttpBehavior:
         plugin_code = f"""
 from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
-from bevy import dependency
+from bevy import injectable, Inject
 from serv.routing import Router
 from serv.responses import ResponseBuilder
 
 class {plugin_name.replace("_", " ").title().replace(" ", "")}Extension(Extension):
     @on("app.request.begin")
-    async def setup_routes(self, router: Router = dependency()) -> None:
+    async def setup_routes(self, router: Inject[Router]) -> None:
         router.add_route("{route_path}", self._handler, methods=["GET"])
 
-    async def _handler(self, response: ResponseBuilder = dependency()):
+    async def _handler(self, response: Inject[ResponseBuilder]):
         response.content_type("text/plain")
         response.body("{response_text}")
 """
@@ -180,7 +180,7 @@ async def {middleware_name}_middleware(handler):
         # Mock the plugin loading to avoid the signature mismatch issue
         from unittest.mock import patch
 
-        from bevy import dependency
+        from bevy import Inject, injectable
 
         from serv.extensions import Extension, on
         from serv.responses import ResponseBuilder
@@ -197,10 +197,12 @@ async def {middleware_name}_middleware(handler):
                 super().__init__(extension_spec=mock_spec)
 
             @on("app.request.begin")
-            async def setup_routes(self, router: Router = dependency()) -> None:
+            @injectable
+            async def setup_routes(self, router: Inject[Router]) -> None:
                 router.add_route("/test-route", self._handler, methods=["GET"])
 
-            async def _handler(self, response: ResponseBuilder = dependency()):
+            @injectable
+            async def _handler(self, response: Inject[ResponseBuilder]):
                 response.content_type("text/plain")
                 response.body("Hello from test plugin!")
 

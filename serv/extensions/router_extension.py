@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any
 
-from bevy import dependency
+from bevy import Inject, injectable
 
 import serv.routing as r
 from serv.additional_context import ExceptionContext
@@ -101,13 +101,14 @@ class RouterExtension(Listener):
         return route_configs
 
     @on("app.request.begin")
-    async def setup_routes(self, main_router: "r.Router" = dependency()) -> None:
+    @injectable
+    async def setup_routes(self, main_router: Inject["r.Router"]) -> None:
         for router_builder in self._routers.values():
             router_builder.build(main_router)
 
     @on("app.websocket.begin")
     async def setup_websocket_routes(
-        self, main_router: "r.Router" = dependency()
+        self, main_router: Inject["r.Router"]
     ) -> None:
         """Set up routes for WebSocket connections.
 
