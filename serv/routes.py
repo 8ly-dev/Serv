@@ -855,43 +855,8 @@ class Route:
                         pass
 
             # If still no value and parameter has a default, we'll let the function handle it
-            if value is None and param.default != param.empty:
-                continue  # Skip this parameter, let default value be used
-
-            # If still no value and it's required, raise an error
             if value is None:
-                # Get detailed information about the handler for better error reporting
-                handler_class = type(self).__name__
-                handler_module = type(self).__module__
-                handler_method_name = handler_info.get("name", "unknown")
-
-                # Try to get the file and line number of the handler method
-                import inspect
-
-                handler_file = "unknown"
-                handler_line = "unknown"
-                try:
-                    handler_method = handler_info.get("method")
-                    if handler_method:
-                        handler_source = inspect.getsourcefile(handler_method)
-                        handler_lines = inspect.getsourcelines(handler_method)
-                        if handler_source:
-                            handler_file = handler_source
-                        if handler_lines:
-                            handler_line = handler_lines[1]
-                except Exception:
-                    pass
-                error_msg = (
-                    f"Required parameter could not be resolved:\n"
-                    f"  Parameter: '{param_name}' (type: {param_annotation})\n"
-                    f"  Handler: {handler_class}.{handler_method_name}()\n"
-                    f"  Module: {handler_module}\n"
-                    f"  File: {handler_file}\n"
-                    f"  Line: {handler_line}\n"
-                    f"  Suggestion: Add dependency injection annotation or provide a default value"
-                )
-
-                raise ValueError(error_msg)
+                continue  # Skip this parameter, let default value be used
 
             kwargs[param_name] = value
 
