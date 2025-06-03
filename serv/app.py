@@ -22,7 +22,8 @@ from asgiref.typing import (
     LifespanStartupCompleteEvent,
     Scope,
 )
-from bevy import dependency, get_registry, inject
+from bevy import injectable, Inject, get_registry, get_container
+from bevy.bundled.type_factory_hook import type_factory
 from bevy.containers import Container
 from jinja2 import Environment, FileSystemLoader
 
@@ -79,16 +80,16 @@ class EventEmitter:
     def __init__(self, extensions: dict[Path, list[Listener]]):
         self.extensions = extensions
 
-    @inject
+    @injectable
     def emit_sync(
-        self, event: str, *, container: Container = dependency(), **kwargs
+        self, event: str, *, container: Inject[Container], **kwargs
     ) -> Task:
         return get_running_loop().create_task(
             self.emit(event, container=container, **kwargs)
         )
 
-    @inject
-    async def emit(self, event: str, *, container: Container = dependency(), **kwargs):
+    @injectable
+    async def emit(self, event: str, *, container: Inject[Container], **kwargs):
         async with asyncio.TaskGroup() as tg:
             for extension in chain(*self.extensions.values()):
                 tg.create_task(
@@ -273,6 +274,9 @@ class App(EventEmitterProtocol, AppContextProtocol):
             self._enable_welcome_extension()
 
     def _init_container(self):
+        # Register type_factory hook for automatic type creation
+        type_factory.register_hook(self._registry)
+        
         # Register hooks for injection
         inject_request_object.register_hook(self._registry)
 
@@ -507,13 +511,15 @@ class App(EventEmitterProtocol, AppContextProtocol):
     # Extension loading methods removed - extensions are now loaded via configuration
     # Use the extensions: key in serv.config.yaml to specify extensions to load
 
+    @injectable
     def emit_sync(
-        self, event: str, *, container: Container = dependency(), **kwargs
+        self, event: str, *, container: Inject[Container], **kwargs
     ) -> Task:
         return self._emit.emit_sync(event, container=container, **kwargs)
 
+    @injectable
     async def emit(
-        self, event: str, *, container: Container = dependency(), **kwargs
+        self, event: str, *, container: Inject[Container], **kwargs
     ) -> None:
         """Async emit method for EventEmitterProtocol compliance."""
         await self._emit.emit(event, container=container, **kwargs)
@@ -593,12 +599,12 @@ class App(EventEmitterProtocol, AppContextProtocol):
         # Render the template
         return template.render(**context)
 
-    @inject
+    @injectable
     async def _default_error_handler(
         self,
         error: Exception,
-        response: ResponseBuilder = dependency(),
-        request: Request = dependency(),
+        response: Inject[ResponseBuilder],
+        request: Inject[Request],
     ):
         logger.exception("Unhandled exception", exc_info=error)
 
@@ -709,12 +715,12 @@ class App(EventEmitterProtocol, AppContextProtocol):
                 error_message = f"{status_code} Error: An unexpected error occurred."
             response.body(error_message)
 
-    @inject
+    @injectable
     async def _default_404_handler(
         self,
         error: HTTPNotFoundException,
-        response: ResponseBuilder = dependency(),
-        request: Request = dependency(),
+        response: Inject[ResponseBuilder],
+        request: Inject[Request],
     ):
         response.set_status(HTTPNotFoundException.status_code)
 
@@ -755,12 +761,12 @@ class App(EventEmitterProtocol, AppContextProtocol):
                 f"404 Not Found: The requested resource ({request.path}) was not found."
             )
 
-    @inject
+    @injectable
     async def _default_405_handler(
         self,
         error: HTTPMethodNotAllowedException,
-        response: ResponseBuilder = dependency(),
-        request: Request = dependency(),
+        response: Inject[ResponseBuilder],
+        request: Inject[Request],
     ):
         response.set_status(HTTPMethodNotAllowedException.status_code)
 
@@ -817,9 +823,9 @@ class App(EventEmitterProtocol, AppContextProtocol):
             )
             response.body(f"405 Method Not Allowed: {message}")
 
-    @inject
+    @injectable
     async def _run_error_handler(
-        self, error: Exception, container: Container = dependency()
+        self, error: Exception, container: Inject[Container]
     ):
         response_builder = container.get(ResponseBuilder)
         if not response_builder._headers_sent:
@@ -865,15 +871,15 @@ class App(EventEmitterProtocol, AppContextProtocol):
                 logger.warning(f"Unsupported ASGI scope type: {scope['type']}")
 
     async def _handle_request(self, scope: Scope, receive: Receive, send: Send):
-        with self._container.branch() as container:
+        with self._container.child() as container:
             request = Request(scope, receive)
             response_builder = ResponseBuilder(send)
             router_instance_for_request = Router()
 
-            container.instances[Request] = request
-            container.instances[ResponseBuilder] = response_builder
-            container.instances[Container] = container
-            container.instances[Router] = router_instance_for_request
+            container.add(Request, request)
+            container.add(ResponseBuilder, response_builder)
+            container.add(Container, container)
+            container.add(Router, router_instance_for_request)
             # Register router for protocol-based access
             container.instances[RouterProtocol] = router_instance_for_request
 
@@ -965,14 +971,14 @@ class App(EventEmitterProtocol, AppContextProtocol):
             else:
                 handler_callable, path_params, route_settings = resolved_route_info
 
-                # Create a branch of the container with route settings
-                with container.branch() as route_container:
+                # Create a child of the container with route settings
+                with container.child() as route_container:
                     # Add route settings to the container using RouteSettings
                     from serv.routing import RouteSettings
 
-                    route_container.instances[RouteSettings] = RouteSettings(
+                    route_container.add(RouteSettings, RouteSettings(
                         **route_settings
-                    )
+                    ))
 
                     try:
                         await route_container.call(handler_callable, **path_params)
@@ -1010,10 +1016,10 @@ class App(EventEmitterProtocol, AppContextProtocol):
 
     async def _handle_websocket(self, scope: Scope, receive: Receive, send: Send):
         """Handle WebSocket connections."""
-        with self._container.branch() as container:
+        with self._container.child() as container:
             router_instance_for_request = Router()
-            container.instances[Container] = container
-            container.instances[Router] = router_instance_for_request
+            container.add(Container, container)
+            container.add(Router, router_instance_for_request)
             # Register router for protocol-based access
             container.instances[RouterProtocol] = router_instance_for_request
 
@@ -1069,14 +1075,14 @@ class App(EventEmitterProtocol, AppContextProtocol):
                 # Create WebSocket instance
                 websocket = WebSocket(scope, receive, send, frame_type)
 
-                # Create a branch of the container with route settings and WebSocket instance
-                with container.branch() as route_container:
+                # Create a child of the container with route settings and WebSocket instance
+                with container.child() as route_container:
                     from serv.routing import RouteSettings
 
-                    route_container.instances[RouteSettings] = RouteSettings(
+                    route_container.add(RouteSettings, RouteSettings(
                         **route_settings
-                    )
-                    route_container.instances[WebSocket] = websocket
+                    ))
+                    route_container.add(WebSocket, websocket)
 
                     try:
                         # Call the WebSocket handler
