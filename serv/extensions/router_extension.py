@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any
 
-from bevy import injectable, Inject
+from bevy import Inject, injectable
 
 import serv.routing as r
 from serv.additional_context import ExceptionContext

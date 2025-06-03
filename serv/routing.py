@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any, dataclass_transform, overload
 
-from bevy import injectable, Inject
+from bevy import Inject, injectable
 from bevy.containers import Container
 
 from serv.exceptions import HTTPMethodNotAllowedException, HTTPNotFoundException

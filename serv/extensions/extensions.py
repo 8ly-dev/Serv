@@ -9,7 +9,7 @@ from inspect import get_annotations, isawaitable, signature
 from pathlib import Path
 from typing import Any
 
-from bevy import injectable, Inject, get_container
+from bevy import Inject, get_container, injectable
 from bevy.containers import Container
 
 import serv.extensions.loader as pl

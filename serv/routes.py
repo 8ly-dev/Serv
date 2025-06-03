@@ -16,7 +16,7 @@ from typing import (
     get_type_hints,
 )
 
-from bevy import injectable, Inject
+from bevy import Inject, injectable
 from bevy.containers import Container
 
 import serv.extensions.loader as pl

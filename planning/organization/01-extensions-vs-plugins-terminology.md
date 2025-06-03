@@ -1,65 +1,109 @@
-# Extensions vs Plugins Terminology Inconsistency
+# Serv Framework: Extension Terminology Standardization
 
-## Problem Description
+## Overview
 
-The Serv framework uses both "extensions" and "plugins" terminology inconsistently throughout the codebase, documentation, and directory structure. This creates significant confusion for developers and makes the framework appear unprofessional and poorly maintained.
+The Serv framework uses a comprehensive extension system to provide modular functionality. This document establishes the official terminology and provides a plan to ensure consistent usage throughout the project.
 
-### Current Inconsistencies
+## Official Terminology
 
-**Directory Structure Conflicts**:
+**Extensions**: Modular packages that extend framework functionality at startup. Extensions are the primary mechanism for adding features to Serv applications.
+
+**Extension Components**:
+- **Listener**: Event-driven components that respond to application lifecycle events
+- **Route**: HTTP request handlers that define API endpoints  
+- **Middleware**: Request/response processing components that run in the request pipeline
+
+## Extension Architecture
+
+### Directory Structure
 ```
-serv/bundled/
-├── extensions/          # Uses "extensions"
-│   └── welcome/
-└── plugins/            # Uses "plugins" (should be removed)
-    └── welcome/        # Duplicate of above
+extensions/
+  my_extension/
+    __init__.py
+    main.py              # Contains Listener subclass
+    extension.yaml       # Metadata and configuration
+    routes/              # Route handlers (optional)
+    middleware/          # Middleware components (optional)
 ```
 
-**Configuration Inconsistencies**:
+### Configuration Files
 ```yaml
-# Some demos use "extensions"
+# extension.yaml - Extension metadata
+name: My Extension
+description: Extension description
+version: 1.0.0
+author: Author Name
+
+listeners:
+  - main:MyExtensionListener
+
+routers:
+  - name: api
+    routes:
+      - path: /api/endpoint
+        handler: routes.api:ApiRoute
+
+middleware:
+  - entry: middleware.auth:authenticate
+```
+
+```yaml
+# serv.config.yaml - Application configuration
 extensions:
-  - welcome
-
-# Legacy references to "plugins"  
-plugins:
-  - welcome
+  - extension: my_extension
+    config:
+      setting: value
 ```
 
-**Documentation Mismatches**:
-- CLI commands use "extension": `serv create extension`
-- Some demo directories use "plugin": `demos/plugin_middleware_demo/`
-- Mixed usage in markdown files and help text
+### Extension Components
 
-**Code References**:
+**Listener Example**:
 ```python
-# File: serv/extensions/loader.py (uses "extension")
-def find_extension_spec(path: Path) -> ExtensionSpec | None:
+from serv.extensions import Listener
+from serv.routes import on
 
-# But some comments and variables use "plugin"
-# Legacy "plugin" references in various files
+class MyExtensionListener(Listener):
+    @on("app.startup")
+    async def setup(self, router: Router = dependency()):
+        router.add_route("/path", MyRoute, methods=["GET"])
 ```
 
-### User Impact Examples
+**Route Example**:
+```python
+from serv.routes import Route, handles
+from serv.requests import GetRequest
+from serv.responses import TextResponse
 
-**New Developer Confusion**:
-1. Developer reads documentation mentioning "extensions"
-2. Sees demo directory named `plugin_middleware_demo`
-3. Wonders if plugins and extensions are different concepts
-4. Tries to create a "plugin" but CLI only supports "extension"
-5. Developer loses confidence in framework quality
+class MyRoute(Route):
+    @handles.GET
+    async def handle_get(self, request: GetRequest) -> Annotated[str, TextResponse]:
+        return "Hello from extension!"
+```
 
-**Documentation Issues**:
-- Search for "plugin" in docs returns inconsistent results
-- Some tutorials use "plugin", others use "extension"
-- No clear explanation of relationship between terms
+**Middleware Example**:
+```python
+async def my_middleware(request: Request, call_next):
+    # Pre-processing
+    response = await call_next(request)
+    # Post-processing
+    return response
+```
 
-## Impact Assessment
+## Current Status Analysis
 
-- **Severity**: 🔴 **HIGH** (Professional image and user confusion)
-- **User Experience**: **POOR** (Confusing and inconsistent)
-- **Brand Impact**: **NEGATIVE** (Appears unprofessional)
-- **Effort to Fix**: 🟢 **LOW** (Mostly renaming and updates)
+### ✅ Already Standardized
+- **Core Framework**: All classes use "extension" terminology (`Listener`, `ExtensionSpec`, `ExtensionLoader`)
+- **CLI Commands**: All commands use "extension" (`serv create extension`, `serv extension list`)
+- **Configuration**: Primary config uses `extensions:` key
+- **Documentation**: 95% of docs use "extension" terminology
+- **Code Structure**: Main directories use `extensions/` naming
+
+### ❌ Remaining Issues
+1. **Demo Directory**: `demos/plugin_middleware_demo/` → should be `extension_middleware_demo`
+2. **Legacy Cache**: `serv/bundled/plugins/` contains only cached files
+3. **Documentation**: CLAUDE.md example uses `--plugin-dirs` flag
+4. **Test Comments**: One test helper uses "plugin" in comment
+5. **Missing Backward Compatibility**: No support for legacy `plugins:` config key
 
 ## Recommendations
 

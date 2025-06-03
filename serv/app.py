@@ -22,7 +22,7 @@ from asgiref.typing import (
     LifespanStartupCompleteEvent,
     Scope,
 )
-from bevy import injectable, Inject, get_registry, get_container
+from bevy import Inject, get_registry, injectable
 from bevy.bundled.type_factory_hook import type_factory
 from bevy.containers import Container
 from jinja2 import Environment, FileSystemLoader
@@ -276,7 +276,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
     def _init_container(self):
         # Register type_factory hook for automatic type creation
         type_factory.register_hook(self._registry)
-        
+
         # Register hooks for injection
         inject_request_object.register_hook(self._registry)
 
@@ -880,7 +880,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
             container.add(ResponseBuilder, response_builder)
             container.add(Container, container)
             container.add(Router, router_instance_for_request)
-            
+
             # In Bevy 3.1+, we need to "pre-warm" the container by accessing the objects
             # to make them available for dependency injection
             container.get(Request)

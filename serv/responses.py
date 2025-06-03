@@ -137,7 +137,7 @@ class ResponseBuilder:
             self._send = lambda msg: None  # No-op send function
         else:
             self._send = send_callable
-        
+
         self._status = 200
         self._headers = []  # List of (name_bytes, value_bytes)
         self._body_components = []
