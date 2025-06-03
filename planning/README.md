@@ -1,31 +1,45 @@
 # Serv Framework Improvement Planning
 
-This directory contains detailed analysis and planning documents for addressing critical issues identified in the Serv framework. Each category contains specific issue files with detailed analysis, recommendations, and action plans.
+This directory contains detailed analysis and planning documents for addressing critical issues identified in the Serv framework. Issues are organized by implementation timeline to prioritize immediate concerns vs future planning.
 
 ## Directory Structure
 
 ```
 planning/
 ├── README.md                     # This file
-├── security/                     # Security vulnerabilities and fixes
-├── developer-experience/         # Developer experience improvements
-├── architecture/                 # Framework architecture issues
-├── code-quality/                 # Code quality improvements
-└── organization/                 # Project organization and structure
+├── now/                          # Immediate concerns (next 1-2 releases)
+│   ├── security/                 # Critical security fixes needed now
+│   ├── architecture/             # Essential architecture improvements
+│   ├── developer-experience/     # High-impact DX improvements
+│   ├── code-quality/             # Code quality fixes
+│   └── organization/             # Project organization improvements
+└── future/                       # Long-term planning (major versions)
+    ├── security/                 # Complex security system redesigns
+    └── architecture/             # Major architectural changes
 ```
 
-## Priority Order
+## Implementation Timeline
 
-1. **🔴 CRITICAL**: Security issues must be addressed immediately
-2. **🟡 HIGH**: Architecture and DX issues affecting framework usability
-3. **🟢 MEDIUM**: Code quality and organization improvements
+### Now (Immediate - Next 1-2 Releases)
+Focus on issues that need to be addressed soon to maintain framework stability and usability:
+
+1. **🔴 CRITICAL**: `now/security/` - Address immediate security vulnerabilities
+2. **🟡 HIGH**: `now/architecture/` - Essential architecture fixes  
+3. **🟡 HIGH**: `now/developer-experience/` - High-impact DX improvements
+4. **🟢 MEDIUM**: `now/code-quality/` and `now/organization/` - Quality improvements
+
+### Future (Long-term - Major Versions)
+Complex system redesigns and major architectural changes:
+
+1. **🔵 RESEARCH**: `future/security/` - Complex security system designs
+2. **🔵 RESEARCH**: `future/architecture/` - Major architectural overhauls
 
 ## How to Use This Planning
 
-1. Start with `security/` directory - address all critical security issues first
-2. Move to `architecture/` for foundational improvements
-3. Implement `developer-experience/` improvements for better adoption
-4. Polish with `code-quality/` and `organization/` improvements
+1. **Start with `now/` directory** - prioritize immediate concerns for current releases
+2. **Address in order**: Security → Architecture → DX → Quality/Organization  
+3. **Use `future/` for planning** - research and design major changes for future releases
+4. **Move items between directories** as priorities and timelines change
 
 ## Status Tracking
 
