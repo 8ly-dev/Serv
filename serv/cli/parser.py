@@ -8,6 +8,13 @@ import argparse
 
 from serv.config import DEFAULT_CONFIG_FILE
 
+from ..database.cli import (
+    handle_database_config_command,
+    handle_database_list_command,
+    handle_database_providers_command,
+    handle_database_status_command,
+    handle_database_test_command,
+)
 from .commands import (
     handle_config_get_command,
     handle_config_set_command,
@@ -252,6 +259,53 @@ def create_parser():
         "--all", action="store_true", help="Validate all extensions"
     )
     extension_validate_parser.set_defaults(func=handle_validate_extension_command)
+
+    # Database commands
+    database_parser = subparsers.add_parser(
+        "database", help="Database management commands"
+    )
+    database_subparsers = database_parser.add_subparsers(
+        title="database commands",
+        dest="database_command",
+        required=True,
+        help="Database command to execute",
+    )
+
+    # Database list command
+    database_list_parser = database_subparsers.add_parser(
+        "list", help="List configured databases"
+    )
+    database_list_parser.set_defaults(func=handle_database_list_command)
+
+    # Database status command
+    database_status_parser = database_subparsers.add_parser(
+        "status", help="Show database connection status"
+    )
+    database_status_parser.add_argument(
+        "name", nargs="?", help="Database name (optional, shows all if not specified)"
+    )
+    database_status_parser.set_defaults(func=handle_database_status_command)
+
+    # Database test command
+    database_test_parser = database_subparsers.add_parser(
+        "test", help="Test database connections"
+    )
+    database_test_parser.add_argument(
+        "name", nargs="?", help="Database name (optional, tests all if not specified)"
+    )
+    database_test_parser.set_defaults(func=handle_database_test_command)
+
+    # Database config command
+    database_config_parser = database_subparsers.add_parser(
+        "config", help="Show database configuration examples"
+    )
+    database_config_parser.set_defaults(func=handle_database_config_command)
+
+    # Database providers command
+    database_providers_parser = database_subparsers.add_parser(
+        "providers", help="List available database providers"
+    )
+    database_providers_parser.set_defaults(func=handle_database_providers_command)
 
     # Create commands
     create_parser = subparsers.add_parser(
