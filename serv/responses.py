@@ -37,9 +37,10 @@ class ResponseBuilder:
 
         ```python
         from serv.responses import ResponseBuilder
-        from bevy import dependency
+        from bevy import injectable, Inject
 
-        async def my_handler(response: ResponseBuilder = dependency()):
+        @injectable
+        async def my_handler(response: Inject[ResponseBuilder]):
             response.set_status(200)
             response.content_type("text/plain")
             response.body("Hello, World!")
@@ -50,7 +51,8 @@ class ResponseBuilder:
         ```python
         import json
 
-        async def api_handler(response: ResponseBuilder = dependency()):
+        @injectable
+        async def api_handler(response: Inject[ResponseBuilder]):
             data = {"message": "Hello", "status": "success"}
             response.set_status(200)
             response.content_type("application/json")
@@ -60,7 +62,8 @@ class ResponseBuilder:
         HTML response with headers:
 
         ```python
-        async def html_handler(response: ResponseBuilder = dependency()):
+        @injectable
+        async def html_handler(response: Inject[ResponseBuilder]):
             html = "<h1>Welcome</h1><p>This is a test page.</p>"
             response.set_status(200)
             response.content_type("text/html")
@@ -71,14 +74,16 @@ class ResponseBuilder:
         Redirect response:
 
         ```python
-        async def redirect_handler(response: ResponseBuilder = dependency()):
+        @injectable
+        async def redirect_handler(response: Inject[ResponseBuilder]):
             response.redirect("/new-location", status_code=301)
         ```
 
         Cookie management:
 
         ```python
-        async def cookie_handler(response: ResponseBuilder = dependency()):
+        @injectable
+        async def cookie_handler(response: Inject[ResponseBuilder]):
             response.set_cookie("session_id", "abc123", max_age=3600, httponly=True)
             response.set_cookie("theme", "dark", path="/", secure=True)
             response.body("Cookies set!")
@@ -87,7 +92,8 @@ class ResponseBuilder:
         Streaming response:
 
         ```python
-        async def stream_handler(response: ResponseBuilder = dependency()):
+        @injectable
+        async def stream_handler(response: Inject[ResponseBuilder]):
             response.content_type("text/plain")
 
             # Add multiple body components
@@ -107,7 +113,8 @@ class ResponseBuilder:
         Chained method calls:
 
         ```python
-        async def chained_handler(response: ResponseBuilder = dependency()):
+        @injectable
+        async def chained_handler(response: Inject[ResponseBuilder]):
             (response
                 .set_status(201)
                 .content_type("application/json")
