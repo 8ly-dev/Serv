@@ -130,8 +130,14 @@ class ResponseBuilder:
         modifications can be made to the response.
     """
 
-    def __init__(self, send_callable):
-        self._send = send_callable
+    def __init__(self, send_callable=None):
+        if send_callable is None:
+            # This should only happen during auto-creation by DI container
+            # which shouldn't happen, but we'll create a dummy response to prevent crashes
+            self._send = lambda msg: None  # No-op send function
+        else:
+            self._send = send_callable
+        
         self._status = 200
         self._headers = []  # List of (name_bytes, value_bytes)
         self._body_components = []

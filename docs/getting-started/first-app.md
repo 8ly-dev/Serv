@@ -118,9 +118,9 @@ Now let's create the main blog extension. Create `extensions/blog/main.py`:
 from typing import Annotated
 from serv.extensions import Extension
 from serv.extensions.routing import Router
-from serv.requests import Request
-from serv.responses import ResponseBuilder
-from serv.routes import Route, Form
+from serv.requests import GetRequest, PostRequest
+from serv.responses import HtmlResponse, JsonResponse
+from serv.routes import Route, Form, handles
 from bevy import dependency
 import json
 
@@ -137,12 +137,19 @@ class BlogExtension(Extension):
     async def on_app_request_begin(self, router: Router = dependency()):
         """Register routes for each request"""
         # Register our route handlers
-        router.add_route("/", self.homepage)
-        router.add_route("/post/{post_id}", self.view_post)
+        router.add_route("/", BlogHomeRoute(self.storage))
+        router.add_route("/post/{post_id}", BlogPostRoute(self.storage))
         router.add_route("/admin", AdminRoute(self.storage))
-        router.add_route("/api/posts", self.api_posts)
+        router.add_route("/api/posts", BlogApiRoute(self.storage))
     
-    async def homepage(self, response: ResponseBuilder = dependency()):
+
+class BlogHomeRoute(Route):
+    """Route for the blog homepage"""
+    def __init__(self, storage: BlogStorage):
+        self.storage = storage
+    
+    @handles.GET
+    async def homepage(self, request: GetRequest) -> Annotated[str, HtmlResponse]:
         """Homepage showing all blog posts"""
         posts = self.storage.get_all_posts()
         
@@ -150,57 +157,10 @@ class BlogExtension(Extension):
             "title": "Serv Blog",
             "posts": posts
         })
-        
-        response.content_type("text/html")
-        response.body(html)
-    
-    async def view_post(self, post_id: str, response: ResponseBuilder = dependency()):
-        """View a single blog post"""
-        try:
-            post_id_int = int(post_id)
-            post = self.storage.get_post_by_id(post_id_int)
-            
-            if not post:
-                response.set_status(404)
-                response.content_type("text/html")
-                response.body("<h1>Post Not Found</h1>")
-                return
-            
-            html = self._render_template("post.html", {
-                "title": post.title,
-                "post": post
-            })
-            
-            response.content_type("text/html")
-            response.body(html)
-            
-        except ValueError:
-            response.set_status(400)
-            response.content_type("text/html")
-            response.body("<h1>Invalid Post ID</h1>")
-    
-    async def api_posts(self, response: ResponseBuilder = dependency()):
-        """API endpoint returning posts as JSON"""
-        posts = self.storage.get_all_posts()
-        posts_data = [
-            {
-                "id": post.id,
-                "title": post.title,
-                "content": post.content,
-                "author": post.author,
-                "created_at": post.created_at.isoformat()
-            }
-            for post in posts
-        ]
-        
-        response.content_type("application/json")
-        response.body(json.dumps(posts_data, indent=2))
+        return html
     
     def _render_template(self, template_name: str, context: dict) -> str:
-        """Simple template rendering"""
-        # In a real app, you'd use Jinja2 or another template engine
-        # For now, we'll use simple string formatting
-        
+        """Simple template rendering for homepage"""
         if template_name == "index.html":
             posts_html = ""
             for post in context["posts"]:
@@ -237,14 +197,28 @@ class BlogExtension(Extension):
             </body>
             </html>
             """
-        
-        elif template_name == "post.html":
-            post = context["post"]
+        return "<h1>Template not found</h1>"
+
+class BlogPostRoute(Route):
+    """Route for individual blog posts"""
+    def __init__(self, storage: BlogStorage):
+        self.storage = storage
+    
+    @handles.GET
+    async def view_post(self, post_id: str, request: GetRequest) -> Annotated[str, HtmlResponse]:
+        """View a single blog post"""
+        try:
+            post_id_int = int(post_id)
+            post = self.storage.get_post_by_id(post_id_int)
+            
+            if not post:
+                return "<h1>Post Not Found</h1>"
+            
             return f"""
             <!DOCTYPE html>
             <html>
             <head>
-                <title>{context['title']}</title>
+                <title>{post.title}</title>
                 <style>
                     body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
                     .meta {{ color: #666; font-size: 0.9em; margin-bottom: 20px; }}
@@ -268,8 +242,29 @@ class BlogExtension(Extension):
             </body>
             </html>
             """
-        
-        return "<h1>Template not found</h1>"
+            
+        except ValueError:
+            return "<h1>Invalid Post ID</h1>"
+
+class BlogApiRoute(Route):
+    """API route for blog posts"""
+    def __init__(self, storage: BlogStorage):
+        self.storage = storage
+    
+    @handles.GET
+    async def api_posts(self, request: GetRequest) -> Annotated[list[dict], JsonResponse]:
+        """API endpoint returning posts as JSON"""
+        posts = self.storage.get_all_posts()
+        return [
+            {
+                "id": post.id,
+                "title": post.title,
+                "content": post.content,
+                "author": post.author,
+                "created_at": post.created_at.isoformat()
+            }
+            for post in posts
+        ]
 
 class CreatePostForm(Form):
     title: str
@@ -280,7 +275,8 @@ class AdminRoute(Route):
     def __init__(self, storage: BlogStorage):
         self.storage = storage
     
-    async def show_admin_page(self, request: Request, response: ResponseBuilder = dependency()):
+    @handles.GET
+    async def show_admin_page(self, request: GetRequest) -> Annotated[str, HtmlResponse]:
         """Show the admin page with create post form"""
         html = """
         <!DOCTYPE html>
@@ -324,18 +320,16 @@ class AdminRoute(Route):
         </html>
         """
         
-        response.content_type("text/html")
-        response.body(html)
+        return html
     
-    async def create_post(self, form: CreatePostForm, response: ResponseBuilder = dependency()):
+    @handles.POST
+    async def create_post(self, form: CreatePostForm) -> Annotated[str, HtmlResponse]:
         """Handle post creation"""
         # Create the new post
         post = self.storage.add_post(form.title, form.content, form.author)
         
-        # Redirect to the new post
-        response.set_status(302)
-        response.add_header("Location", f"/post/{post.id}")
-        response.body("")
+        # Return redirect HTML (or could use redirect response)
+        return f'<meta http-equiv="refresh" content="0;url=/post/{post.id}">'
 ```
 
 ### 3. Create the Extension Configuration
@@ -419,10 +413,14 @@ Our blog is implemented as a extension, which makes it:
 
 ### Route Handling
 
-We used two different routing approaches:
+We used **class-based routes** with the modern `@handles` decorator pattern:
 
-1. **Function-based routes**: Simple handlers like `homepage()` and `view_post()`
-2. **Class-based routes**: The `AdminRoute` class for more complex logic
+1. **BlogHomeRoute**: Handles the homepage display using `@handles.GET`
+2. **BlogPostRoute**: Handles individual post views with path parameters
+3. **BlogApiRoute**: Provides JSON API endpoints using `@handles.GET`
+4. **AdminRoute**: Handles both form display and form submission using `@handles.GET` and `@handles.POST`
+
+All routes use proper type annotations and return type hints for automatic response handling.
 
 ### Form Handling
 
@@ -440,8 +438,10 @@ class CreatePostForm(Form):
 Notice how we inject dependencies throughout the application:
 
 ```python
-async def homepage(self, response: ResponseBuilder = dependency()):
-    # ResponseBuilder is automatically injected
+@handles.GET
+async def homepage(self, request: GetRequest) -> Annotated[str, HtmlResponse]:
+    # GetRequest is automatically injected based on HTTP method
+    # Return type annotation tells Serv to wrap as HTML response
 ```
 
 ## Extending the Application

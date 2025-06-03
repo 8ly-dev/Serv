@@ -78,10 +78,8 @@ class RouteAddingExtension(Listener):
             "container": container,
         }  # For inspection
 
-        # Call the original handler (e.g., hello_handler from the test)
-        # using the per-request container. Path parameters are passed explicitly.
-        # Other dependencies (like Request, ResponseBuilder) should be declared
-        # in self.handler's signature with ` = dependency()` if needed.
+        # Call the original handler using the same container.
+        # This should work because both are using the same HTTP request container.
         await container.call(self.handler, **path_params)
 
 
