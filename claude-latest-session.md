@@ -289,7 +289,7 @@ class OmmiSessionManager(SessionManager):
         self, 
         user_context: dict, 
         fingerprint: str,
-        db: Ommi = dependency(name="db_auth")
+        db: Inject[Ommi, Options(qualifier="db_auth")],
     ) -> Session:
         # Use configurable database reference
         # Leverage Serv's database lifecycle management
