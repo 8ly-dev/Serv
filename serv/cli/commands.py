@@ -11,7 +11,6 @@ import logging
 import os
 import sys
 import traceback
-from inspect import isclass
 from pathlib import Path
 
 import jinja2
@@ -19,6 +18,7 @@ import uvicorn
 import yaml
 
 from serv.app import App
+from serv.app_factory import create_app
 from serv.config import DEFAULT_CONFIG_FILE, import_from_string
 
 from .utils import (
@@ -804,43 +804,17 @@ def _format_exception_group(exc: Exception, dev_mode: bool = False) -> str:
 
 def _get_configured_app(app_module_str: str | None, args_ns) -> App:
     """Get a configured App instance."""
-    if app_module_str:
-        try:
-            app_class = import_from_string(app_module_str)
-            if not isclass(app_class) or not issubclass(app_class, App):
-                raise ValueError(f"'{app_module_str}' is not a valid App class")
-        except Exception as e:
-            logger.error(f"Error importing app class '{app_module_str}': {e}")
-            raise
-    else:
-        app_class = App
-
-    # Create app instance with CLI arguments
-    app_kwargs = {}
-
-    if hasattr(args_ns, "config") and args_ns.config:
-        app_kwargs["config"] = args_ns.config
-
-    if hasattr(args_ns, "extension_dirs") and args_ns.extension_dirs:
-        app_kwargs["extension_dir"] = args_ns.extension_dirs
-    else:
-        # Default to ./extensions directory if it exists
-        default_extension_dir = Path.cwd() / "extensions"
-        if default_extension_dir.exists():
-            app_kwargs["extension_dir"] = str(default_extension_dir)
-
-    if hasattr(args_ns, "dev") and args_ns.dev:
-        app_kwargs["dev_mode"] = True
-
     try:
-        logger.info(
-            f"Instantiating App ({app_class.__name__}) with arguments: {app_kwargs}"
+        app = create_app(
+            app_module_str=app_module_str,
+            config=getattr(args_ns, "config", None),
+            extension_dirs=getattr(args_ns, "extension_dirs", None),
+            dev=getattr(args_ns, "dev", False),
         )
-        app = app_class(**app_kwargs)
         return app
     except Exception as e:
         # Check if we're in development mode for enhanced error reporting
-        dev_mode = getattr(args_ns, "dev", False) or app_kwargs.get("dev_mode", False)
+        dev_mode = getattr(args_ns, "dev", False)
 
         if isinstance(e, ExceptionGroup):
             # Format ExceptionGroup with all sub-exceptions

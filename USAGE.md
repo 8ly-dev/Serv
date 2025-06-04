@@ -10,7 +10,8 @@ This document provides a guide to understanding and using the Serv web framework
     *   [Extensions](#plugins)
     *   [Middleware](#middleware)
 2.  [Command-Line Interface (CLI)](#command-line-interface-cli)
-3.  [Getting Started (Example from `demos/basic_app`)](#getting-started-example-from-demosbasic_app)
+3.  [Testing](#testing)
+4.  [Getting Started (Example from `demos/basic_app`)](#getting-started-example-from-demosbasic_app)
 
 ## Core Concepts
 
@@ -276,6 +277,215 @@ Key commands (discovered from `serv/cli.py` and `serv/bundled_plugins/welcome/te
 
 *   **`serv --version`**: Displays Serv CLI version.
 *   **`serv --debug`**: Enables debug logging for the CLI.
+
+## Testing
+
+Serv provides comprehensive testing utilities to make testing your applications easy and efficient. The primary testing approach uses the `create_test_app_client` function, which creates a test client that mirrors the CLI's functionality without needing to run a server.
+
+### Test Client Factory (`create_test_app_client`)
+
+The `create_test_app_client` function creates an httpx AsyncClient that wraps your Serv application, supporting all the same configuration options as the `serv launch` command.
+
+**Basic Usage:**
+
+```python
+import pytest
+from pathlib import Path
+from serv import create_test_app_client
+
+@pytest.mark.asyncio
+async def test_basic_functionality():
+    async with create_test_app_client(Path("serv.config.yaml")) as client:
+        response = await client.get("/")
+        assert response.status_code == 200
+```
+
+**Supported Parameters:**
+
+The function accepts the same parameters as the CLI launch command:
+
+- `config_path` - Path to config file (required)
+- `dev=True` - Enable development mode (equivalent to `--dev`)
+- `extension_dirs="./custom"` - Custom extension directory (equivalent to `--extension-dirs`)
+- `app_module_str="myapp:create_app"` - Custom app factory (equivalent to `--app`)
+- `dry_run=True` - Validate app creation only (equivalent to `--dry-run`)
+- `host`, `port`, `reload`, `workers` - Server settings (used only in dry run output)
+- `base_url` - Custom base URL for test requests
+- `use_lifespan=True` - Enable/disable lifespan event handling
+- `timeout=5.0` - Request timeout in seconds
+
+**Development Mode Testing:**
+
+```python
+@pytest.mark.asyncio
+async def test_development_features():
+    async with create_test_app_client(
+        Path("serv.config.yaml"), 
+        dev=True  # Enable enhanced error reporting and debug features
+    ) as client:
+        response = await client.get("/debug-endpoint")
+        assert response.status_code == 200
+```
+
+**Custom Extension Directory:**
+
+```python
+@pytest.mark.asyncio
+async def test_with_custom_extensions():
+    async with create_test_app_client(
+        Path("test.config.yaml"),
+        extension_dirs="./test_extensions"  # Use test-specific extensions
+    ) as client:
+        response = await client.get("/test-specific-endpoint")
+        assert response.status_code == 200
+```
+
+**Testing Different HTTP Methods:**
+
+```python
+@pytest.mark.asyncio
+async def test_api_endpoints():
+    async with create_test_app_client(Path("api.config.yaml")) as client:
+        # Test POST request with JSON data
+        response = await client.post("/api/users", json={
+            "name": "Test User",
+            "email": "test@example.com"
+        })
+        assert response.status_code == 201
+        user_data = response.json()
+        
+        # Test GET request with path parameters
+        user_id = user_data["id"]
+        response = await client.get(f"/api/users/{user_id}")
+        assert response.status_code == 200
+        assert response.json()["name"] == "Test User"
+        
+        # Test PUT request for updates
+        response = await client.put(f"/api/users/{user_id}", json={
+            "name": "Updated User"
+        })
+        assert response.status_code == 200
+        
+        # Test DELETE request
+        response = await client.delete(f"/api/users/{user_id}")
+        assert response.status_code == 204
+```
+
+**Form Testing:**
+
+```python
+@pytest.mark.asyncio
+async def test_form_submission():
+    async with create_test_app_client(Path("form.config.yaml")) as client:
+        # Test form submission with form data
+        response = await client.post("/contact", data={
+            "name": "John Doe",
+            "email": "john@example.com",
+            "message": "Hello from test!"
+        })
+        assert response.status_code == 200
+        assert "Thanks John!" in response.text
+```
+
+**File Upload Testing:**
+
+```python
+@pytest.mark.asyncio
+async def test_file_upload():
+    async with create_test_app_client(Path("upload.config.yaml")) as client:
+        # Test file upload
+        files = {"file": ("test.txt", b"Test file content", "text/plain")}
+        response = await client.post("/upload", files=files)
+        assert response.status_code == 200
+        assert "File uploaded successfully" in response.json()["message"]
+```
+
+**Error Handling Testing:**
+
+```python
+@pytest.mark.asyncio
+async def test_error_handling():
+    async with create_test_app_client(Path("serv.config.yaml")) as client:
+        # Test 404 handling
+        response = await client.get("/nonexistent")
+        assert response.status_code == 404
+        
+        # Test validation errors
+        response = await client.post("/api/users", json={})  # Missing required fields
+        assert response.status_code == 422
+```
+
+**Dry Run Mode:**
+
+Use dry run mode to validate app configuration without making requests:
+
+```python
+@pytest.mark.asyncio
+async def test_app_configuration():
+    # This validates that the app can be created with the given config
+    async with create_test_app_client(Path("serv.config.yaml"), dry_run=True) as client:
+        assert client is None  # No client returned in dry run mode
+    # If we reach here, the app was created successfully
+```
+
+**Testing with Custom App Classes:**
+
+```python
+@pytest.mark.asyncio
+async def test_custom_app():
+    async with create_test_app_client(
+        Path("custom.config.yaml"),
+        app_module_str="myproject.app:CustomApp"
+    ) as client:
+        response = await client.get("/custom-feature")
+        assert response.status_code == 200
+```
+
+**Configuration File Not Found:**
+
+```python
+@pytest.mark.asyncio
+async def test_missing_config():
+    with pytest.raises(FileNotFoundError):
+        async with create_test_app_client(Path("nonexistent.yaml")) as client:
+            pass
+```
+
+### Best Practices for Testing
+
+1. **Use separate test configurations**: Create test-specific `serv.config.yaml` files that use test databases and minimal extensions.
+
+2. **Test in isolation**: Each test should use its own client instance and not depend on other tests.
+
+3. **Test both success and failure cases**: Include tests for error conditions, validation failures, and edge cases.
+
+4. **Use meaningful assertions**: Check both status codes and response content to ensure correctness.
+
+5. **Organize tests by functionality**: Group related tests into classes or modules based on the features they test.
+
+Example test organization:
+
+```python
+class TestUserAPI:
+    @pytest.mark.asyncio
+    async def test_create_user(self):
+        async with create_test_app_client(Path("test.config.yaml")) as client:
+            # Test user creation
+            pass
+    
+    @pytest.mark.asyncio
+    async def test_get_user(self):
+        async with create_test_app_client(Path("test.config.yaml")) as client:
+            # Test user retrieval
+            pass
+
+class TestAuthenticationAPI:
+    @pytest.mark.asyncio
+    async def test_login(self):
+        async with create_test_app_client(Path("test.config.yaml")) as client:
+            # Test login functionality
+            pass
+```
 
 ## Getting Started (Example from `demos/basic_app`)
 

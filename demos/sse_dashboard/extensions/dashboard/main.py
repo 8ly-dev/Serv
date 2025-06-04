@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
 
-from bevy import dependency
+from bevy import Inject
 
 from serv import handle
 from serv.extensions import Listener, on
@@ -398,7 +398,7 @@ class MetricsSSERoute(Route):
     @handle.GET
     async def stream_metrics(
         self,
-        dashboard: DashboardExtension = dependency(),
+        dashboard: Inject[DashboardExtension],
     ) -> Annotated[Any, ServerSentEventsResponse]:
         """Stream real-time metrics via SSE."""
 
@@ -453,7 +453,7 @@ class AlertsSSERoute(Route):
 
     @handle.GET
     async def stream_alerts(
-        self, dashboard: DashboardExtension = dependency()
+        self, dashboard: Inject[DashboardExtension]
     ) -> Annotated[Any, ServerSentEventsResponse]:
         """Stream real-time alerts via SSE."""
 
@@ -512,7 +512,7 @@ class AllEventsSSERoute(Route):
 
     @handle.GET
     async def stream_all_events(
-        self, dashboard: DashboardExtension = dependency()
+        self, dashboard: Inject[DashboardExtension]
     ) -> Annotated[Any, ServerSentEventsResponse]:
         """Stream all real-time events via SSE."""
 
