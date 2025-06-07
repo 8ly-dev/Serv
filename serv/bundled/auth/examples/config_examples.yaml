@@ -1,0 +1,248 @@
+# Authentication Configuration Examples for Serv Framework
+#
+# This file provides comprehensive examples of how to configure the bundled
+# authentication implementations. Copy and modify these examples for your needs.
+
+# =============================================================================
+# DEVELOPMENT CONFIGURATION
+# =============================================================================
+# Simple configuration for development and testing
+development:
+  auth:
+    providers:
+      - type: jwt
+        config:
+          secret_key: "${JWT_SECRET}"  # Set JWT_SECRET environment variable
+          algorithm: "HS256"
+          token_expiry_minutes: 60
+          issuer: "serv-dev"
+          audience: "serv-app"
+    
+    storage:
+      backend: "serv.bundled.auth.storage.ommi_storage:OmmiSessionStorage"
+      database_qualifier: "auth"
+      session_timeout_hours: 24
+      strict_fingerprint_validation: false  # Relaxed for development
+    
+    credential_vault:
+      backend: "serv.bundled.auth.vaults.bcrypt_vault:BcryptCredentialVault"
+      database_qualifier: "auth"
+      bcrypt_rounds: 10  # Lower for faster dev cycles
+      min_password_length: 6
+    
+    rate_limiting:
+      backend: "serv.bundled.auth.limiters.memory_limiter:MemoryRateLimiter"
+      default_limits:
+        login: "10/min"
+        api_request: "1000/hour"
+        password_reset: "3/hour"
+      cleanup_interval_seconds: 300
+      max_tracked_identifiers: 1000
+    
+    security:
+      fingerprint_required: false
+      timing_protection:
+        enabled: true
+        minimum_auth_time: 0.1  # Fast for development
+
+# =============================================================================
+# PRODUCTION CONFIGURATION
+# =============================================================================
+# Secure configuration for production deployments
+production:
+  auth:
+    providers:
+      - type: jwt
+        config:
+          secret_key: "${JWT_SECRET}"  # Strong secret from environment
+          algorithm: "HS256"
+          token_expiry_minutes: 30  # Shorter expiry for security
+          issuer: "${APP_NAME}"
+          audience: "${APP_DOMAIN}"
+    
+    storage:
+      backend: "serv.bundled.auth.storage.ommi_storage:OmmiSessionStorage"
+      database_qualifier: "auth_prod"
+      session_timeout_hours: 8  # Work day timeout
+      cleanup_interval_hours: 1
+      strict_fingerprint_validation: true
+    
+    credential_vault:
+      backend: "serv.bundled.auth.vaults.bcrypt_vault:BcryptCredentialVault"
+      database_qualifier: "auth_prod"
+      bcrypt_rounds: 12  # Strong security
+      min_password_length: 12
+    
+    rate_limiting:
+      backend: "serv.bundled.auth.limiters.memory_limiter:MemoryRateLimiter"
+      default_limits:
+        login: "5/min"
+        failed_login: "3/5min"  # Stricter for failed attempts
+        api_request: "100/min"
+        password_reset: "1/hour"
+        token_generation: "10/min"
+      cleanup_interval_seconds: 60
+      max_tracked_identifiers: 50000
+    
+    security:
+      fingerprint_required: true
+      timing_protection:
+        enabled: true
+        minimum_auth_time: 2.0  # Strong timing protection
+
+# =============================================================================
+# MULTI-DATABASE CONFIGURATION
+# =============================================================================
+# Configuration using separate databases for different auth components
+multi_database:
+  auth:
+    providers:
+      - type: jwt
+        config:
+          secret_key: "${JWT_SECRET}"
+          algorithm: "HS384"  # Stronger algorithm
+          token_expiry_minutes: 45
+    
+    storage:
+      backend: "serv.bundled.auth.storage.ommi_storage:OmmiSessionStorage"
+      database_qualifier: "sessions_db"  # Dedicated sessions database
+      session_timeout_hours: 12
+    
+    credential_vault:
+      backend: "serv.bundled.auth.vaults.bcrypt_vault:BcryptCredentialVault"
+      database_qualifier: "credentials_db"  # Dedicated credentials database
+      bcrypt_rounds: 13
+    
+    rate_limiting:
+      backend: "serv.bundled.auth.limiters.memory_limiter:MemoryRateLimiter"
+      default_limits:
+        login: "8/min"
+        api_request: "500/hour"
+    
+    security:
+      fingerprint_required: true
+      timing_protection:
+        enabled: true
+        minimum_auth_time: 1.5
+
+# =============================================================================
+# HIGH-SECURITY CONFIGURATION
+# =============================================================================
+# Maximum security configuration for sensitive applications
+high_security:
+  auth:
+    providers:
+      - type: jwt
+        config:
+          secret_key: "${JWT_SECRET}"
+          algorithm: "HS512"  # Strongest HMAC algorithm
+          token_expiry_minutes: 15  # Very short expiry
+          issuer: "${APP_NAME}"
+          audience: "${APP_DOMAIN}"
+    
+    storage:
+      backend: "serv.bundled.auth.storage.ommi_storage:OmmiSessionStorage"
+      database_qualifier: "secure_auth"
+      session_timeout_hours: 2  # Very short sessions
+      cleanup_interval_hours: 0.5
+      strict_fingerprint_validation: true
+    
+    credential_vault:
+      backend: "serv.bundled.auth.vaults.bcrypt_vault:BcryptCredentialVault"
+      database_qualifier: "secure_auth"
+      bcrypt_rounds: 15  # Maximum security (slow)
+      min_password_length: 16
+    
+    rate_limiting:
+      backend: "serv.bundled.auth.limiters.memory_limiter:MemoryRateLimiter"
+      default_limits:
+        login: "3/min"
+        failed_login: "1/5min"
+        api_request: "50/min"
+        password_reset: "1/day"
+        token_generation: "5/min"
+        admin_action: "10/hour"
+      cleanup_interval_seconds: 30
+      max_tracked_identifiers: 10000
+    
+    security:
+      fingerprint_required: true
+      timing_protection:
+        enabled: true
+        minimum_auth_time: 3.0  # Maximum timing protection
+
+# =============================================================================
+# MICROSERVICE CONFIGURATION
+# =============================================================================
+# Configuration for microservice architectures with shared auth
+microservice:
+  auth:
+    providers:
+      - type: jwt
+        config:
+          secret_key: "${SHARED_JWT_SECRET}"  # Shared across services
+          algorithm: "HS256"
+          token_expiry_minutes: 60
+          issuer: "auth-service"
+          audience: ["service-a", "service-b", "service-c"]
+    
+    # Note: In microservices, sessions might be handled by a dedicated auth service
+    # This shows local session caching for performance
+    storage:
+      backend: "serv.bundled.auth.storage.ommi_storage:OmmiSessionStorage"
+      database_qualifier: "local_cache"
+      session_timeout_hours: 1  # Short cache timeout
+      strict_fingerprint_validation: false  # Service-to-service
+    
+    rate_limiting:
+      backend: "serv.bundled.auth.limiters.memory_limiter:MemoryRateLimiter"
+      default_limits:
+        service_request: "10000/hour"  # High limits for internal
+        external_api: "100/min"
+        user_action: "50/min"
+    
+    security:
+      fingerprint_required: false  # Service-to-service communication
+      timing_protection:
+        enabled: true
+        minimum_auth_time: 0.5
+
+# =============================================================================
+# DATABASE CONFIGURATIONS
+# =============================================================================
+# Example database configurations for different deployment scenarios
+
+databases:
+  # Single SQLite database for development
+  development:
+    auth:
+      driver: "sqlite"
+      connection_string: "sqlite:///./auth_dev.db"
+      
+  # PostgreSQL for production
+  production:
+    auth_prod:
+      driver: "postgresql"
+      connection_string: "${DATABASE_URL}"
+      
+  # Separate databases for different auth components
+  multi_database:
+    sessions_db:
+      driver: "postgresql"
+      connection_string: "${SESSIONS_DB_URL}"
+    credentials_db:
+      driver: "postgresql"
+      connection_string: "${CREDENTIALS_DB_URL}"
+
+# =============================================================================
+# ENVIRONMENT VARIABLES
+# =============================================================================
+# Required environment variables for secure configuration:
+#
+# JWT_SECRET=your-super-secret-jwt-key-at-least-32-characters-long
+# DATABASE_URL=postgresql://user:pass@localhost/dbname
+# APP_NAME=your-app-name
+# APP_DOMAIN=your-app-domain.com
+# SESSIONS_DB_URL=postgresql://user:pass@localhost/sessions
+# CREDENTIALS_DB_URL=postgresql://user:pass@localhost/credentials
+# SHARED_JWT_SECRET=shared-secret-for-microservices
