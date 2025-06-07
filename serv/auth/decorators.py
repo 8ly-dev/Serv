@@ -248,7 +248,7 @@ class AuthenticatedHandleDecorator:
             # by middleware, but we preserve the function's behavior
             return await func(*args, **kwargs)
 
-        # Store HTTP methods (compatible with existing system)
+        # Store HTTP methods for routing system
         wrapper.__handle_methods__ = self.methods
 
         # Store authentication requirements for middleware to use
@@ -276,7 +276,7 @@ class AuthenticatedHandleRegistry:
     Registry that provides authenticated method decorators.
 
     This registry extends the standard handle registry with authentication
-    and authorization support, maintaining backward compatibility.
+    and authorization support.
     """
 
     def __init__(self):

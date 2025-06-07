@@ -181,6 +181,10 @@ class Token:
             f"expires_at={self.expires_at})"
         )
 
+    def __str__(self) -> str:
+        """Security: Never expose token value in string representation."""
+        return f"Token(id={self.token_id}, type={self.token_type})"
+
 
 @dataclass
 class RateLimitResult:
@@ -235,7 +239,18 @@ class AuditEvent:
             raise ValueError(f"Invalid outcome: {self.outcome}")
 
         # Security: Ensure no sensitive data in actor_info
-        sensitive_keys = {"password", "token", "secret", "key"}
+        sensitive_keys = {
+            "password",
+            "token",
+            "secret",
+            "key",
+            "credential",
+            "authorization",
+            "auth",
+            "passwd",
+            "pwd",
+            "api_key",
+        }
         for key in self.actor_info:
             if any(sensitive in key.lower() for sensitive in sensitive_keys):
                 raise ValueError(f"Sensitive data not allowed in actor_info: {key}")

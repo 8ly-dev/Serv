@@ -130,6 +130,9 @@ def sanitize_user_input(value: str, max_length: int = 1000) -> str:
         value = value[:max_length]
 
     # Remove null bytes and control characters except newlines/tabs
+    # Handle escaped sequences by converting them first
+    value = value.encode().decode("unicode_escape")
+
     sanitized = "".join(
         char for char in value if char.isprintable() or char in ("\n", "\t")
     )
@@ -169,11 +172,11 @@ def validate_session_fingerprint(
 
 def secure_compare(a: str, b: str) -> bool:
     """
-    Timing-safe string comparison.
+    Timing-safe string comparison using cryptography library.
 
     Security considerations:
     - Prevents timing attacks on string comparisons
-    - Always takes the same time regardless of where strings differ
+    - Uses cryptographically secure constant-time comparison
     - Critical for comparing tokens, hashes, etc.
 
     Args:
@@ -183,14 +186,14 @@ def secure_compare(a: str, b: str) -> bool:
     Returns:
         True if strings are equal
     """
-    if len(a) != len(b):
-        return False
+    from cryptography.hazmat.primitives import constant_time
 
-    result = 0
-    for x, y in zip(a, b, strict=False):
-        result |= ord(x) ^ ord(y)
+    # Pad strings to same length to avoid length-based timing attacks
+    max_len = max(len(a), len(b))
+    a_padded = a.ljust(max_len, "\0")
+    b_padded = b.ljust(max_len, "\0")
 
-    return result == 0
+    return constant_time.bytes_eq(a_padded.encode("utf-8"), b_padded.encode("utf-8"))
 
 
 def generate_csrf_token() -> str:
@@ -239,7 +242,10 @@ def mask_sensitive_data(data: dict[str, Any]) -> dict[str, Any]:
         is_sensitive = any(sensitive in key_lower for sensitive in sensitive_keys)
 
         if is_sensitive:
-            if isinstance(value, str) and len(value) > 4:
+            if isinstance(value, dict):
+                # Recursively mask nested dictionaries even for sensitive keys
+                masked[key] = mask_sensitive_data(value)
+            elif isinstance(value, str) and len(value) > 4:
                 # Show first and last 2 characters for debugging
                 masked[key] = f"{value[:2]}***{value[-2:]}"
             else:

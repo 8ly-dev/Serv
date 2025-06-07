@@ -353,7 +353,7 @@ class TestErrorMessageSecurity:
             "providers": [
                 {
                     "type": "jwt",
-                    "config": {"secret_key": "short_secret_key_that_is_insecure"},
+                    "config": {"secret_key": "short"},
                 }
             ]
         }
@@ -365,7 +365,7 @@ class TestErrorMessageSecurity:
 
         # Error should mention the requirement but not the actual key
         assert "32 characters" in error_message
-        assert "short_secret_key_that_is_insecure" not in error_message
+        assert "short" not in error_message
 
 
 class TestDataSerializationSecurity:

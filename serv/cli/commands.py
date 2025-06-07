@@ -19,7 +19,7 @@ import yaml
 
 from serv.app import App
 from serv.app_factory import create_app
-from serv.config import DEFAULT_CONFIG_FILE, import_from_string
+from serv.config import DEFAULT_CONFIG_FILE
 
 from .utils import (
     prompt_user,
