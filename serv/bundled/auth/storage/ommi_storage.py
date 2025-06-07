@@ -61,6 +61,18 @@ class OmmiSessionStorage(SessionManager):
             cleanup_interval_hours: How often to clean expired sessions
             strict_fingerprint_validation: Whether to require exact fingerprint match
         """
+        # Create config for parent constructor
+        config = {
+            "database_qualifier": database_qualifier,
+            "session_timeout_hours": session_timeout_hours,
+            "cleanup_interval_hours": cleanup_interval_hours,
+            "strict_fingerprint_validation": strict_fingerprint_validation,
+        }
+
+        # Call parent constructor which will call _validate_config
+        super().__init__(config)
+
+        # Set instance variables after validation
         self.database_qualifier = database_qualifier
         self.session_timeout_hours = session_timeout_hours
         self.cleanup_interval_hours = cleanup_interval_hours
@@ -69,6 +81,16 @@ class OmmiSessionStorage(SessionManager):
         logger.info(
             f"Ommi session storage initialized with qualifier '{database_qualifier}'"
         )
+
+    def _validate_config(self, config: dict[str, Any]) -> None:
+        """Validate session storage configuration."""
+        session_timeout = config.get("session_timeout_hours", 24)
+        if not isinstance(session_timeout, int) or session_timeout <= 0:
+            raise ValueError("Session timeout must be a positive integer")
+
+        cleanup_interval = config.get("cleanup_interval_hours", 1)
+        if not isinstance(cleanup_interval, int) or cleanup_interval <= 0:
+            raise ValueError("Cleanup interval must be a positive integer")
 
     async def create_session(
         self,
@@ -405,6 +427,96 @@ class OmmiSessionStorage(SessionManager):
         except Exception as e:
             logger.error(f"Error getting sessions for user {user_id}: {e}")
             return []
+
+    async def validate_session(
+        self, session_id: str, fingerprint: str
+    ) -> Session | None:
+        """
+        Validate session and device fingerprint.
+
+        Args:
+            session_id: Session identifier
+            fingerprint: Current device fingerprint
+
+        Returns:
+            Session if valid, None otherwise
+        """
+        try:
+            # Get current session
+            session = await self.get_session(session_id)
+            if not session:
+                return None
+
+            # Validate device fingerprint
+            if not validate_session_fingerprint(
+                session.device_fingerprint,
+                fingerprint,
+                strict=self.strict_fingerprint_validation,
+            ):
+                logger.warning(f"Device fingerprint mismatch for session {session_id}")
+                await self.delete_session(session_id)
+                return None
+
+            # Refresh activity timestamp
+            session.refresh_activity()
+
+            # Update in database
+            success = await self.update_session(session)
+            if not success:
+                return None
+
+            logger.debug(f"Validated session {session_id}")
+            return session
+
+        except Exception as e:
+            logger.error(f"Error validating session {session_id}: {e}")
+            return None
+
+    async def invalidate_session(self, session_id: str) -> bool:
+        """
+        Invalidate a specific session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if session was invalidated
+        """
+        return await self.delete_session(session_id)
+
+    async def invalidate_user_sessions(self, user_id: str) -> int:
+        """
+        Invalidate all sessions for a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Number of sessions invalidated
+        """
+        try:
+            # Get all user sessions
+            sessions = await self.get_user_sessions(user_id)
+
+            count = 0
+            for session in sessions:
+                success = await self.delete_session(session.session_id)
+                if success:
+                    count += 1
+
+            if count > 0:
+                logger.info(f"Invalidated {count} sessions for user {user_id}")
+
+            return count
+
+        except Exception as e:
+            logger.error(f"Error invalidating sessions for user {user_id}: {e}")
+            return 0
+
+    async def cleanup(self) -> None:
+        """Cleanup session storage resources."""
+        # Session storage is stateless, no cleanup needed
+        logger.debug("Session storage cleanup completed")
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "OmmiSessionStorage":

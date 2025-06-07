@@ -61,12 +61,17 @@ class BcryptCredentialVault(CredentialVault):
             bcrypt_rounds: bcrypt work factor (4-31, higher = more secure/slower)
             min_password_length: Minimum password length requirement
         """
-        if bcrypt_rounds < 4 or bcrypt_rounds > 31:
-            raise ValueError("bcrypt rounds must be between 4 and 31")
+        # Create config for parent constructor
+        config = {
+            "database_qualifier": database_qualifier,
+            "bcrypt_rounds": bcrypt_rounds,
+            "min_password_length": min_password_length,
+        }
 
-        if min_password_length < 1:
-            raise ValueError("Minimum password length must be positive")
+        # Call parent constructor which will call _validate_config
+        super().__init__(config)
 
+        # Set instance variables after validation
         self.database_qualifier = database_qualifier
         self.bcrypt_rounds = bcrypt_rounds
         self.min_password_length = min_password_length
@@ -75,6 +80,16 @@ class BcryptCredentialVault(CredentialVault):
             f"Bcrypt credential vault initialized with {bcrypt_rounds} rounds "
             f"(min password length: {min_password_length})"
         )
+
+    def _validate_config(self, config: dict[str, Any]) -> None:
+        """Validate bcrypt credential vault configuration."""
+        bcrypt_rounds = config.get("bcrypt_rounds", 12)
+        if bcrypt_rounds < 4 or bcrypt_rounds > 31:
+            raise ValueError("bcrypt rounds must be between 4 and 31")
+
+        min_password_length = config.get("min_password_length", 8)
+        if min_password_length < 1:
+            raise ValueError("Minimum password length must be positive")
 
     async def store_credential(
         self,
@@ -130,16 +145,18 @@ class BcryptCredentialVault(CredentialVault):
         salt = bcrypt.gensalt(rounds=self.bcrypt_rounds)
         password_hash = bcrypt.hashpw(password_bytes, salt)
 
-        # Create credential
+        # Create credential record (without sensitive data)
         credential = Credential.create(
             user_id=user_id,
             credential_type="password",
-            credential_data={
-                "password_hash": password_hash.decode("utf-8"),
-                "bcrypt_rounds": self.bcrypt_rounds,
-                "algorithm": "bcrypt",
-            },
         )
+
+        # Store the credential data separately in metadata
+        credential.metadata = {
+            "password_hash": password_hash.decode("utf-8"),
+            "bcrypt_rounds": self.bcrypt_rounds,
+            "algorithm": "bcrypt",
+        }
 
         # Store in database
         await self._store_credential_in_db(credential, db=db)
@@ -159,8 +176,10 @@ class BcryptCredentialVault(CredentialVault):
         credential = Credential.create(
             user_id=user_id,
             credential_type=credential_type,
-            credential_data=credential_data.copy(),
         )
+
+        # Store credential data in metadata
+        credential.metadata = credential_data.copy()
 
         await self._store_credential_in_db(credential, db=db)
 
@@ -181,11 +200,13 @@ class BcryptCredentialVault(CredentialVault):
             credential_id=credential.credential_id,
             user_id=credential.user_id,
             credential_type=credential.credential_type,
-            credential_data=json.dumps(credential.credential_data),
+            credential_data=json.dumps(
+                credential.metadata
+            ),  # Store the credential data in this field
             created_at=credential.created_at.isoformat(),
             updated_at=credential.updated_at.isoformat(),
             is_active=credential.is_active,
-            metadata=json.dumps(credential.metadata),
+            metadata=json.dumps({}),  # Keep this empty for now
         )
 
         # Store in database using Ommi
@@ -250,8 +271,8 @@ class BcryptCredentialVault(CredentialVault):
         if not credential or not credential.is_active:
             return ValidationResult(is_valid=False, error_message="Invalid credentials")
 
-        # Verify password hash
-        stored_hash = credential.credential_data.get("password_hash")
+        # Verify password hash (stored in metadata)
+        stored_hash = credential.metadata.get("password_hash")
         if not stored_hash:
             return ValidationResult(
                 is_valid=False, error_message="Invalid stored credential"
@@ -298,7 +319,7 @@ class BcryptCredentialVault(CredentialVault):
 
         # Simple comparison for non-password credentials
         # In production, you might want more sophisticated verification
-        stored_data = credential.credential_data
+        stored_data = credential.metadata
         is_valid = all(
             stored_data.get(key) == value
             for key, value in credential_data.items()
@@ -352,16 +373,19 @@ class BcryptCredentialVault(CredentialVault):
                 CredentialModel.is_active,
             ).one():
                 case DBQueryResult.DBQuerySuccess(credential_model):
-                    return Credential(
+                    # Reconstruct credential with metadata containing the credential data
+                    credential = Credential(
                         credential_id=credential_model.credential_id,
                         user_id=credential_model.user_id,
                         credential_type=credential_model.credential_type,
-                        credential_data=json.loads(credential_model.credential_data),
                         created_at=datetime.fromisoformat(credential_model.created_at),
                         updated_at=datetime.fromisoformat(credential_model.updated_at),
                         is_active=credential_model.is_active,
-                        metadata=json.loads(credential_model.metadata),
+                        metadata=json.loads(
+                            credential_model.credential_data
+                        ),  # Load credential data into metadata
                     )
+                    return credential
                 case DBQueryResult.DBQueryFailure(_):
                     return None
 
@@ -413,6 +437,58 @@ class BcryptCredentialVault(CredentialVault):
         except Exception as e:
             logger.error(f"Error deleting credential for user {user_id}: {e}")
             return False
+
+    async def update_credential(
+        self,
+        credential_id: str,
+        new_data: bytes,
+        metadata: dict[str, Any] | None = None,
+    ) -> bool:
+        """
+        Update an existing credential.
+
+        Note: This implementation uses user_id and credential_type for lookup
+        since that's how our storage is organized.
+
+        Args:
+            credential_id: Credential ID to update
+            new_data: New credential data
+            metadata: Updated metadata
+
+        Returns:
+            True if credential was updated
+        """
+        # This implementation would need the user_id and credential_type
+        # which aren't available from just the credential_id
+        # For now, raise NotImplementedError
+        raise NotImplementedError(
+            "update_credential requires user_id context in this implementation"
+        )
+
+    async def revoke_credential(self, credential_id: str) -> bool:
+        """
+        Revoke (deactivate) a credential.
+
+        Note: This implementation uses user_id and credential_type for lookup
+        since that's how our storage is organized.
+
+        Args:
+            credential_id: Credential ID to revoke
+
+        Returns:
+            True if credential was revoked
+        """
+        # This implementation would need the user_id and credential_type
+        # which aren't available from just the credential_id
+        # For now, raise NotImplementedError
+        raise NotImplementedError(
+            "revoke_credential requires user_id context in this implementation"
+        )
+
+    async def cleanup(self) -> None:
+        """Cleanup credential vault resources."""
+        # Credential vault is stateless, no cleanup needed
+        logger.debug("Credential vault cleanup completed")
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "BcryptCredentialVault":
