@@ -12,6 +12,7 @@ Security features:
 - Comprehensive logging for security monitoring
 """
 
+import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -19,10 +20,14 @@ from typing import Any
 import bcrypt
 from bevy import Inject, Options
 from ommi import Ommi
+from ommi.database.query_results import DBQueryResult
+from ommi.database.results import DBResult
 
 from serv.auth.credential_vault import CredentialVault
 from serv.auth.types import Credential, ValidationResult
 from serv.auth.utils import timing_protection
+
+from ..models import CredentialModel, auth_collection
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +35,10 @@ logger = logging.getLogger(__name__)
 class BcryptCredentialVault(CredentialVault):
     """
     Credential vault using bcrypt for secure password hashing.
-    
+
     Provides secure storage and verification of user credentials with
     protection against common password-based attacks.
-    
+
     Security considerations:
     - Uses bcrypt with configurable work factor
     - Automatic salt generation for each password
@@ -50,7 +55,7 @@ class BcryptCredentialVault(CredentialVault):
     ):
         """
         Initialize bcrypt credential vault.
-        
+
         Args:
             database_qualifier: Bevy qualifier for database injection
             bcrypt_rounds: bcrypt work factor (4-31, higher = more secure/slower)
@@ -58,14 +63,14 @@ class BcryptCredentialVault(CredentialVault):
         """
         if bcrypt_rounds < 4 or bcrypt_rounds > 31:
             raise ValueError("bcrypt rounds must be between 4 and 31")
-        
+
         if min_password_length < 1:
             raise ValueError("Minimum password length must be positive")
-        
+
         self.database_qualifier = database_qualifier
         self.bcrypt_rounds = bcrypt_rounds
         self.min_password_length = min_password_length
-        
+
         logger.info(
             f"Bcrypt credential vault initialized with {bcrypt_rounds} rounds "
             f"(min password length: {min_password_length})"
@@ -80,13 +85,13 @@ class BcryptCredentialVault(CredentialVault):
     ) -> Credential:
         """
         Store user credential with secure hashing.
-        
+
         Args:
             user_id: User identifier
             credential_type: Type of credential (e.g., "password", "api_key")
             credential_data: Credential information
             db: Injected database connection
-            
+
         Returns:
             Stored credential with secure metadata
         """
@@ -99,7 +104,7 @@ class BcryptCredentialVault(CredentialVault):
                 return await self._store_generic_credential(
                     user_id, credential_type, credential_data, db=db
                 )
-                
+
         except Exception as e:
             logger.error(f"Error storing credential for user {user_id}: {e}")
             raise
@@ -114,29 +119,31 @@ class BcryptCredentialVault(CredentialVault):
         password = credential_data.get("password")
         if not password:
             raise ValueError("Password is required for password credential")
-        
+
         if len(password) < self.min_password_length:
-            raise ValueError(f"Password must be at least {self.min_password_length} characters")
-        
+            raise ValueError(
+                f"Password must be at least {self.min_password_length} characters"
+            )
+
         # Generate bcrypt hash
-        password_bytes = password.encode('utf-8')
+        password_bytes = password.encode("utf-8")
         salt = bcrypt.gensalt(rounds=self.bcrypt_rounds)
         password_hash = bcrypt.hashpw(password_bytes, salt)
-        
+
         # Create credential
         credential = Credential.create(
             user_id=user_id,
             credential_type="password",
             credential_data={
-                "password_hash": password_hash.decode('utf-8'),
+                "password_hash": password_hash.decode("utf-8"),
                 "bcrypt_rounds": self.bcrypt_rounds,
                 "algorithm": "bcrypt",
-            }
+            },
         )
-        
+
         # Store in database
         await self._store_credential_in_db(credential, db=db)
-        
+
         logger.info(f"Stored password credential for user {user_id}")
         return credential
 
@@ -152,11 +159,11 @@ class BcryptCredentialVault(CredentialVault):
         credential = Credential.create(
             user_id=user_id,
             credential_type=credential_type,
-            credential_data=credential_data.copy()
+            credential_data=credential_data.copy(),
         )
-        
+
         await self._store_credential_in_db(credential, db=db)
-        
+
         logger.info(f"Stored {credential_type} credential for user {user_id}")
         return credential
 
@@ -165,25 +172,28 @@ class BcryptCredentialVault(CredentialVault):
         credential: Credential,
         db: Inject[Ommi, Options(qualifier="auth")] = None,
     ) -> None:
-        """Store credential in database."""
-        import json
-        
-        await db.execute(
-            "INSERT OR REPLACE INTO credentials "
-            "(credential_id, user_id, credential_type, credential_data, "
-            "created_at, updated_at, is_active, metadata) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                credential.credential_id,
-                credential.user_id,
-                credential.credential_type,
-                json.dumps(credential.credential_data),
-                credential.created_at.isoformat(),
-                credential.updated_at.isoformat(),
-                credential.is_active,
-                json.dumps(credential.metadata),
-            )
+        """Store credential in database using Ommi."""
+        # Ensure auth models are set up
+        await db.use_models(auth_collection)
+
+        # Create Ommi model instance
+        credential_model = CredentialModel(
+            credential_id=credential.credential_id,
+            user_id=credential.user_id,
+            credential_type=credential.credential_type,
+            credential_data=json.dumps(credential.credential_data),
+            created_at=credential.created_at.isoformat(),
+            updated_at=credential.updated_at.isoformat(),
+            is_active=credential.is_active,
+            metadata=json.dumps(credential.metadata),
         )
+
+        # Store in database using Ommi
+        match await db.add(credential_model):
+            case DBResult.DBSuccess(_):
+                pass  # Success
+            case DBResult.DBFailure(exception):
+                raise exception
 
     async def verify_credential(
         self,
@@ -194,13 +204,13 @@ class BcryptCredentialVault(CredentialVault):
     ) -> ValidationResult:
         """
         Verify user credential with timing attack protection.
-        
+
         Args:
             user_id: User identifier
             credential_type: Type of credential to verify
             credential_data: Credential data to verify
             db: Injected database connection
-            
+
         Returns:
             Validation result with user context
         """
@@ -214,12 +224,12 @@ class BcryptCredentialVault(CredentialVault):
                     return await self._verify_generic_credential(
                         user_id, credential_type, credential_data, db=db
                     )
-                    
+
             except Exception as e:
                 logger.error(f"Error verifying credential for user {user_id}: {e}")
                 return ValidationResult(
                     is_valid=False,
-                    error_message="Credential verification service error"
+                    error_message="Credential verification service error",
                 )
 
     async def _verify_password_credential(
@@ -232,32 +242,27 @@ class BcryptCredentialVault(CredentialVault):
         password = credential_data.get("password")
         if not password:
             return ValidationResult(
-                is_valid=False,
-                error_message="Password is required"
+                is_valid=False, error_message="Password is required"
             )
-        
+
         # Get stored credential
         credential = await self.get_credential(user_id, "password", db=db)
         if not credential or not credential.is_active:
-            return ValidationResult(
-                is_valid=False,
-                error_message="Invalid credentials"
-            )
-        
+            return ValidationResult(is_valid=False, error_message="Invalid credentials")
+
         # Verify password hash
         stored_hash = credential.credential_data.get("password_hash")
         if not stored_hash:
             return ValidationResult(
-                is_valid=False,
-                error_message="Invalid stored credential"
+                is_valid=False, error_message="Invalid stored credential"
             )
-        
+
         # Perform bcrypt verification
-        password_bytes = password.encode('utf-8')
-        stored_hash_bytes = stored_hash.encode('utf-8')
-        
+        password_bytes = password.encode("utf-8")
+        stored_hash_bytes = stored_hash.encode("utf-8")
+
         is_valid = bcrypt.checkpw(password_bytes, stored_hash_bytes)
-        
+
         if is_valid:
             logger.info(f"Password verification successful for user {user_id}")
             return ValidationResult(
@@ -272,14 +277,11 @@ class BcryptCredentialVault(CredentialVault):
                     "credential_type": "password",
                     "algorithm": "bcrypt",
                     "verification_time": datetime.now(UTC).isoformat(),
-                }
+                },
             )
         else:
             logger.warning(f"Password verification failed for user {user_id}")
-            return ValidationResult(
-                is_valid=False,
-                error_message="Invalid credentials"
-            )
+            return ValidationResult(is_valid=False, error_message="Invalid credentials")
 
     async def _verify_generic_credential(
         self,
@@ -292,11 +294,8 @@ class BcryptCredentialVault(CredentialVault):
         # Get stored credential
         credential = await self.get_credential(user_id, credential_type, db=db)
         if not credential or not credential.is_active:
-            return ValidationResult(
-                is_valid=False,
-                error_message="Invalid credentials"
-            )
-        
+            return ValidationResult(is_valid=False, error_message="Invalid credentials")
+
         # Simple comparison for non-password credentials
         # In production, you might want more sophisticated verification
         stored_data = credential.credential_data
@@ -305,7 +304,7 @@ class BcryptCredentialVault(CredentialVault):
             for key, value in credential_data.items()
             if not key.startswith("_")  # Skip internal keys
         )
-        
+
         if is_valid:
             logger.info(f"{credential_type} verification successful for user {user_id}")
             return ValidationResult(
@@ -319,14 +318,11 @@ class BcryptCredentialVault(CredentialVault):
                 metadata={
                     "credential_type": credential_type,
                     "verification_time": datetime.now(UTC).isoformat(),
-                }
+                },
             )
         else:
             logger.warning(f"{credential_type} verification failed for user {user_id}")
-            return ValidationResult(
-                is_valid=False,
-                error_message="Invalid credentials"
-            )
+            return ValidationResult(is_valid=False, error_message="Invalid credentials")
 
     async def get_credential(
         self,
@@ -336,42 +332,39 @@ class BcryptCredentialVault(CredentialVault):
     ) -> Credential | None:
         """
         Retrieve stored credential.
-        
+
         Args:
             user_id: User identifier
             credential_type: Type of credential
             db: Injected database connection
-            
+
         Returns:
             Credential if found, None otherwise
         """
         try:
-            result = await db.execute(
-                "SELECT credential_id, user_id, credential_type, credential_data, "
-                "created_at, updated_at, is_active, metadata "
-                "FROM credentials WHERE user_id = ? AND credential_type = ? AND is_active = 1",
-                (user_id, credential_type)
-            )
-            
-            row = result.fetchone()
-            if not row:
-                return None
-            
-            # Parse credential data
-            import json
-            credential_data = dict(row)
-            
-            return Credential(
-                credential_id=credential_data["credential_id"],
-                user_id=credential_data["user_id"],
-                credential_type=credential_data["credential_type"],
-                credential_data=json.loads(credential_data["credential_data"]),
-                created_at=datetime.fromisoformat(credential_data["created_at"]),
-                updated_at=datetime.fromisoformat(credential_data["updated_at"]),
-                is_active=bool(credential_data["is_active"]),
-                metadata=json.loads(credential_data["metadata"]),
-            )
-            
+            # Ensure auth models are set up
+            await db.use_models(auth_collection)
+
+            # Query for credential using Ommi
+            match await db.find(
+                CredentialModel.user_id == user_id,
+                CredentialModel.credential_type == credential_type,
+                CredentialModel.is_active,
+            ).one():
+                case DBQueryResult.DBQuerySuccess(credential_model):
+                    return Credential(
+                        credential_id=credential_model.credential_id,
+                        user_id=credential_model.user_id,
+                        credential_type=credential_model.credential_type,
+                        credential_data=json.loads(credential_model.credential_data),
+                        created_at=datetime.fromisoformat(credential_model.created_at),
+                        updated_at=datetime.fromisoformat(credential_model.updated_at),
+                        is_active=credential_model.is_active,
+                        metadata=json.loads(credential_model.metadata),
+                    )
+                case DBQueryResult.DBQueryFailure(_):
+                    return None
+
         except Exception as e:
             logger.error(f"Error retrieving credential for user {user_id}: {e}")
             return None
@@ -384,28 +377,39 @@ class BcryptCredentialVault(CredentialVault):
     ) -> bool:
         """
         Delete (deactivate) user credential.
-        
+
         Args:
             user_id: User identifier
             credential_type: Type of credential to delete
             db: Injected database connection
-            
+
         Returns:
             True if deleted successfully
         """
         try:
-            result = await db.execute(
-                "UPDATE credentials SET is_active = 0, updated_at = ? "
-                "WHERE user_id = ? AND credential_type = ?",
-                (datetime.now(UTC).isoformat(), user_id, credential_type)
-            )
-            
-            success = result.rowcount > 0
-            if success:
-                logger.info(f"Deleted {credential_type} credential for user {user_id}")
-            
-            return success
-            
+            # Ensure auth models are set up
+            await db.use_models(auth_collection)
+
+            # Update credential using Ommi
+            match await db.find(
+                CredentialModel.user_id == user_id,
+                CredentialModel.credential_type == credential_type,
+            ).update(is_active=False, updated_at=datetime.now(UTC).isoformat()):
+                case DBResult.DBSuccess(updated_credentials):
+                    success = (
+                        len(updated_credentials) > 0 if updated_credentials else False
+                    )
+                    if success:
+                        logger.info(
+                            f"Deleted {credential_type} credential for user {user_id}"
+                        )
+                    return success
+                case DBResult.DBFailure(exception):
+                    logger.error(
+                        f"Error deleting credential for user {user_id}: {exception}"
+                    )
+                    return False
+
         except Exception as e:
             logger.error(f"Error deleting credential for user {user_id}: {e}")
             return False
@@ -414,10 +418,10 @@ class BcryptCredentialVault(CredentialVault):
     def from_config(cls, config: dict[str, Any]) -> "BcryptCredentialVault":
         """
         Create bcrypt credential vault from configuration.
-        
+
         Args:
             config: Configuration dictionary
-            
+
         Returns:
             Configured bcrypt credential vault
         """
