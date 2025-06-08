@@ -20,7 +20,7 @@ from bevy import Inject, injectable
 from bevy.containers import Container
 
 import serv.extensions.loader as pl
-from serv.exceptions import HTTPMethodNotAllowedException
+from serv.exceptions import HTTPBadRequestException, HTTPMethodNotAllowedException
 from serv.extensions import Listener
 from serv.injectors import Cookie, Header, Query
 from serv.protocols import (
@@ -672,27 +672,19 @@ class Route:
                         analysis["injectable_params"].append(param_info)
 
                         # Check if the required data is available in the request
-                        if (
-                            isinstance(marker, Header)
-                            and marker.name in request.headers
-                        ):
-                            analysis["score"] += 10
-                        elif (
-                            isinstance(marker, Cookie)
-                            and marker.name in request.cookies
-                        ):
-                            analysis["score"] += 10
-                        elif (
-                            isinstance(marker, Query)
-                            and marker.name in request.query_params
-                        ):
-                            analysis["score"] += 10
-                        elif marker.default is not None:
-                            analysis["score"] += 5  # Has default value
-                        elif param_info["has_default"]:
-                            analysis["score"] += 5  # Parameter has default
-                        else:
-                            analysis["score"] -= 5  # Required but not available
+                        match marker:
+                            case Header(name) if name in request.headers:
+                                analysis["score"] += 10
+                            case Cookie(name) if name in request.cookies:
+                                analysis["score"] += 10
+                            case Query(name) if name in request.query_params:
+                                analysis["score"] += 10
+                            case Header(_, default) | Cookie(_, default) | Query(_, default) if default is not None:
+                                analysis["score"] += 5  # Has default value
+                            case _ if param_info["has_default"]:
+                                analysis["score"] += 5  # Parameter has default
+                            case _:
+                                analysis["score"] -= 5  # Required but not available
                         continue
 
             # Regular parameter handling
@@ -732,26 +724,18 @@ class Route:
                         marker = args[1]
 
                         # Higher score for parameters that got actual data from request
-                        if isinstance(marker, Header) and (
-                            marker.name in request.headers
-                            or marker.name.lower() in request.headers
-                        ):
-                            injectable_params_with_data += 1
-                            score += 10  # High score for actual header match
-                        elif (
-                            isinstance(marker, Cookie)
-                            and marker.name in request.cookies
-                        ):
-                            injectable_params_with_data += 1
-                            score += 10  # High score for actual cookie match
-                        elif (
-                            isinstance(marker, Query)
-                            and marker.name in request.query_params
-                        ):
-                            injectable_params_with_data += 1
-                            score += 10  # High score for actual query param match
-                        elif hasattr(marker, "default") and marker.default is not None:
-                            score += 1  # Low score for default values
+                        match marker:
+                            case Header(name) if name in request.headers or name.lower() in request.headers:
+                                injectable_params_with_data += 1
+                                score += 10  # High score for actual header match
+                            case Cookie(name) if name in request.cookies:
+                                injectable_params_with_data += 1
+                                score += 10  # High score for actual cookie match
+                            case Query(name) if name in request.query_params:
+                                injectable_params_with_data += 1
+                                score += 10  # High score for actual query param match
+                            case Header(_, default) | Cookie(_, default) | Query(_, default) if default is not None:
+                                score += 1  # Low score for default values
 
                 elif param.default != param.empty:
                     score += 1  # Low score for parameter defaults
@@ -770,14 +754,15 @@ class Route:
 
         marker = param_info["injection_marker"]
 
-        if isinstance(marker, Header):
-            return marker.name in request.headers or marker.default is not None
-        elif isinstance(marker, Cookie):
-            return marker.name in request.cookies or marker.default is not None
-        elif isinstance(marker, Query):
-            return marker.name in request.query_params or marker.default is not None
-
-        return False
+        match marker:
+            case Header(name, default):
+                return name in request.headers or default is not None
+            case Cookie(name, default):
+                return name in request.cookies or default is not None
+            case Query(name, default):
+                return name in request.query_params or default is not None
+            case _:
+                return False
 
     async def _extract_handler_parameters(
         self,
@@ -807,18 +792,15 @@ class Route:
                 if len(args) >= 2:
                     marker = args[1]
 
-                    if isinstance(marker, Header):
-                        # HTTP headers are case-insensitive, so try lowercase
-                        header_value = request.headers.get(
-                            marker.name
-                        ) or request.headers.get(marker.name.lower())
-                        value = (
-                            header_value if header_value is not None else marker.default
-                        )
-                    elif isinstance(marker, Cookie):
-                        value = request.cookies.get(marker.name, marker.default)
-                    elif isinstance(marker, Query):
-                        value = request.query_params.get(marker.name, marker.default)
+                    match marker:
+                        case Header(name, default):
+                            # HTTP headers are case-insensitive, so try lowercase
+                            header_value = request.headers.get(name) or request.headers.get(name.lower())
+                            value = header_value if header_value is not None else default
+                        case Cookie(name, default):
+                            value = request.cookies.get(name, default)
+                        case Query(name, default):
+                            value = request.query_params.get(name, default)
 
             if value is None and param_name in path_params:
                 value = path_params[param_name]
@@ -854,13 +836,132 @@ class Route:
                     except Exception:
                         pass
 
-            # If still no value and parameter has a default, we'll let the function handle it
+            # If still no value, check if this is a required parameter
             if value is None:
-                continue  # Skip this parameter, let default value be used
+                # Check if parameter has a default value
+                if param.default != param.empty:
+                    continue  # Skip this parameter, let default value be used
+
+                # Check if injection marker has a default
+                if get_origin(param_annotation) is Annotated:
+                    args = get_args(param_annotation)
+                    if len(args) >= 2:
+                        marker = args[1]
+                        if isinstance(marker, Header | Cookie | Query) and marker.default is not None:
+                            continue  # Skip this parameter, marker has default
+
+                # Required parameter cannot be satisfied - this handler is incompatible
+                raise ValueError(f"Required parameter '{param_name}' cannot be satisfied")
 
             kwargs[param_name] = value
 
         return kwargs
+
+    async def _find_form_handler(
+        self, request: Request, container: Container, path_params: dict
+    ) -> tuple[Any, dict, list] | None:
+        """Find and prepare a form handler for the request."""
+        method = request.method
+        if not self.__form_handlers__.get(method):
+            return None
+
+        form_data = await request.form()
+        for form_type, form_handler_names in self.__form_handlers__[method].items():
+            if form_type.matches_form_data(form_data):
+                for name_in_list in form_handler_names:
+                    try:
+                        parsed_form = await request.form(form_type, data=form_data)
+                        handler = getattr(self, name_in_list)
+                        handler_info = {"name": name_in_list, "method": handler}
+                        args_to_pass = [parsed_form]
+                        return handler, handler_info, args_to_pass
+                    except Exception as e:
+                        error_response = await container.call(
+                            self._error_handler, e, path_params
+                        )
+                        return error_response, None, None
+        return None
+
+    async def _find_method_handler(
+        self, request: Request, container: Container, path_params: dict
+    ) -> tuple[Any, dict, dict]:
+        """Find and prepare a method handler for the request.
+
+        Raises HTTPBadRequestException if no compatible handlers found due to parameter issues.
+        Raises HTTPMethodNotAllowedException if no handlers exist for the method.
+        """
+        method = request.method
+        if method not in self.__method_handlers__:
+            raise HTTPMethodNotAllowedException(
+                f"{type(self).__name__} does not support {method}.",
+                list(self.__method_handlers__.keys() | self.__form_handlers__.keys()),
+            )
+
+        handlers = self.__method_handlers__[method]
+        has_form_handlers = bool(self.__form_handlers__.get(method))
+
+        if len(handlers) == 1:
+            # Single handler case
+            handler_info = handlers[0]
+            try:
+                kwargs_to_pass = await self._extract_handler_parameters(
+                    handler_info, request, path_params, container
+                )
+                return handler_info["method"], handler_info, kwargs_to_pass
+            except Exception as e:
+                if not has_form_handlers:
+                    # No form handlers tried, this is a parameter issue
+                    from serv.exceptions import HTTPBadRequestException
+                    bad_request_exc = HTTPBadRequestException(
+                        f"Missing required parameters for {method} request: {e}"
+                    )
+                    bad_request_exc.__cause__ = e
+                    raise bad_request_exc from e
+                else:
+                    # Form handlers exist but didn't match, method handler incompatible
+                    raise HTTPMethodNotAllowedException(
+                        f"No compatible handler found for {method} request.",
+                        list(self.__method_handlers__.keys() | self.__form_handlers__.keys()),
+                    ) from e
+        else:
+            # Multiple handlers case
+            compatible_handlers = []
+            handler_errors = []
+
+            for handler_info in handlers:
+                try:
+                    kwargs_to_pass_temp = await self._extract_handler_parameters(
+                        handler_info, request, path_params, container
+                    )
+                    score = self._calculate_handler_specificity(
+                        handler_info, request, kwargs_to_pass_temp
+                    )
+                    compatible_handlers.append(
+                        (score, handler_info, kwargs_to_pass_temp)
+                    )
+                except Exception as e:
+                    handler_errors.append(f"{handler_info['name']}: {e}")
+                    continue
+
+            if not compatible_handlers:
+                if not has_form_handlers:
+                    # No form handlers tried, this is a parameter issue
+                    from serv.exceptions import HTTPBadRequestException
+                    error_details = f"Missing required parameters for {method} request."
+                    if handler_errors:
+                        error_details += f" Handler errors: {'; '.join(handler_errors)}"
+                    raise HTTPBadRequestException(error_details)
+                else:
+                    # Form handlers exist but didn't match, no method handlers compatible
+                    raise HTTPMethodNotAllowedException(
+                        f"No compatible handler found for {method} request.",
+                        list(self.__method_handlers__.keys() | self.__form_handlers__.keys()),
+                    ) from None
+
+            # Sort by score (highest first) and take the best match
+            compatible_handlers.sort(key=lambda x: x[0], reverse=True)
+            score, selected_handler_info, kwargs_to_pass = compatible_handlers[0]
+            return selected_handler_info["method"], selected_handler_info, kwargs_to_pass
 
     async def _handle_request(
         self, request: Request, container: Container, path_params
@@ -868,83 +969,38 @@ class Route:
         method = request.method
         handler = None
         handler_info = None
+        kwargs_to_pass = {}
         args_to_pass = []
 
-        # Handle form submissions first
-        if self.__form_handlers__.get(method):
-            form_data = await request.form()
-            for form_type, form_handler_names in self.__form_handlers__[method].items():
-                if form_type.matches_form_data(form_data):
-                    for name_in_list in form_handler_names:
-                        try:
-                            parsed_form = await request.form(form_type, data=form_data)
-                            handler = getattr(self, name_in_list)
-                            handler_info = {"name": name_in_list, "method": handler}
-                            args_to_pass = [parsed_form]
-                            break
-                        except Exception as e:
-                            error_response = await container.call(
-                                self._error_handler, e, path_params
-                            )
-                            return error_response, None
-                    if handler:
-                        break
+        try:
+            # Try form handlers first
+            form_result = await self._find_form_handler(request, container, path_params)
+            match form_result:
+                case (handler, handler_info, args_to_pass):
+                    pass  # Found form handler, continue with it
+                case (error_response, *_):
+                    return error_response, None
+                case None:
+                    pass  # No form handler found, try method handlers
 
-        # Handle method handlers with signature matching
-        if not handler and method in self.__method_handlers__:
-            handlers = self.__method_handlers__[method]
-
-            if len(handlers) == 1:
-                # Only one handler, use it
-                handler_info = handlers[0]
-                handler = handler_info["method"]
+            # Try method handlers if no form handler found
+            if not handler:
                 try:
-                    kwargs_to_pass = await self._extract_handler_parameters(
-                        handler_info, request, path_params, container
+                    handler, handler_info, kwargs_to_pass = await self._find_method_handler(
+                        request, container, path_params
                     )
-                except Exception as e:
+                except (HTTPBadRequestException, HTTPMethodNotAllowedException) as e:
                     error_response = await container.call(
                         self._error_handler, e, path_params
                     )
                     return error_response, None
-            else:
-                # Multiple handlers, find the best match
-                compatible_handlers = []
 
-                for handler_info in handlers:
-                    try:
-                        kwargs_to_pass_temp = await self._extract_handler_parameters(
-                            handler_info, request, path_params, container
-                        )
-                        # Count how many injectable parameters actually got values from the request
-                        score = self._calculate_handler_specificity(
-                            handler_info, request, kwargs_to_pass_temp
-                        )
-                        compatible_handlers.append(
-                            (score, handler_info, kwargs_to_pass_temp)
-                        )
-                    except Exception:
-                        continue  # Handler is not compatible
-
-                if not compatible_handlers:
-                    error_response = await container.call(
-                        self._error_handler,
-                        HTTPMethodNotAllowedException(
-                            f"No compatible handler found for {method} request with provided parameters.",
-                            list(
-                                self.__method_handlers__.keys()
-                                | self.__form_handlers__.keys()
-                            ),
-                        ),
-                        path_params,
-                    )
-                    return error_response, None
-
-                # Sort by score (highest first) and take the best match
-                compatible_handlers.sort(key=lambda x: x[0], reverse=True)
-                score, selected_handler_info, kwargs_to_pass = compatible_handlers[0]
-                handler = selected_handler_info["method"]
-                handler_info = selected_handler_info
+        except Exception as e:
+            # Catch any unexpected errors
+            error_response = await container.call(
+                self._error_handler, e, path_params
+            )
+            return error_response, None
 
         if not handler:
             error_response = await container.call(
@@ -961,107 +1017,117 @@ class Route:
 
         try:
             # Call handler with extracted parameters
-            if "kwargs_to_pass" in locals() and kwargs_to_pass:
-                handler_output_data = await container.call(
-                    handler, self, **kwargs_to_pass
-                )
-            elif "args_to_pass" in locals() and args_to_pass:
-                # For form handlers, call directly to avoid container injection conflicts
-                handler_output_data = await handler(*args_to_pass)
-            else:
-                handler_output_data = await container.call(handler, self)
+            match (bool(kwargs_to_pass), bool(args_to_pass)):
+                case (True, _):
+                    # Method handler with injected parameters
+                    handler_output_data = await container.call(
+                        handler, self, **kwargs_to_pass
+                    )
+                case (False, True):
+                    # Form handler with parsed form arguments
+                    handler_output_data = await handler(*args_to_pass)
+                case (False, False):
+                    # Handler with no specific parameters
+                    handler_output_data = await container.call(handler, self)
 
             handler_name = handler_info.get("name") if handler_info else None
-            if handler_name and handler_name in self.__annotated_response_wrappers__:
-                wrapper_class = self.__annotated_response_wrappers__[handler_name]
-                if isinstance(handler_output_data, tuple):
-                    response = wrapper_class(*handler_output_data)
-                else:
-                    response = wrapper_class(handler_output_data)
-            elif isinstance(handler_output_data, Response):
-                response = handler_output_data
-            else:
-                # Check if this handler should have had an annotated response wrapper
-                should_have_wrapper = False
-                wrapper_info = ""
+            has_wrapper = handler_name and handler_name in self.__annotated_response_wrappers__
 
-                if handler_name:
-                    # Check if the handler method has an annotated return type
-                    try:
-                        if hasattr(self, handler_name):
-                            handler_method = getattr(self, handler_name)
-                            from typing import get_args, get_origin, get_type_hints
+            match (has_wrapper, handler_output_data):
+                case (True, tuple() as data):
+                    # Handler with annotated response wrapper and tuple output
+                    wrapper_class = self.__annotated_response_wrappers__[handler_name]
+                    response = wrapper_class(*data)
+                case (True, data):
+                    # Handler with annotated response wrapper and single output
+                    wrapper_class = self.__annotated_response_wrappers__[handler_name]
+                    response = wrapper_class(data)
+                case (_, Response() as resp):
+                    # Handler returned a Response instance directly
+                    response = resp
+                case (_, data):
+                    # Handler returned raw data without annotated response wrapper
+                    # Check if this handler should have had an annotated response wrapper
+                    should_have_wrapper = False
+                    wrapper_info = ""
 
-                            type_hints = get_type_hints(
-                                handler_method, include_extras=True
-                            )
-                            return_annotation = type_hints.get("return")
+                    if handler_name:
+                        # Check if the handler method has an annotated return type
+                        try:
+                            if hasattr(self, handler_name):
+                                handler_method = getattr(self, handler_name)
+                                from typing import get_args, get_origin, get_type_hints
 
-                            if (
-                                return_annotation
-                                and get_origin(return_annotation) is Annotated
-                            ):
-                                args = get_args(return_annotation)
+                                type_hints = get_type_hints(
+                                    handler_method, include_extras=True
+                                )
+                                return_annotation = type_hints.get("return")
+
                                 if (
-                                    len(args) == 2
-                                    and isinstance(args[1], type)
-                                    and issubclass(args[1], Response)
+                                    return_annotation
+                                    and get_origin(return_annotation) is Annotated
                                 ):
-                                    should_have_wrapper = True
-                                    wrapper_info = (
-                                        f" (should be wrapped in {args[1].__name__})"
-                                    )
+                                    args = get_args(return_annotation)
+                                    if (
+                                        len(args) == 2
+                                        and isinstance(args[1], type)
+                                        and issubclass(args[1], Response)
+                                    ):
+                                        should_have_wrapper = True
+                                        wrapper_info = (
+                                            f" (should be wrapped in {args[1].__name__})"
+                                        )
+                        except Exception:
+                            pass
+
+                    # Get detailed information about the handler for better error reporting
+                    handler_class = type(self).__name__
+                    handler_module = type(self).__module__
+
+                    # Try to get the file and line number of the handler method
+                    import inspect
+
+                    handler_file = "unknown"
+                    handler_line = "unknown"
+                    try:
+                        handler_source = inspect.getsourcefile(handler)
+                        handler_lines = inspect.getsourcelines(handler)
+                        if handler_source:
+                            handler_file = handler_source
+                        if handler_lines:
+                            handler_line = handler_lines[
+                                1
+                            ]  # Line number where the function starts
                     except Exception:
                         pass
 
-                # Get detailed information about the handler for better error reporting
-                handler_class = type(self).__name__
-                handler_module = type(self).__module__
+                    # Create a detailed error message
+                    if should_have_wrapper:
+                        error_msg = (
+                            f"Route handler has annotated response type but wrapper was not applied:\n"
+                            f"  Handler: {handler_class}.{handler_name}()\n"
+                            f"  Module: {handler_module}\n"
+                            f"  File: {handler_file}\n"
+                            f"  Line: {handler_line}\n"
+                            f"  Route: {request.method} '{request.path}'\n"
+                            f"  Returned: {type(handler_output_data).__name__!r} ({repr(handler_output_data)[:100]}{'...' if len(repr(handler_output_data)) > 100 else ''})\n"
+                            f"  Expected wrapper: {wrapper_info}\n"
+                            f"  Issue: Annotated response wrapper was not applied (this is a framework bug)\n"
+                            f"  Debug info: handler_name='{handler_name}', in_wrappers={handler_name in self.__annotated_response_wrappers__ if handler_name else False}"
+                        )
+                    else:
+                        error_msg = (
+                            f"Route handler returned wrong type:\n"
+                            f"  Handler: {handler_class}.{handler_name}()\n"
+                            f"  Module: {handler_module}\n"
+                            f"  File: {handler_file}\n"
+                            f"  Line: {handler_line}\n"
+                            f"  Route: {request.method} '{request.path}'\n"
+                            f"  Returned: {type(handler_output_data).__name__!r} ({repr(handler_output_data)[:100]}{'...' if len(repr(handler_output_data)) > 100 else ''})\n"
+                            f"  Expected: Response instance or use an Annotated response type"
+                        )
 
-                # Try to get the file and line number of the handler method
-                import inspect
-
-                handler_file = "unknown"
-                handler_line = "unknown"
-                try:
-                    handler_source = inspect.getsourcefile(handler)
-                    handler_lines = inspect.getsourcelines(handler)
-                    if handler_source:
-                        handler_file = handler_source
-                    if handler_lines:
-                        handler_line = handler_lines[
-                            1
-                        ]  # Line number where the function starts
-                except Exception:
-                    pass
-
-                # Create a detailed error message
-                if should_have_wrapper:
-                    error_msg = (
-                        f"Route handler has annotated response type but wrapper was not applied:\n"
-                        f"  Handler: {handler_class}.{handler_name}()\n"
-                        f"  Module: {handler_module}\n"
-                        f"  File: {handler_file}\n"
-                        f"  Line: {handler_line}\n"
-                        f"  Route: {request.method} '{request.path}'\n"
-                        f"  Returned: {type(handler_output_data).__name__!r} ({repr(handler_output_data)[:100]}{'...' if len(repr(handler_output_data)) > 100 else ''})\n"
-                        f"  Expected wrapper: {wrapper_info}\n"
-                        f"  Issue: Annotated response wrapper was not applied (this is a framework bug)\n"
-                        f"  Debug info: handler_name='{handler_name}', in_wrappers={handler_name in self.__annotated_response_wrappers__ if handler_name else False}"
-                    )
-                else:
-                    error_msg = (
-                        f"Route handler returned wrong type:\n"
-                        f"  Handler: {handler_class}.{handler_name}()\n"
-                        f"  Module: {handler_module}\n"
-                        f"  File: {handler_file}\n"
-                        f"  Line: {handler_line}\n"
-                        f"  Route: {request.method} '{request.path}'\n"
-                        f"  Returned: {type(handler_output_data).__name__!r} ({repr(handler_output_data)[:100]}{'...' if len(repr(handler_output_data)) > 100 else ''})\n"
-                        f"  Expected: Response instance or use an Annotated response type"
-                    )
-
-                raise TypeError(error_msg)
+                    raise TypeError(error_msg)
 
             response.set_created_by(self.extension)
             return response, handler_info
