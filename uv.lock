@@ -285,6 +285,7 @@ source = { editable = "." }
 dependencies = [
     { name = "asgiref" },
     { name = "bevy" },
+    { name = "cryptography" },
     { name = "jinja2" },
     { name = "nubby" },
     { name = "ommi" },
@@ -338,6 +339,7 @@ requires-dist = [
     { name = "asyncpg", marker = "extra == 'database'", specifier = ">=0.30.0" },
     { name = "bcrypt", marker = "extra == 'auth'", specifier = ">=4.0.0" },
     { name = "bevy", specifier = ">=3.1.0b1" },
+    { name = "cryptography", specifier = ">=45.0.3" },
     { name = "cryptography", marker = "extra == 'auth'", specifier = ">=41.0.0" },
     { name = "itsdangerous", marker = "extra == 'auth'", specifier = ">=2.1.0" },
     { name = "jinja2", specifier = ">=3.1.6" },

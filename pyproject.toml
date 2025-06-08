@@ -30,6 +30,7 @@ classifiers = [
 dependencies = [
     "asgiref>=3.8.1",
     "bevy>=3.1.0b1",
+    "cryptography>=45.0.3",
     "jinja2>=3.1.6",
     "nubby>=0.1.2",
     "ommi>=0.2.0",
