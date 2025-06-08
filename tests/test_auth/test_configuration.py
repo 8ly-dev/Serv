@@ -356,7 +356,6 @@ class TestEnvironmentVariableSubstitution:
 
                 # But if we convert config to string, it should not contain the secret
                 # (This is important for logging/debugging safety)
-                config_str = str(loaded_config)
                 # This test depends on implementation - the config might mask sensitive values
 
             finally:
@@ -432,7 +431,7 @@ class TestConfigurationSecurity:
         current_level = nested_config
 
         # Create 100 levels of nesting
-        for i in range(100):
+        for _ in range(100):
             current_level["nested"] = {}
             current_level = current_level["nested"]
 
