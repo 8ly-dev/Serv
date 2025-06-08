@@ -61,7 +61,9 @@ class DatabaseManager:
         self.connections.clear()
 
     def register_with_di(
-        self, name: str, connection: Any,
+        self,
+        name: str,
+        connection: Any,
     ) -> None:
         """Register database connection with dependency injection using Bevy 3.1 qualifiers.
 

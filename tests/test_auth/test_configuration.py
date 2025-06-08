@@ -11,7 +11,7 @@ import tempfile
 import pytest
 import yaml
 
-from serv.config import load_config, validate_auth_config
+from serv.config import ServConfigError, load_config, validate_auth_config
 
 
 class TestAuthConfigurationValidation:
@@ -70,7 +70,9 @@ class TestAuthConfigurationValidation:
         """Test validation fails when provider is missing type."""
         invalid_config = {"providers": [{"config": {"secret_key": "some_key"}}]}
 
-        with pytest.raises(ValueError, match="Provider must have a 'type' field"):
+        with pytest.raises(
+            (ValueError, ServConfigError), match="missing required 'type' field"
+        ):
             validate_auth_config(invalid_config)
 
     def test_jwt_provider_short_secret_validation(self):
@@ -128,7 +130,9 @@ class TestAuthConfigurationValidation:
             },
         }
 
-        with pytest.raises(ValueError, match="Storage backend must be specified"):
+        with pytest.raises(
+            (ValueError, ServConfigError), match="missing required 'backend' field"
+        ):
             validate_auth_config(invalid_config)
 
     def test_rate_limiting_format_validation(self):
@@ -147,7 +151,7 @@ class TestAuthConfigurationValidation:
             },
         }
 
-        with pytest.raises(ValueError, match="Invalid rate limit format"):
+        with pytest.raises((ValueError, ServConfigError), match="Invalid rate limit"):
             validate_auth_config(invalid_config)
 
     def test_multiple_providers_validation(self):
@@ -187,19 +191,21 @@ class TestEnvironmentVariableSubstitution:
 
         try:
             config_with_env_vars = {
-                "providers": [
-                    {
-                        "type": "jwt",
-                        "config": {
-                            "secret_key": "${TEST_JWT_SECRET}",
-                            "algorithm": "HS256",
-                        },
-                    }
-                ],
-                "storage": {
-                    "backend": "serv.bundled.auth.storage.ommi_storage",
-                    "config": {"connection_string": "${TEST_DB_URL}"},
-                },
+                "auth": {
+                    "providers": [
+                        {
+                            "type": "jwt",
+                            "config": {
+                                "secret_key": "${TEST_JWT_SECRET}",
+                                "algorithm": "HS256",
+                            },
+                        }
+                    ],
+                    "storage": {
+                        "backend": "serv.bundled.auth.storage.ommi_storage",
+                        "config": {"connection_string": "${TEST_DB_URL}"},
+                    },
+                }
             }
 
             # Create temporary config file
@@ -238,15 +244,17 @@ class TestEnvironmentVariableSubstitution:
     def test_missing_environment_variable(self):
         """Test handling of missing environment variables."""
         config_with_missing_env = {
-            "providers": [
-                {
-                    "type": "jwt",
-                    "config": {
-                        "secret_key": "${NONEXISTENT_SECRET_KEY}",
-                        "algorithm": "HS256",
-                    },
-                }
-            ]
+            "auth": {
+                "providers": [
+                    {
+                        "type": "jwt",
+                        "config": {
+                            "secret_key": "${NONEXISTENT_SECRET_KEY}",
+                            "algorithm": "HS256",
+                        },
+                    }
+                ]
+            }
         }
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -255,8 +263,8 @@ class TestEnvironmentVariableSubstitution:
 
         try:
             with pytest.raises(
-                ValueError,
-                match="Environment variable 'NONEXISTENT_SECRET_KEY' not found",
+                (ValueError, ServConfigError),
+                match="Required environment variable 'NONEXISTENT_SECRET_KEY' is not set",
             ):
                 load_config(temp_config_path)
 
@@ -270,10 +278,20 @@ class TestEnvironmentVariableSubstitution:
 
         try:
             config_with_partial_env = {
-                "storage": {
-                    "backend": "postgresql",
-                    "config": {
-                        "connection_string": "postgresql://user:pass@${TEST_DB_HOST}:${TEST_DB_PORT}/auth_db"
+                "auth": {
+                    "providers": [
+                        {
+                            "type": "jwt",
+                            "config": {
+                                "secret_key": "this_is_a_very_long_secure_secret_key_for_testing_purposes"
+                            },
+                        }
+                    ],
+                    "storage": {
+                        "backend": "postgresql",
+                        "config": {
+                            "connection_string": "postgresql://user:pass@${TEST_DB_HOST}:${TEST_DB_PORT}/auth_db"
+                        },
                     },
                 }
             }
@@ -308,15 +326,17 @@ class TestEnvironmentVariableSubstitution:
 
         try:
             config_with_sensitive_env = {
-                "providers": [
-                    {
-                        "type": "jwt",
-                        "config": {
-                            "secret_key": "${SENSITIVE_SECRET}",
-                            "algorithm": "HS256",
-                        },
-                    }
-                ]
+                "auth": {
+                    "providers": [
+                        {
+                            "type": "jwt",
+                            "config": {
+                                "secret_key": "${SENSITIVE_SECRET}",
+                                "algorithm": "HS256",
+                            },
+                        }
+                    ]
+                }
             }
 
             with tempfile.NamedTemporaryFile(
@@ -336,7 +356,6 @@ class TestEnvironmentVariableSubstitution:
 
                 # But if we convert config to string, it should not contain the secret
                 # (This is important for logging/debugging safety)
-                config_str = str(loaded_config)
                 # This test depends on implementation - the config might mask sensitive values
 
             finally:
@@ -402,7 +421,7 @@ class TestConfigurationSecurity:
         }
 
         # Should either reject the malicious values or sanitize them
-        with pytest.raises((ValueError, TypeError)):
+        with pytest.raises((ValueError, ServConfigError, TypeError)):
             validate_auth_config(malicious_config)
 
     def test_config_deep_nesting_protection(self):
@@ -412,7 +431,7 @@ class TestConfigurationSecurity:
         current_level = nested_config
 
         # Create 100 levels of nesting
-        for i in range(100):
+        for _ in range(100):
             current_level["nested"] = {}
             current_level = current_level["nested"]
 

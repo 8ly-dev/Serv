@@ -10,7 +10,6 @@ import contextlib
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 from httpx import ASGITransport, AsyncClient
 
@@ -214,4 +213,3 @@ async def create_test_app_client(
             transport=transport, base_url=base_url, timeout=timeout
         ) as client:
             yield client
-
