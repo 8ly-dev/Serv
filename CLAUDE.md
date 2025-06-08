@@ -43,8 +43,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Dependency Injection:**
 - Built on `bevy` library for clean, testable code
-- To mark a parameter for injection use `bevy.dependency()` (e.g., `request: Request = dependency()`)
-- Use the `inject` decorator to inject dependencies into a function using the global container
+- To mark a parameter for injection use `bevy.Inject[T]` (e.g., `request: Inject[Request]`)
+- Use the `injectable` decorator to inject dependencies into a function using the global container
 - `container.call` is used to call functions with dependency injection if you need a specific container
 - Request objects and services are injected into route handlers
 
