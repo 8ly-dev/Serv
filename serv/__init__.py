@@ -61,12 +61,14 @@ Key Components:
     - Response types: Structured response objects (JsonResponse, HtmlResponse, etc.)
     - Forms: Automatic form parsing and validation
     - Exceptions: HTTP-aware exception handling
+    - create_test_app_client: Test client factory for end-to-end testing
 
 For detailed documentation and examples, visit: https://serv.dev/docs
 """
 
 from serv.app import App
 from serv.routes import handle
+from serv.test_client import create_test_app_client
 from serv.websocket import WebSocket
 
-__all__ = ["App", "handle", "WebSocket"]
+__all__ = ["App", "handle", "WebSocket", "create_test_app_client"]

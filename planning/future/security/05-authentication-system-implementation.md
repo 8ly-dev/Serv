@@ -860,23 +860,230 @@ async def test_oauth_scope_validation():
 
 ### 6.4 Security Test Execution
 
-#### 6.4.1 Automated Security Testing
+#### 6.4.1 Automated Security Testing with Test App Client
 
 **Location**: `tests/security/conftest.py`
 
 ```python
 # Security testing fixtures and utilities
+import pytest
+from pathlib import Path
+from serv import create_test_app_client
+
 @pytest.fixture
-def security_test_client():
-    """Client configured for security testing"""
-    
+async def security_test_client():
+    """Client configured for security testing with auth system enabled"""
+    config_path = Path("tests/security/auth_test_config.yaml")
+    async with create_test_app_client(
+        config_path,
+        dev=True,  # Enable detailed error messages for debugging
+        extension_dirs="tests/security/auth_extensions"
+    ) as client:
+        yield client
+
+@pytest.fixture
+async def production_test_client():
+    """Client configured for production-mode security testing"""
+    config_path = Path("tests/security/auth_prod_config.yaml")
+    async with create_test_app_client(
+        config_path,
+        dev=False,  # Disable detailed errors for production testing
+        extension_dirs="tests/security/auth_extensions"
+    ) as client:
+        yield client
+
+@pytest.fixture
+async def isolated_auth_client():
+    """Client with isolated auth configuration for specific tests"""
+    config_path = Path("tests/security/isolated_auth_config.yaml")
+    async with create_test_app_client(
+        config_path,
+        extension_dirs="tests/security/isolated_extensions",
+        use_lifespan=True  # Ensure proper auth system initialization
+    ) as client:
+        yield client
+
 @pytest.fixture  
 def malicious_payloads():
     """Common malicious payloads for testing"""
+    return {
+        "sql_injection": [
+            "' OR '1'='1",
+            "'; DROP TABLE users; --",
+            "1' UNION SELECT username, password FROM users--"
+        ],
+        "xss_payloads": [
+            "<script>alert('xss')</script>",
+            "javascript:alert('xss')",
+            "<img src=x onerror=alert('xss')>"
+        ],
+        "path_traversal": [
+            "../../../etc/passwd",
+            "..\\..\\..\\windows\\system32\\config\\sam",
+            "....//....//....//etc/passwd"
+        ],
+        "command_injection": [
+            "; ls -la",
+            "| cat /etc/passwd",
+            "&& rm -rf /"
+        ]
+    }
     
 @pytest.fixture
 def timing_attack_detector():
     """Utility to detect timing attack vulnerabilities"""
+    import time
+    import statistics
+    
+    class TimingDetector:
+        def __init__(self, samples=50, threshold_ms=50):
+            self.samples = samples
+            self.threshold_ms = threshold_ms
+            
+        async def measure_response_times(self, client, requests_func):
+            """Measure response times for a series of requests"""
+            times = []
+            for _ in range(self.samples):
+                start = time.perf_counter()
+                await requests_func(client)
+                end = time.perf_counter()
+                times.append((end - start) * 1000)  # Convert to milliseconds
+            return times
+            
+        def analyze_timing_vulnerability(self, times_valid, times_invalid):
+            """Analyze if timing differences indicate vulnerability"""
+            valid_median = statistics.median(times_valid)
+            invalid_median = statistics.median(times_invalid)
+            difference = abs(valid_median - invalid_median)
+            
+            return {
+                "vulnerable": difference > self.threshold_ms,
+                "difference_ms": difference,
+                "valid_median": valid_median,
+                "invalid_median": invalid_median,
+                "threshold_ms": self.threshold_ms
+            }
+    
+    return TimingDetector()
+
+@pytest.fixture
+async def authenticated_client(security_test_client):
+    """Client with valid authentication token"""
+    # Login to get authentication token
+    login_response = await security_test_client.post("/auth/login", json={
+        "username": "test_user",
+        "password": "test_password"
+    })
+    assert login_response.status_code == 200
+    
+    # Extract token from response
+    token = login_response.json()["token"]
+    
+    # Set authorization header for subsequent requests
+    security_test_client.headers.update({"Authorization": f"Bearer {token}"})
+    
+    return security_test_client
+
+@pytest.fixture
+async def admin_client(security_test_client):
+    """Client authenticated as admin user"""
+    login_response = await security_test_client.post("/auth/login", json={
+        "username": "admin_user",
+        "password": "admin_password"
+    })
+    assert login_response.status_code == 200
+    
+    token = login_response.json()["token"]
+    security_test_client.headers.update({"Authorization": f"Bearer {token}"})
+    
+    return security_test_client
+```
+
+#### 6.4.2 Security Test Configuration Files
+
+**Test Configurations for Different Scenarios**:
+
+```yaml
+# tests/security/auth_test_config.yaml
+site_info:
+  name: "Auth Security Test App"
+  description: "Test application for authentication security testing"
+
+databases:
+  auth_test_db:
+    provider: "serv.bundled.database.ommi:create_ommi"
+    connection_string: "sqlite:///:memory:"  # In-memory for fast tests
+
+auth:
+  providers:
+    - type: jwt
+      config:
+        secret_key: "test_secret_key_for_testing_only"
+        algorithm: "HS256"
+        expires_in: 3600
+    - type: cookie_session
+      config:
+        session_timeout: 7200
+        secure_cookies: false  # For testing
+  storage:
+    backend: "serv.bundled.auth.storage.ommi_storage"
+    database: "auth_test_db"
+  rate_limiting:
+    login_attempts: "10/min"  # More lenient for testing
+    token_generation: "20/min"
+    api_requests: "200/min"
+  audit:
+    enabled: true
+    events: ["login", "logout", "permission_denied", "credential_change"]
+  security:
+    fingerprint_required: true
+    timing_protection:
+      enabled: true
+      minimum_auth_time: 0.1  # Faster for tests
+      minimum_token_time: 0.05
+
+extensions:
+  - auth_test_extension
+```
+
+```yaml
+# tests/security/auth_prod_config.yaml (Production-like settings)
+site_info:
+  name: "Auth Production Test App"
+  description: "Test application simulating production auth settings"
+
+databases:
+  auth_prod_db:
+    provider: "serv.bundled.database.ommi:create_ommi"
+    connection_string: "sqlite:///test_prod_auth.db"
+
+auth:
+  providers:
+    - type: jwt
+      config:
+        secret_key: "production_strength_secret_key_minimum_32_chars"
+        algorithm: "HS256"
+        expires_in: 900  # Shorter expiration
+  storage:
+    backend: "serv.bundled.auth.storage.ommi_storage"
+    database: "auth_prod_db"
+  rate_limiting:
+    login_attempts: "3/min"  # Strict rate limiting
+    token_generation: "5/min"
+    api_requests: "50/min"
+  audit:
+    enabled: true
+    events: ["login", "logout", "permission_denied", "credential_change", "rate_limit_exceeded"]
+  security:
+    fingerprint_required: true
+    session_invalidation_on_role_change: true
+    timing_protection:
+      enabled: true
+      minimum_auth_time: 2.0  # Production timing
+      minimum_token_time: 1.0
+
+extensions:
+  - auth_test_extension
 ```
 
 #### 6.4.2 Security Test Categories

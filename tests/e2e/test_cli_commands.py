@@ -216,7 +216,7 @@ class TestExtension(Extension):
 
         # Check that it at least tried to load plugins (and failed on the dummy one)
         # This shows that the app loading got past the welcome plugin issue
-        assert "Instantiating App" in stdout
+        assert "Creating App" in stdout
 
     @pytest.mark.asyncio
     async def test_cli_with_async_client(self, clean_test_dir):

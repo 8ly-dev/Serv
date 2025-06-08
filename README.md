@@ -247,7 +247,52 @@ await self.emit("user.created", user_id=123, email="user@example.com")
 
 ## 🧪 Testing Your Extensions
 
-Serv includes comprehensive testing utilities:
+Serv includes comprehensive testing utilities for easy end-to-end testing without running a server:
+
+### Test Client Factory
+
+The `create_test_app_client` function creates a test client that mirrors all CLI launch options:
+
+```python
+import pytest
+from pathlib import Path
+from serv import create_test_app_client
+
+@pytest.mark.asyncio
+async def test_my_api():
+    # Create a test client using your app's config
+    async with create_test_app_client(Path("serv.config.yaml"), dev=True) as client:
+        # Test POST request
+        response = await client.post("/api/users", json={"name": "Test User"})
+        assert response.status_code == 201
+        
+        # Test GET request
+        response = await client.get("/api/users/1")
+        assert response.status_code == 200
+        user = response.json()
+        assert user["name"] == "Test User"
+
+@pytest.mark.asyncio
+async def test_with_custom_extensions():
+    # Test with custom extension directory
+    async with create_test_app_client(
+        Path("test.config.yaml"), 
+        extension_dirs="./test_extensions",
+        dev=True
+    ) as client:
+        response = await client.get("/test-endpoint")
+        assert response.status_code == 200
+```
+
+The test client supports all CLI parameters:
+- `dev=True` - Enable development mode  
+- `extension_dirs="./custom"` - Custom extension directory
+- `dry_run=True` - Just validate app creation
+- All other `serv launch` equivalent options
+
+### Legacy Testing Helpers
+
+For more advanced scenarios, use the existing testing utilities:
 
 ```python
 import pytest
