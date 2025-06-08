@@ -4,7 +4,6 @@ Simplified tests for authentication decorators and route integration.
 Tests the auth_handle decorators and their integration with Serv's routing system.
 """
 
-
 import pytest
 
 # Remove unnecessary imports
