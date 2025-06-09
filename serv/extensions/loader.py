@@ -171,11 +171,8 @@ class ExtensionSpec:
     ) -> "ExtensionSpec":
         # Try extension.yaml first, then extension.yaml for backward compatibility
         extension_config = path / "extension.yaml"
-        extension_config = path / "extension.yaml"
 
         if extension_config.exists():
-            config_file = extension_config
-        elif extension_config.exists():
             config_file = extension_config
         else:
             raise FileNotFoundError(
