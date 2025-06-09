@@ -21,7 +21,7 @@ import jwt
 from serv.auth.auth_provider import AuthProvider
 from serv.auth.types import AuthResult, AuthStatus, RefreshResult, ValidationResult
 from serv.auth.utils import timing_protection
-from serv.requests import Request
+from serv.http import Request
 
 logger = logging.getLogger(__name__)
 

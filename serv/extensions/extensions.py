@@ -227,8 +227,7 @@ class Listener:
         Listener with dependency injection:
 
         ```python
-        from serv.requests import Request
-        from serv.responses import ResponseBuilder
+        from serv.http import Request, ResponseBuilder
         from bevy import injectable, Inject
 
         class AuthListener(Listener):
@@ -345,12 +344,20 @@ class Listener:
         for listener_handler_name in self.__listeners__[event_name]:
             callback = getattr(self, listener_handler_name)
 
-            # Prepare arguments for the handler
-            handler_kwargs = await self._prepare_handler_arguments(
+            # Prepare arguments for the handler and handle container overrides
+            handler_kwargs, container_overrides = await self._prepare_handler_arguments(
                 callback, event_name, kwargs, container
             )
 
-            result = get_container(container).call(callback, **handler_kwargs)
+            # Use a branched container if we need to override injected values
+            if container_overrides:
+                with container.branch() as branch_container:
+                    for override_type, override_value in container_overrides.items():
+                        branch_container.add(override_type, override_value)
+                    result = branch_container.call(callback, **handler_kwargs)
+            else:
+                result = get_container(container).call(callback, **handler_kwargs)
+
             if isawaitable(result):
                 await result
 
@@ -371,16 +378,23 @@ class Listener:
         event_name: str,
         event_kwargs: dict[str, Any],
         container: Container | None,
-    ) -> dict[str, Any]:
-        """Prepare arguments for a handler based on its signature."""
+    ) -> tuple[dict[str, Any], dict[type, Any]]:
+        """Prepare arguments for a handler based on its signature.
+
+        Returns:
+            tuple of (handler_kwargs, container_overrides)
+            - handler_kwargs: direct arguments to pass to the handler
+            - container_overrides: types and values to temporarily override in container
+        """
         try:
             sig = signature(callback)
             annotations = get_annotations(callback)
         except Exception:
             # If we can't get signature info, pass through all kwargs
-            return event_kwargs
+            return event_kwargs, {}
 
         handler_kwargs = {}
+        container_overrides = {}
 
         for param_name, param in sig.parameters.items():
             if param_name == "self":
@@ -395,11 +409,24 @@ class Listener:
             ):
                 handler_kwargs[param_name] = Context(event_name, **event_kwargs)
             elif param_name in event_kwargs:
-                # Only pass parameters that match available event data
-                handler_kwargs[param_name] = event_kwargs[param_name]
+                from typing import get_args, get_origin
+
+                from bevy import Inject
+
+                # Check if this parameter has an Inject annotation
+                if get_origin(param_annotation) is Inject:
+                    # Extract the actual type from Inject[Type]
+                    inject_args = get_args(param_annotation)
+                    if inject_args:
+                        injected_type = inject_args[0]
+                        # Override this type in the container with the event value
+                        container_overrides[injected_type] = event_kwargs[param_name]
+                else:
+                    # Pass as regular parameter for non-injected params
+                    handler_kwargs[param_name] = event_kwargs[param_name]
             # If parameter is not available and has no default, it will be handled by bevy
 
-        return handler_kwargs
+        return handler_kwargs, container_overrides
 
 
 # Alias for Extension (same as Listener but clearer name for some use cases)

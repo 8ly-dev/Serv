@@ -6,6 +6,7 @@ from bevy.containers import Container
 
 from serv.exceptions import HTTPMethodNotAllowedException, HTTPNotFoundException
 from serv.protocols import RouterProtocol
+from serv.utils import is_subclass_of
 
 if TYPE_CHECKING:
     import serv.routes as routes
@@ -265,9 +266,9 @@ class Router(RouterProtocol):
         """
         # First check if handler is a Route class
         # Import routes at runtime to avoid circular dependency
-        import serv.routes as routes
+        from . import routes
 
-        if isinstance(handler, type) and issubclass(handler, routes.Route):
+        if is_subclass_of(handler, routes.Route):
             # Look for route class in the _route_class_paths dictionary
             if handler in self._route_class_paths:
                 path_list = self._route_class_paths[handler]
@@ -301,7 +302,7 @@ class Router(RouterProtocol):
         # Handle methods on Route instances (less common case)
         elif hasattr(handler, "__self__"):
             # Import routes at runtime to avoid circular dependency
-            import serv.routes as routes
+            from . import routes
 
             if isinstance(handler.__self__, routes.Route):
                 route_instance = handler.__self__
@@ -346,7 +347,7 @@ class Router(RouterProtocol):
             return self._build_url_from_path(path, kwargs)
         except ValueError as e:
             # Import routes at runtime to avoid circular dependency
-            import serv.routes as routes
+            from . import routes
 
             if isinstance(handler, type) and issubclass(handler, routes.Route):
                 # For Route classes, try other paths if available

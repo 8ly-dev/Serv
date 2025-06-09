@@ -17,8 +17,7 @@ from typing import Any
 from bevy import Inject
 
 from serv.extensions.middleware import ServMiddleware
-from serv.requests import Request
-from serv.responses import ResponseBuilder
+from serv.http import Request, ResponseBuilder
 
 from .types import AuthResult, AuthStatus, PolicyDecision, RateLimitResult
 from .utils import generate_device_fingerprint

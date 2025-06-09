@@ -14,8 +14,8 @@ Serv is an ASGI-based web framework that emphasizes:
 Quick Start:
     ```python
     from serv import App
-    from serv.routes import Route, GetRequest
-    from serv.responses import TextResponse
+    from serv.routing import Route
+    from serv.http import GetRequest, TextResponse
     from typing import Annotated
 
     # Create the application
@@ -67,7 +67,7 @@ For detailed documentation and examples, visit: https://serv.dev/docs
 """
 
 from serv.app import App
-from serv.routes import handle
+from serv.routing import handle
 from serv.test_client import create_test_app_client
 from serv.websocket import WebSocket
 

@@ -3,7 +3,7 @@ from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv.app import App
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from tests.helpers import EventWatcherExtension, RouteAddingExtension
 
 

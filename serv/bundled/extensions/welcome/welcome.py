@@ -48,7 +48,8 @@ Note:
 
 from typing import Annotated, Any  # Added Any for dict type hint
 
-from serv.routes import GetRequest, Jinja2Response, Route, handle
+from serv.http import GetRequest, Jinja2Response
+from serv.routing import Route, handle
 
 
 class WelcomeRoute(Route):

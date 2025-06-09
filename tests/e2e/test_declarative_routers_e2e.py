@@ -92,7 +92,7 @@ async def {class_name}(response: Inject[ResponseBuilder], **path_params):
 """)
 
             handler_code = f"""
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from bevy import injectable, Inject
 {"".join(handler_functions)}
 """
@@ -409,7 +409,7 @@ from bevy import injectable, Inject
         # Create custom handlers that use the configuration
         handlers_file = extension_dir / "handlers.py"
         handlers_code = """
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from bevy import injectable, Inject
 
 @injectable
@@ -493,7 +493,7 @@ async def PrivateHandler(response: Inject[ResponseBuilder]):
         # Create only the valid handler (not the nonexistent one)
         handlers_file = extension_dir / "handlers.py"
         handlers_code = """
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from bevy import injectable, Inject
 
 @injectable
@@ -569,8 +569,8 @@ async def ValidHandler(response: Inject[ResponseBuilder]):
         # Create handlers that use path parameters
         handlers_file = extension_dir / "handlers.py"
         handlers_code = """
-from serv.responses import ResponseBuilder
-from serv.requests import Request
+from serv.http import ResponseBuilder
+from serv.http import Request
 from bevy import injectable, Inject
 
 @injectable

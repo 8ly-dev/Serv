@@ -14,8 +14,7 @@ from bevy.containers import Container
 from serv.extensions import Listener, on
 from serv.extensions.importer import Importer
 from serv.extensions.loader import ExtensionSpec
-from serv.requests import Request
-from serv.responses import ResponseBuilder
+from serv.http import Request, ResponseBuilder
 from serv.routing import Router
 
 

@@ -40,7 +40,7 @@ def create_declarative_router_plugin(extension_config):
                 module_file = extension_dir / f"{module_name}.py"
                 if not module_file.exists():
                     module_file.write_text(f"""
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from bevy import injectable, Inject
 
 class {class_name}:
@@ -570,7 +570,7 @@ def test_declarative_router_integration_with_app():
     # Create handlers module
     handlers_file = extension_dir / "handlers.py"
     handlers_file.write_text("""
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from bevy import injectable, Inject
 
 class IntegrationHandler:

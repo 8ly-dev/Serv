@@ -31,6 +31,10 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
         # Only inject for modules in your target package
         parts = fullname.split(".")
         if parts[0] != self.directory.name:
+            # Handle potential pip-installed extensions
+            if not path:
+                return None
+
             try:
                 extension_spec = pl.find_extension_spec(Path(path[0]))
             except (FileNotFoundError, IndexError, TypeError):
@@ -67,6 +71,8 @@ class ImporterMetaPathFinder(importlib.abc.MetaPathFinder):
             return importlib.util.spec_from_loader(
                 fullname, ExtensionSourceFileLoader(fullname, str(path), extension_spec)
             )
+
+        return None
 
     @classmethod
     def inject(cls, directory: Path):

@@ -51,7 +51,7 @@ def test_router_implements_protocol():
 
 def test_route_uses_protocols():
     """Test that Route class uses protocols instead of direct imports."""
-    from serv.routes import Route
+    from serv.routing import Route
 
     route = Route()
 
@@ -68,7 +68,7 @@ def test_no_direct_app_import_in_routes():
     import ast
     from pathlib import Path
 
-    routes_file = Path(__file__).parent.parent / "serv" / "routes.py"
+    routes_file = Path(__file__).parent.parent / "serv" / "routing" / "routes.py"
     with open(routes_file) as f:
         tree = ast.parse(f.read())
 
@@ -89,7 +89,7 @@ def test_no_direct_app_import_in_routes():
 def test_framework_functionality_preserved():
     """Test that basic framework functionality still works after refactoring."""
     from serv.app import App
-    from serv.routes import Route, handle
+    from serv.routing import Route, handle
 
     # Test creating an app
     app = App(dev_mode=True)

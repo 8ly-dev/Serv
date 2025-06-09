@@ -132,7 +132,7 @@ class TestCliCommands:
 from serv.extensions import Extension, on
 from bevy import injectable, Inject
 from serv.routing import Router
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 
 class TestExtension(Extension):
     def __init__(self, **kwargs):

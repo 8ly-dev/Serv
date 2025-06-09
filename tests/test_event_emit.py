@@ -6,7 +6,7 @@ from bevy.containers import Container, get_container
 
 from serv.app import EventEmitter
 from serv.extensions import Listener, on
-from serv.routes import Route
+from serv.routing import Route
 
 
 class TestableListener(Listener):

@@ -7,7 +7,7 @@ from urllib.parse import parse_qs
 
 from python_multipart.multipart import parse_options_header
 
-from serv.multipart_parser import MultipartParser
+from ..utils.multipart_parser import MultipartParser
 
 
 @dataclass
@@ -41,8 +41,8 @@ class Request:
         Basic request handling:
 
         ```python
-        from serv.routes import Route, GetRequest, PostRequest
-        from serv.responses import JsonResponse
+        from serv.routing import Route
+        from serv.http import GetRequest, PostRequest, JsonResponse
         from typing import Annotated
 
         class ApiRoute(Route):
@@ -69,7 +69,7 @@ class Request:
         Form data handling:
 
         ```python
-        from serv.routes import Form
+        from serv.utils import Form
 
         class UserForm(Form):
             name: str

@@ -186,8 +186,6 @@ def app_builder():
 @pytest.fixture(autouse=True)
 def mock_find_extension_spec():
     """Mock find_extension_spec to prevent hanging during Route tests."""
-    with (
-        patch("serv.extensions.loader.find_extension_spec", return_value=None),
-        patch("serv.app.App._enable_welcome_extension"),
-    ):
+    # Only mock the App's usage, not the importer's usage
+    with patch("serv.app.App._enable_welcome_extension"):
         yield

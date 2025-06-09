@@ -13,8 +13,8 @@ from serv.auth.decorators import (
     AuthRequirement,
     auth_handle,
 )
-from serv.requests import Request
-from serv.routes import Route
+from serv.http import Request
+from serv.routing import Route
 
 # No specific response imports needed for basic tests
 

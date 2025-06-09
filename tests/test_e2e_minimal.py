@@ -9,7 +9,7 @@ from bevy import Inject, injectable
 
 from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from serv.routing import Router
 from tests.e2e_test_helpers import create_test_client
 

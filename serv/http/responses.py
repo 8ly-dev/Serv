@@ -36,7 +36,7 @@ class ResponseBuilder:
         Basic response:
 
         ```python
-        from serv.responses import ResponseBuilder
+        from serv.http import ResponseBuilder
         from bevy import injectable, Inject
 
         @injectable

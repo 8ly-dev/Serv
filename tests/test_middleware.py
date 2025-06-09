@@ -8,8 +8,7 @@ from serv.app import App
 from serv.exceptions import (
     HTTPNotFoundException,  # For testing middleware error handling
 )
-from serv.requests import Request
-from serv.responses import ResponseBuilder
+from serv.http import Request, ResponseBuilder
 from tests.helpers import RouteAddingExtension, example_header_middleware
 
 

@@ -4,8 +4,7 @@ from httpx import AsyncClient
 
 from serv.app import App
 from serv.exceptions import ServException
-from serv.requests import Request
-from serv.responses import ResponseBuilder
+from serv.http import Request, ResponseBuilder
 from tests.helpers import EventWatcherExtension, RouteAddingExtension
 
 

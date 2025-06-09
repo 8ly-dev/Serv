@@ -1,66 +1,67 @@
 class ServException(Exception):
     """Base exception class for all Serv application errors.
 
-    This is the root exception class for the Serv framework. All framework-specific
-    exceptions inherit from this class, providing a consistent interface for error
-    handling and HTTP status code mapping.
+        This is the root exception class for the Serv framework. All framework-specific
+        exceptions inherit from this class, providing a consistent interface for error
+        handling and HTTP status code mapping.
 
-    Attributes:
-        status_code: HTTP status code associated with this exception (default: 500).
-        message: Human-readable error message.
+        Attributes:
+            status_code: HTTP status code associated with this exception (default: 500).
+            message: Human-readable error message.
 
-    Examples:
-        Creating custom exceptions:
+        Examples:
+            Creating custom exceptions:
 
-        ```python
-        class ValidationError(ServException):
-            status_code = 400
+            ```python
+            class ValidationError(ServException):
+                status_code = 400
 
-            def __init__(self, field: str, value: str):
-                super().__init__(f"Invalid value '{value}' for field '{field}'")
-                self.field = field
-                self.value = value
+                def __init__(self, field: str, value: str):
+                    super().__init__(f"Invalid value '{value}' for field '{field}'")
+                    self.field = field
+                    self.value = value
 
-        class AuthenticationError(ServException):
-            status_code = 401
+            class AuthenticationError(ServException):
+                status_code = 401
 
-            def __init__(self, message: str = "Authentication required"):
-                super().__init__(message)
-        ```
+                def __init__(self, message: str = "Authentication required"):
+                    super().__init__(message)
+            ```
 
-        Using in route handlers:
+            Using in route handlers:
 
-        ```python
-        from serv.routes import Route, PostRequest
-        from serv.exceptions import HTTPBadRequestException
+            ```python
+            from serv.routing import Route
+    from serv.http import PostRequest
+            from serv.exceptions import HTTPBadRequestException
 
-        class UserRoute(Route):
-            async def handle_post(self, request: PostRequest):
-                data = await request.json()
-                if not data.get("email"):
-                    raise HTTPBadRequestException("Email is required")
-                # Process user creation...
-        ```
+            class UserRoute(Route):
+                async def handle_post(self, request: PostRequest):
+                    data = await request.json()
+                    if not data.get("email"):
+                        raise HTTPBadRequestException("Email is required")
+                    # Process user creation...
+            ```
 
-        Handling in error handlers:
+            Handling in error handlers:
 
-        ```python
-        from bevy import injectable, Inject
+            ```python
+            from bevy import injectable, Inject
 
-        @injectable
-        async def custom_error_handler(
-            error: ServException,
-            response: Inject[ResponseBuilder]
-        ):
-            response.set_status(error.status_code)
-            response.content_type("application/json")
-            response.body({
-                "error": error.message,
-                "status_code": error.status_code
-            })
+            @injectable
+            async def custom_error_handler(
+                error: ServException,
+                response: Inject[ResponseBuilder]
+            ):
+                response.set_status(error.status_code)
+                response.content_type("application/json")
+                response.body({
+                    "error": error.message,
+                    "status_code": error.status_code
+                })
 
-        app.add_error_handler(ServException, custom_error_handler)
-        ```
+            app.add_error_handler(ServException, custom_error_handler)
+            ```
     """
 
     status_code = 500  # Default status code
@@ -81,31 +82,32 @@ class ServException(Exception):
 class HTTPNotFoundException(ServException):
     """Raised when a requested route or resource is not found (HTTP 404).
 
-    This exception is automatically raised by the router when no matching
-    route is found for the requested path. It can also be raised manually
-    in route handlers when a specific resource is not found.
+        This exception is automatically raised by the router when no matching
+        route is found for the requested path. It can also be raised manually
+        in route handlers when a specific resource is not found.
 
-    Examples:
-        Automatic usage by router:
+        Examples:
+            Automatic usage by router:
 
-        ```python
-        # GET /nonexistent-path -> HTTPNotFoundException
-        ```
+            ```python
+            # GET /nonexistent-path -> HTTPNotFoundException
+            ```
 
-        Manual usage in route handlers:
+            Manual usage in route handlers:
 
-        ```python
-        from serv.routes import Route, GetRequest
-        from serv.exceptions import HTTPNotFoundException
+            ```python
+            from serv.routing import Route
+    from serv.http import GetRequest
+            from serv.exceptions import HTTPNotFoundException
 
-        class UserRoute(Route):
-            async def handle_get(self, request: GetRequest):
-                user_id = request.path_params.get("id")
-                user = await self.get_user(user_id)
-                if not user:
-                    raise HTTPNotFoundException(f"User {user_id} not found")
-                return user
-        ```
+            class UserRoute(Route):
+                async def handle_get(self, request: GetRequest):
+                    user_id = request.path_params.get("id")
+                    user = await self.get_user(user_id)
+                    if not user:
+                        raise HTTPNotFoundException(f"User {user_id} not found")
+                    return user
+            ```
     """
 
     status_code = 404
@@ -163,7 +165,8 @@ class HTTPBadRequestException(ServException):
         Validation errors:
 
         ```python
-        from serv.routes import Route, PostRequest
+        from serv.routing import Route
+        from serv.http import PostRequest
         from serv.exceptions import HTTPBadRequestException
 
         class UserRoute(Route):

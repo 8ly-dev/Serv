@@ -11,8 +11,8 @@ from httpx import AsyncClient
 
 from serv.app import App
 from serv.extensions import Extension, on
-from serv.routes import JsonResponse, PostRequest, Route, handle
-from serv.routing import Router
+from serv.http import JsonResponse, PostRequest
+from serv.routing import Route, Router, handle
 
 
 # Extension to add Route classes

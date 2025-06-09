@@ -18,9 +18,8 @@ from serv.bundled.auth.limiters.memory_limiter import MemoryRateLimiter
 from serv.bundled.auth.providers.jwt_provider import JWTAuthProvider
 from serv.bundled.auth.storage.ommi_storage import OmmiSessionStorage
 from serv.bundled.auth.vaults.bcrypt_vault import BcryptCredentialVault
-from serv.requests import GetRequest, PostRequest
-from serv.responses import JsonResponse
-from serv.routes import Route, handle
+from serv.http import GetRequest, JsonResponse, PostRequest
+from serv.routing import Route, handle
 
 # =============================================================================
 # EXAMPLE 1: BASIC AUTHENTICATION SETUP

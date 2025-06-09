@@ -6,7 +6,7 @@ import pytest
 import pytest_asyncio
 
 from serv.app import App
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from tests.e2e.helpers import AppBuilder, create_test_client
 
 

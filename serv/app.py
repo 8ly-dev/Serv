@@ -32,10 +32,9 @@ from serv.exceptions import HTTPMethodNotAllowedException, ServException
 from serv.extensions import Listener
 from serv.extensions.importer import Importer
 from serv.extensions.loader import ExtensionLoader
+from serv.http import Request, ResponseBuilder
 from serv.injectors import inject_request_object, inject_websocket_object
 from serv.protocols import AppContextProtocol, EventEmitterProtocol, RouterProtocol
-from serv.requests import Request
-from serv.responses import ResponseBuilder
 from serv.routing import HTTPNotFoundException, Router
 
 logger = logging.getLogger(__name__)
@@ -333,7 +332,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
 
             ```python
             from serv.exceptions import HTTPNotFoundException
-            from serv.responses import ResponseBuilder
+            from serv.http import ResponseBuilder
             from bevy import injectable, Inject
 
             @injectable
@@ -409,7 +408,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
 
             ```python
             import logging
-            from serv.requests import Request
+            from serv.http import Request
             from bevy import injectable, Inject
 
             @injectable

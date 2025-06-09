@@ -133,7 +133,7 @@ async def {class_name}(response: Inject[ResponseBuilder]):
 """)
 
             handler_code = f"""
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from bevy import injectable, Inject
 {"".join(handler_functions)}
 """
@@ -458,9 +458,7 @@ from bevy import injectable, Inject
 
         # The command should attempt to instantiate the app
         # Even if it fails, it should show that it's trying to load plugins
-        assert (
-            "Instantiating App" in stdout or "launch_test_extension" in stdout.lower()
-        )
+        assert "Creating App" in stdout or "launch_test_extension" in stdout.lower()
 
     def test_cli_plugin_structure_with_declarative_routers(self, cli_project_dir):
         """Test that CLI-created plugin structure supports declarative routers."""
@@ -493,7 +491,7 @@ from bevy import injectable, Inject
 
         # Create main.py with the handler
         main_code = """
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from bevy import injectable, Inject
 
 class StructureTestHandler:

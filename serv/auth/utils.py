@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from serv.requests import Request
+    from serv.http import Request
 
 
 class MinimumRuntime:

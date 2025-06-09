@@ -118,7 +118,7 @@ from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
 from bevy import injectable, Inject
 from serv.routing import Router
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 
 class {plugin_name.replace("_", " ").title().replace(" ", "")}Extension(Extension):
     @on("app.request.begin")
@@ -183,7 +183,7 @@ async def {middleware_name}_middleware(handler):
         from bevy import Inject, injectable
 
         from serv.extensions import Extension, on
-        from serv.responses import ResponseBuilder
+        from serv.http import ResponseBuilder
         from serv.routing import Router
         from tests.helpers import create_test_extension_spec
 

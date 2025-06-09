@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from serv.multipart_parser import (
+from serv.utils.multipart_parser import (
     DEFAULT_MULTIPART_CONFIG,
     MultipartParser,
     MultipartParserError,
@@ -415,7 +415,9 @@ async def test_malformed_content_disposition_rejected(
     # This is the function imported and used by your MultipartParser.
     # Ensure the path to the patched object is where it is *looked up*,
     # which is in the module where it's imported and used.
-    mocked_parse_options = mocker.patch("serv.multipart_parser.parse_options_header")
+    mocked_parse_options = mocker.patch(
+        "serv.utils.multipart_parser.parse_options_header"
+    )
     mocked_parse_options.side_effect = ValueError("Simulated parsing error")
 
     with pytest.raises(ValueError, match="Simulated parsing error"):

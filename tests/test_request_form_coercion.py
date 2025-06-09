@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from serv.requests import Request
+from serv.http import Request
 
 
 # Helper to simulate ASGI receive channel for form data

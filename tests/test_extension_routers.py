@@ -10,7 +10,7 @@ from bevy.registries import Registry
 
 from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
-from serv.responses import ResponseBuilder
+from serv.http import ResponseBuilder
 from serv.routing import Router
 
 
@@ -34,7 +34,7 @@ def create_plugin_with_config(extension_config):
     ):
         handlers_file = extension_dir / "handlers.py"
         handlers_file.write_text(
-            """from serv.responses import ResponseBuilder
+            """from serv.http import ResponseBuilder
 async def sample_handler(response: ResponseBuilder):
     response.body('Hello from plugin')
 """
@@ -198,16 +198,19 @@ async def test_extension_router_mounting():
     api_router = Router()
     container.instances[Router] = main_router
 
-    # Mount the API router
+    # Mount the API router - this is application setup, not extension setup
     main_router.mount("/api", api_router)
 
-    # Add routes to both routers
+    # Extensions only get called once with the main router in the container
+    # The event should only be called once per request, not per router
     await plugin.on("app.request.begin", container=container, router=main_router)
-    await plugin.on("app.request.begin", container=container, router=api_router)
 
-    # Verify routers were created
+    # Verify the extension added its route to the main router
     assert len(main_router._routes) == 1
-    assert len(api_router._routes) == 1
+
+    # The api_router should not have routes added by this extension
+    # since it wasn't the router in the container during app.request.begin
+    assert len(api_router._routes) == 0
 
     # Check that the main router has the api router mounted
     assert len(main_router._mounted_routers) == 1

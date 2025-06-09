@@ -5,7 +5,8 @@ from bevy.containers import Container
 from bevy.hooks import hooks
 from tramp.optionals import Optional
 
-from serv.requests import Request
+from serv.http import Request
+from serv.utils import is_subclass_of
 
 
 class _Marker:
@@ -71,7 +72,7 @@ def inject_websocket_object(
     from serv.websocket import FrameType, WebSocket
 
     # Handle plain WebSocket type
-    if isinstance(annotation, type) and issubclass(annotation, WebSocket):
+    if is_subclass_of(annotation, WebSocket):
         if websocket := container.get_optional(annotation):
             return websocket
 
