@@ -146,10 +146,10 @@ class AuditLogger(ABC):
             ```python
             async def query_events(
                 self,
-                filters: Dict[str, Any],
-                limit: Optional[int] = None,
-                offset: Optional[int] = None
-            ) -> List[AuditEvent]:
+                filters: dict[str, Any],
+                limit: int | None = None,
+                offset: int | None = None
+            ) -> list[AuditEvent]:
                 # Validate query permissions
                 await self._validate_query_permissions(filters)
 

@@ -101,9 +101,9 @@ class RoleRegistry(ABC):
             async def define_role(
                 self,
                 role_name: str,
-                permissions: Set[str],
-                description: Optional[str] = None,
-                metadata: Optional[Dict[str, Any]] = None
+                permissions: set[str],
+                description: str | None = None,
+                metadata: dict[str, Any] | None = None
             ) -> Role:
                 # Validate role name
                 if not self._is_valid_role_name(role_name):

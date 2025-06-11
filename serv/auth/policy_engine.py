@@ -95,7 +95,7 @@ class PolicyEngine(ABC):
             ```python
             async def evaluate(
                 self,
-                user_context: Dict[str, Any],
+                user_context: dict[str, Any],
                 action_descriptor: str
             ) -> PolicyDecision:
                 # Parse action descriptor
@@ -168,7 +168,7 @@ class PolicyEngine(ABC):
             async def register_policy(
                 self,
                 policy_name: str,
-                policy_func: Callable[[Dict[str, Any], str], PolicyDecision]
+                policy_func: Callable[[dict[str, Any], str], PolicyDecision]
             ) -> None:
                 if policy_name in self._registered_policies:
                     raise ValueError(f"Policy already registered: {policy_name}")

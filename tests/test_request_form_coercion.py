@@ -371,7 +371,7 @@ async def test_form_coercion_list_any_type():
     form_values = {"items": ["text", "123", "True", "0.5"]}
     request = await create_request_with_form_data(form_values)
     model_instance = await request.form(model=ListAnyModel)
-    # For List[Any], items should remain strings as received from the form
+    # For list[Any], items should remain strings as received from the form
     assert model_instance.items == ["text", "123", "True", "0.5"]
 
 
@@ -396,7 +396,7 @@ async def test_form_coercion_any_field_type_empty_optional():
     request = await create_request_with_form_data(form_values)
     model_instance = await request.form(model=AnyFieldModel)
     assert model_instance.field_a == "another"
-    # Optional[Any] with empty string should become None due to _coerce_value Union logic first
+    # Any | None with empty string should become None due to _coerce_value union logic first
     assert model_instance.field_b is None
 
 

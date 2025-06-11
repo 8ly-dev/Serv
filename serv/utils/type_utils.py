@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from types import NoneType, UnionType
-from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 
 class AnnotationEvaluationError(Exception):
@@ -39,10 +39,8 @@ def get_safe_type_hints(callable_obj, *, include_extras: bool = False) -> dict:
 
 
 def normalized_origin(annotation: Any) -> Any:
-    """Get normalized origin type, handling UnionType vs Union differences."""
+    """Get normalized origin type, handling UnionType differences."""
     origin = get_origin(annotation)
-    if origin is UnionType:
-        return Union
     return origin
 
 
@@ -51,7 +49,7 @@ def is_optional(annotation: Any) -> bool:
     origin = normalized_origin(annotation)
     if origin is list:
         return True
-    if origin is Union and NoneType in get_args(annotation):
+    if origin is UnionType and NoneType in get_args(annotation):
         return True
     return False
 

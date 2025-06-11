@@ -2,7 +2,7 @@ import io
 import json
 from dataclasses import dataclass
 from types import UnionType
-from typing import Any, Union, get_args, get_origin
+from typing import Any, get_args, get_origin
 from urllib.parse import parse_qs
 
 from python_multipart.multipart import parse_options_header
@@ -263,7 +263,7 @@ class Request:
         type_args = get_args(target_type)
 
         if (
-            origin_type is Union or origin_type is UnionType
+            origin_type is UnionType
         ):  # Handles Optional[T] as Union[T, NoneType]
             # If empty string and None is an option, return None directly.
             if value == "" and type(None) in type_args:
@@ -285,7 +285,7 @@ class Request:
                 pass  # Let it fall through to the final raise if it was not coercible to non-None types
 
             raise ValueError(
-                f"Cannot coerce {value!r} to any type in Union {target_type}"
+                f"Cannot coerce {value!r} to any type in union {target_type}"
             )
 
         if target_type is Any:  # If type is Any, return the string value directly
@@ -391,8 +391,6 @@ class Request:
             # Robust check for list types
             is_list_expected = (
                 field_type is list
-                or field_type is list
-                or origin_type is list
                 or origin_type is list
             )
 

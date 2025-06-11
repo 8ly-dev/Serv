@@ -97,9 +97,9 @@ class TokenService(ABC):
             ```python
             async def generate_token(
                 self,
-                payload: Dict[str, Any],
+                payload: dict[str, Any],
                 token_type: str = "access",
-                expires_in: Optional[int] = None
+                expires_in: int | None = None
             ) -> Token:
                 # Validate payload
                 self._validate_payload(payload)
@@ -154,7 +154,7 @@ class TokenService(ABC):
 
         Example:
             ```python
-            async def validate_token(self, token_str: str) -> Optional[Token]:
+            async def validate_token(self, token_str: str) -> Token | None:
                 async with timing_protection(0.5):  # Prevent enumeration
                     if not token_str:
                         return None
@@ -210,7 +210,7 @@ class TokenService(ABC):
 
         Example:
             ```python
-            async def refresh_token(self, refresh_token: str) -> Optional[Token]:
+            async def refresh_token(self, refresh_token: str) -> Token | None:
                 async with timing_protection(1.0):
                     # Validate refresh token
                     refresh_token_obj = await self.validate_token(refresh_token)

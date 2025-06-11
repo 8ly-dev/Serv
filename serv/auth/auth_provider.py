@@ -89,7 +89,7 @@ class AuthProvider(ABC):
 
         Example:
             ```python
-            async def initiate_auth(self, request_context: Dict[str, Any]) -> AuthResult:
+            async def initiate_auth(self, request_context: dict[str, Any]) -> AuthResult:
                 async with timing_protection(2.0):  # Prevent timing attacks
                     username = request_context.get("username")
                     password = request_context.get("password")
@@ -145,7 +145,7 @@ class AuthProvider(ABC):
 
         Example:
             ```python
-            async def validate_credential(self, credential_payload: Dict[str, Any]) -> ValidationResult:
+            async def validate_credential(self, credential_payload: dict[str, Any]) -> ValidationResult:
                 async with timing_protection(1.0):
                     token = credential_payload.get("credential")
 
@@ -193,7 +193,7 @@ class AuthProvider(ABC):
 
         Example:
             ```python
-            async def refresh_session(self, session_data: Dict[str, Any]) -> RefreshResult:
+            async def refresh_session(self, session_data: dict[str, Any]) -> RefreshResult:
                 async with timing_protection(1.0):
                     refresh_token = session_data.get("refresh_token")
 

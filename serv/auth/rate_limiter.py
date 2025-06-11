@@ -198,7 +198,7 @@ class RateLimiter(ABC):
 
         Example:
             ```python
-            async def reset_limits(self, identifier: str, action: Optional[str] = None) -> None:
+            async def reset_limits(self, identifier: str, action: str | None = None) -> None:
                 if action:
                     # Reset specific action
                     await self._clear_usage(identifier, action)
