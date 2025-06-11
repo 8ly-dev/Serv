@@ -12,7 +12,6 @@ from typing import Annotated
 from bevy import Inject
 
 from serv.app import App
-from serv.auth.decorators import auth_handle
 from serv.auth.middleware import AuthenticationMiddleware, AuthorizationMiddleware
 from serv.bundled.auth.limiters.memory_limiter import MemoryRateLimiter
 from serv.bundled.auth.providers.jwt_provider import JWTAuthProvider
@@ -105,12 +104,39 @@ class AuthenticationExample:
 
 
 # =============================================================================
-# EXAMPLE 2: ROUTE PROTECTION WITH DECORATORS
+# EXAMPLE 2: ROUTE PROTECTION WITH DECLARATIVE CONFIGURATION
 # =============================================================================
+
+"""
+Serv uses declarative configuration in extension.yaml to specify authentication
+requirements rather than decorators. Here's how you would configure routes:
+
+extension.yaml:
+```yaml
+name: "my_api"
+version: "1.0.0" 
+routers:
+  - path: "/api"
+    router_class: "ProtectedRoutes"
+    auth:
+      require_auth: true
+      routes:
+        - path: "/admin"
+          require_permission: "admin"
+        - path: "/moderator"
+          require_role: "moderator"
+        - path: "/multi-perm"
+          require_permissions: ["read", "write"]
+        - path: "/optional"
+          auth_optional: true
+```
+
+Then your route classes are simple, focused on business logic:
+"""
 
 
 class ProtectedRoutes(Route):
-    """Example routes with various authentication requirements."""
+    """Example routes with declarative authentication requirements."""
 
     @handle.GET
     async def public_endpoint(
@@ -122,35 +148,32 @@ class ProtectedRoutes(Route):
             "timestamp": datetime.now().isoformat(),
         }
 
-    @auth_handle.authenticated()
     @handle.GET
     async def protected_endpoint(
         self, request: GetRequest
     ) -> Annotated[dict, JsonResponse]:
-        """Protected endpoint - authentication required."""
+        """Protected endpoint - auth configured in extension.yaml."""
         user_id = request.user_context.get("user_id", "unknown")
         return {
             "message": f"Hello, {user_id}! This is a protected endpoint.",
             "user_context": request.user_context,
         }
 
-    @auth_handle.with_permission("admin")
     @handle.GET
     async def admin_endpoint(
         self, request: GetRequest
     ) -> Annotated[dict, JsonResponse]:
-        """Admin-only endpoint - requires 'admin' permission."""
+        """Admin-only endpoint - 'admin' permission configured in extension.yaml."""
         return {
             "message": "Admin access granted",
             "admin_data": {"users": 100, "active_sessions": 25},
         }
 
-    @auth_handle.with_role("moderator")
     @handle.POST
     async def moderator_action(
         self, request: PostRequest
     ) -> Annotated[dict, JsonResponse]:
-        """Moderator action - requires 'moderator' role."""
+        """Moderator action - 'moderator' role configured in extension.yaml."""
         data = await request.json()
         return {
             "message": "Moderator action completed",
@@ -158,23 +181,21 @@ class ProtectedRoutes(Route):
             "performed_by": request.user_context.get("user_id"),
         }
 
-    @auth_handle.with_permissions(["read", "write"])
     @handle.PUT
     async def multi_permission_endpoint(
         self, request: PostRequest
     ) -> Annotated[dict, JsonResponse]:
-        """Endpoint requiring multiple permissions."""
+        """Endpoint requiring multiple permissions - configured in extension.yaml."""
         return {
             "message": "Multi-permission access granted",
             "permissions": ["read", "write"],
         }
 
-    @auth_handle.optional_auth()
     @handle.GET
     async def optional_auth_endpoint(
         self, request: GetRequest
     ) -> Annotated[dict, JsonResponse]:
-        """Endpoint with optional authentication - works for both authenticated and anonymous users."""
+        """Endpoint with optional authentication - configured in extension.yaml."""
         if hasattr(request, "user_context") and request.user_context:
             return {
                 "message": f"Welcome back, {request.user_context.get('user_id')}!",
@@ -292,14 +313,13 @@ class AuthRoutes(Route):
         except Exception:
             return {"error": "Registration service error"}, 500
 
-    @auth_handle.authenticated()
     @handle.POST
     async def logout(
         self,
         request: PostRequest,
         session_storage: Inject[OmmiSessionStorage] = None,
     ) -> Annotated[dict, JsonResponse]:
-        """Logout endpoint - invalidates session."""
+        """Logout endpoint - authentication configured in extension.yaml."""
         try:
             # In a full implementation, you might want to blacklist the JWT token
             # For now, we'll just return success
@@ -440,7 +460,7 @@ To use these examples in your Serv application:
    );
    ```
 
-5. Use the route decorators and middleware as shown in the examples above.
+5. Configure authentication requirements in your extension.yaml as shown in the examples above.
 
 For more advanced configurations, see the config_examples.yaml file.
 """

@@ -226,7 +226,7 @@ See `examples/config_examples.yaml` for comprehensive configuration examples inc
 See `examples/usage_examples.py` for complete code examples including:
 
 - Basic authentication setup
-- Route protection with decorators
+- Route protection with declarative configuration
 - Login/logout implementation
 - Middleware configuration
 - Testing authentication flows
