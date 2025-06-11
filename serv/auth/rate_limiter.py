@@ -211,6 +211,7 @@ class RateLimiter(ABC):
         """
         pass
 
+    @abstractmethod
     async def get_limit_info(self, action: str) -> dict[str, Any]:
         """
         Get rate limit configuration for an action.
@@ -224,9 +225,9 @@ class RateLimiter(ABC):
         Returns:
             Dictionary with limit configuration
         """
-        # Default implementation - providers should override
-        return {}
+        pass
 
+    @abstractmethod
     async def get_top_offenders(
         self, action: str, limit: int = 10
     ) -> list[dict[str, Any]]:
@@ -243,8 +244,7 @@ class RateLimiter(ABC):
         Returns:
             List of usage information for top identifiers
         """
-        # Default implementation - providers should override
-        return []
+        pass
 
     def _parse_limit_string(self, limit_str: str) -> dict[str, Any]:
         """
@@ -331,6 +331,7 @@ class RateLimiter(ABC):
 
         return int((reset_time - now).total_seconds())
 
+    @abstractmethod
     async def cleanup_expired_limits(self) -> int:
         """
         Clean up expired rate limit data.
@@ -341,8 +342,7 @@ class RateLimiter(ABC):
         Returns:
             Number of expired entries cleaned up
         """
-        # Default implementation - providers should override
-        return 0
+        pass
 
     @abstractmethod
     async def cleanup(self) -> None:

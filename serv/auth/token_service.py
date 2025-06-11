@@ -270,6 +270,7 @@ class TokenService(ABC):
         """
         pass
 
+    @abstractmethod
     async def revoke_user_tokens(
         self, user_id: str, token_type: str | None = None
     ) -> int:
@@ -286,16 +287,9 @@ class TokenService(ABC):
         Returns:
             Number of tokens that were revoked
         """
-        # Default implementation - providers should override for efficiency
-        count = 0
-        user_tokens = await self._get_user_tokens(user_id, token_type)
+        pass
 
-        for token in user_tokens:
-            if await self.revoke_token(token.token_value):
-                count += 1
-
-        return count
-
+    @abstractmethod
     async def cleanup_expired_tokens(self) -> int:
         """
         Clean up expired tokens from storage.
@@ -306,17 +300,14 @@ class TokenService(ABC):
         Returns:
             Number of tokens cleaned up
         """
-        # Default implementation - providers should override
-        return 0
+        pass
 
+    @abstractmethod
     async def _get_user_tokens(
         self, user_id: str, token_type: str | None = None
     ) -> list[Token]:
         """
         Get all tokens for a user.
-
-        Default implementation returns empty list.
-        Providers should override to implement user token lookup.
 
         Args:
             user_id: User ID to search for
@@ -325,7 +316,7 @@ class TokenService(ABC):
         Returns:
             List of user's tokens
         """
-        return []
+        pass
 
     def _validate_payload(self, payload: dict[str, Any]) -> None:
         """

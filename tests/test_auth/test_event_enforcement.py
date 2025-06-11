@@ -64,6 +64,18 @@ class TestEventEmissionEnforcer:
             
             async def cleanup(self):
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         vault = TestVault({})
         
@@ -103,6 +115,18 @@ class TestEventEmissionEnforcer:
                 return True
             async def cleanup(self):
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         vault = TestVault({})
         vault._get_required_events_for_method(TestVault, "store_credential")
@@ -154,6 +178,18 @@ class TestCredentialVaultEnforcement:
             
             async def cleanup(self):
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         vault = TestVault({})
         
@@ -188,6 +224,18 @@ class TestCredentialVaultEnforcement:
             
             async def cleanup(self):
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         vault = TestVault({})
         
@@ -231,6 +279,18 @@ class TestCredentialVaultEnforcement:
             
             async def cleanup(self):
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         vault = TestVault({})
         
@@ -270,6 +330,18 @@ class TestCredentialVaultEnforcement:
             
             async def cleanup(self):
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         vault = TestVault({})
         
@@ -313,6 +385,18 @@ class TestSessionManagerEnforcement:
             
             async def cleanup(self):
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         manager = TestSessionManager({})
         
@@ -358,6 +442,18 @@ class TestSessionManagerEnforcement:
             async def cleanup(self):
                 # This method doesn't have ReturnsAndEmits annotation, so no enforcement
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         manager = TestSessionManager({})
         
@@ -404,6 +500,18 @@ class TestEventEnforcementEdgeCases:
             
             async def cleanup(self):
                 pass
+            
+            async def extend_session(self, session_id, additional_seconds):
+                return False
+            
+            async def get_user_credentials(self, user_id, credential_type=None, active_only=True):
+                return []
+            
+            async def cleanup_expired_credentials(self):
+                return 0
+            
+            async def _get_encryption_key(self):
+                return b"test_key"
         
         vault = TestVault({})
         

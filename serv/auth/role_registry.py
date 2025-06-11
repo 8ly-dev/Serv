@@ -312,6 +312,7 @@ class RoleRegistry(ABC):
         """
         pass
 
+    @abstractmethod
     async def define_permission(
         self,
         permission_name: str,
@@ -323,9 +324,6 @@ class RoleRegistry(ABC):
         """
         Define a new permission.
 
-        Default implementation that can be overridden by providers
-        that support dynamic permission definition.
-
         Args:
             permission_name: Unique permission name
             description: Human-readable description
@@ -336,17 +334,7 @@ class RoleRegistry(ABC):
         Returns:
             Created Permission object
         """
-        permission = Permission(
-            name=permission_name,
-            description=description,
-            resource_type=resource_type,
-            action=action,
-            metadata=metadata or {},
-        )
-
-        # Default implementation just returns the permission
-        # Providers should override to store it
-        return permission
+        pass
 
     def on_role_change(self, callback: Callable[[str, str, str], None]) -> None:
         """

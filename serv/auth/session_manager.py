@@ -279,12 +279,10 @@ class SessionManager(ABC):
         """
         pass
 
+    @abstractmethod
     async def extend_session(self, session_id: str, additional_seconds: int) -> bool:
         """
         Extend session expiration time.
-
-        Default implementation that can be overridden by providers
-        that support session extension.
 
         Args:
             session_id: Session to extend
@@ -293,8 +291,7 @@ class SessionManager(ABC):
         Returns:
             True if session was extended, False if not found
         """
-        # Default implementation - providers can override
-        return False
+        pass
 
     def get_session_timeout(self) -> int:
         """

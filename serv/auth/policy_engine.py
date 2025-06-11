@@ -186,14 +186,12 @@ class PolicyEngine(ABC):
         """
         pass
 
+    @abstractmethod
     async def bulk_evaluate(
         self, user_context: dict[str, Any], action_descriptors: list[str]
     ) -> dict[str, PolicyDecision]:
         """
         Evaluate multiple actions in a single call.
-
-        Default implementation that calls evaluate() for each action.
-        Providers can override for more efficient batch processing.
 
         Args:
             user_context: User information
@@ -202,17 +200,12 @@ class PolicyEngine(ABC):
         Returns:
             Dictionary mapping action descriptors to decisions
         """
-        results = {}
-        for action in action_descriptors:
-            results[action] = await self.evaluate(user_context, action)
-        return results
+        pass
 
+    @abstractmethod
     async def get_user_permissions(self, user_context: dict[str, Any]) -> set[str]:
         """
         Get all permissions available to a user.
-
-        Default implementation returns permissions from user context.
-        Providers can override to compute permissions dynamically.
 
         Args:
             user_context: User information
@@ -220,22 +213,12 @@ class PolicyEngine(ABC):
         Returns:
             Set of permission strings
         """
-        permissions = set(user_context.get("permissions", []))
+        pass
 
-        # Add role-based permissions
-        roles = user_context.get("roles", [])
-        for role in roles:
-            role_permissions = await self._get_role_permissions(role)
-            permissions.update(role_permissions)
-
-        return permissions
-
+    @abstractmethod
     async def _get_role_permissions(self, role: str) -> set[str]:
         """
         Get permissions for a specific role.
-
-        Default implementation returns empty set.
-        Providers should override to integrate with role registry.
 
         Args:
             role: Role name
@@ -243,7 +226,7 @@ class PolicyEngine(ABC):
         Returns:
             Set of permissions for the role
         """
-        return set()
+        pass
 
     def get_supported_actions(self) -> list[str]:
         """

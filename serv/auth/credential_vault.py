@@ -325,6 +325,7 @@ class CredentialVault(ABC):
         """
         pass
 
+    @abstractmethod
     async def get_user_credentials(
         self, user_id: str, credential_type: str | None = None, active_only: bool = True
     ) -> list[Credential]:
@@ -342,8 +343,7 @@ class CredentialVault(ABC):
         Returns:
             List of Credential objects (metadata only)
         """
-        # Default implementation - providers should override
-        return []
+        pass
 
     async def revoke_user_credentials(
         self, user_id: str, credential_type: str | None = None
@@ -369,6 +369,7 @@ class CredentialVault(ABC):
 
         return count
 
+    @abstractmethod
     async def cleanup_expired_credentials(self) -> int:
         """
         Clean up expired credentials.
@@ -379,8 +380,7 @@ class CredentialVault(ABC):
         Returns:
             Number of credentials cleaned up
         """
-        # Default implementation - providers should override
-        return 0
+        pass
 
     def get_supported_credential_types(self) -> list[str]:
         """
@@ -403,22 +403,17 @@ class CredentialVault(ABC):
         """
         return credential_type in self.get_supported_credential_types()
 
+    @abstractmethod
     async def _get_encryption_key(self) -> bytes:
         """
         Get encryption key for credential data.
 
-        Default implementation raises NotImplementedError.
         Providers must implement secure key management.
 
         Returns:
             Encryption key bytes
-
-        Raises:
-            NotImplementedError: If not implemented by provider
         """
-        raise NotImplementedError(
-            "Encryption key management must be implemented by provider"
-        )
+        pass
 
     @abstractmethod
     async def cleanup(self) -> None:

@@ -2,6 +2,7 @@
 Pytest configuration and shared fixtures for auth tests.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -177,6 +178,16 @@ class MockSessionManager(SessionManager):
             del self.sessions[session_id]
 
         return count
+
+    async def extend_session(self, session_id: str, additional_seconds: int) -> bool:
+        session = self.sessions.get(session_id)
+        if session and not session.is_expired():
+            # Extend the session expiration time
+            session.expires_at = datetime.fromtimestamp(
+                session.expires_at.timestamp() + additional_seconds, UTC
+            )
+            return True
+        return False
 
     async def cleanup(self) -> None:
         self.sessions.clear()
