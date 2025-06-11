@@ -14,7 +14,7 @@ Security considerations:
 from abc import ABC, abstractmethod
 from typing import Any
 
-from .types import Session
+from .types import ReturnsAndEmits, Session
 
 
 class SessionManager(ABC):
@@ -69,7 +69,7 @@ class SessionManager(ABC):
         user_context: dict[str, Any],
         fingerprint: str,
         timeout_seconds: int | None = None,
-    ) -> Session:
+    ) -> ReturnsAndEmits[Session, ("session_created", "session_creation_failed")]:
         """
         Create a new user session.
 
@@ -100,7 +100,7 @@ class SessionManager(ABC):
                 self,
                 user_context: Dict[str, Any],
                 fingerprint: str,
-                timeout_seconds: Optional[int] = None
+                timeout_seconds: int | None = None
             ) -> Session:
                 # Validate no sensitive data in user_context
                 self._validate_user_context(user_context)
@@ -130,7 +130,9 @@ class SessionManager(ABC):
     @abstractmethod
     async def validate_session(
         self, session_id: str, fingerprint: str
-    ) -> Session | None:
+    ) -> ReturnsAndEmits[
+        Session | None, ("session_validated", "session_validation_failed")
+    ]:
         """
         Validate an existing session.
 
@@ -157,7 +159,7 @@ class SessionManager(ABC):
                 self,
                 session_id: str,
                 fingerprint: str
-            ) -> Optional[Session]:
+            ) -> Session | None:
                 async with timing_protection(0.5):  # Prevent enumeration
                     # Retrieve session from storage
                     session = await self._get_session(session_id)
@@ -188,7 +190,9 @@ class SessionManager(ABC):
         pass
 
     @abstractmethod
-    async def invalidate_session(self, session_id: str) -> bool:
+    async def invalidate_session(
+        self, session_id: str
+    ) -> ReturnsAndEmits[bool, ("session_invalidated", "session_invalidation_failed")]:
         """
         Invalidate a specific session.
 

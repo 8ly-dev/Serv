@@ -14,7 +14,25 @@ import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any
+
+# Type annotation for methods that must emit specific events
+# Following the pattern from the user's scratch file
+type ReturnsAndEmits[T, E: tuple[str]] = Annotated[T, E]
+type Emits[*Events] = Annotated[None, Events]
+
+
+class AuthEventEmissionError(Exception):
+    """Raised when required auth events are not emitted by a method."""
+
+    def __init__(self, method_name: str, required_events: set[str]):
+        self.method_name = method_name
+        self.missing_events = required_events  # Keep for backwards compatibility
+        self.required_events = required_events
+        events_str = ", ".join(sorted(required_events))
+        super().__init__(
+            f"Method '{method_name}' must emit at least one of the required events: {events_str}"
+        )
 
 
 class AuthStatus(Enum):

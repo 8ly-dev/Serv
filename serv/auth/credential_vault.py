@@ -14,7 +14,7 @@ Security considerations:
 from abc import ABC, abstractmethod
 from typing import Any
 
-from .types import Credential
+from .types import Credential, ReturnsAndEmits
 
 
 class CredentialVault(ABC):
@@ -71,7 +71,7 @@ class CredentialVault(ABC):
         data: bytes,
         metadata: dict[str, Any] | None = None,
         expires_in: int | None = None,
-    ) -> str:
+    ) -> ReturnsAndEmits[str, ("credential_stored", "credential_store_failed")]:
         """
         Store a credential securely.
 
@@ -105,8 +105,8 @@ class CredentialVault(ABC):
                 user_id: str,
                 credential_type: str,
                 data: bytes,
-                metadata: Optional[Dict[str, Any]] = None,
-                expires_in: Optional[int] = None
+                metadata: dict[str, Any] | None = None,
+                expires_in: int | None = None
             ) -> str:
                 # Validate inputs
                 if not data:
@@ -145,7 +145,11 @@ class CredentialVault(ABC):
         pass
 
     @abstractmethod
-    async def verify_credential(self, credential_id: str, input_data: bytes) -> bool:
+    async def verify_credential(
+        self, credential_id: str, input_data: bytes
+    ) -> ReturnsAndEmits[
+        bool, ("credential_verified", "credential_verification_failed")
+    ]:
         """
         Verify credential against stored value.
 
@@ -219,7 +223,7 @@ class CredentialVault(ABC):
         credential_id: str,
         new_data: bytes,
         metadata: dict[str, Any] | None = None,
-    ) -> bool:
+    ) -> ReturnsAndEmits[bool, ("credential_updated", "credential_update_failed")]:
         """
         Update an existing credential.
 
@@ -246,7 +250,7 @@ class CredentialVault(ABC):
                 self,
                 credential_id: str,
                 new_data: bytes,
-                metadata: Optional[Dict[str, Any]] = None
+                metadata: dict[str, Any] | None = None
             ) -> bool:
                 # Get existing credential
                 credential = await self._get_credential(credential_id)
@@ -278,7 +282,9 @@ class CredentialVault(ABC):
         pass
 
     @abstractmethod
-    async def revoke_credential(self, credential_id: str) -> bool:
+    async def revoke_credential(
+        self, credential_id: str
+    ) -> ReturnsAndEmits[bool, ("credential_revoked", "credential_revocation_failed")]:
         """
         Revoke (deactivate) a credential.
 
