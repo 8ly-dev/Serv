@@ -7,8 +7,6 @@ configuration, providing integration between the extension system and auth middl
 
 from typing import Any
 
-from .types import PolicyDecision
-
 
 class AuthRule:
     """Represents parsed authentication and authorization requirements."""
@@ -222,12 +220,14 @@ class AuthRule:
             New AuthRule with merged requirements
         """
         # Combine permissions and roles from both rules
-        combined_permissions = list(self.require_permissions + other.require_permissions)
+        combined_permissions = list(
+            self.require_permissions + other.require_permissions
+        )
         if self.require_permission:
             combined_permissions.append(self.require_permission)
         if other.require_permission:
             combined_permissions.append(other.require_permission)
-        
+
         combined_roles = list(self.require_roles + other.require_roles)
         if self.require_role:
             combined_roles.append(self.require_role)
@@ -237,13 +237,19 @@ class AuthRule:
         # Route-level auth settings take precedence for boolean flags
         return AuthRule(
             require_auth=other.require_auth or self.require_auth,
-            auth_optional=other.auth_optional if hasattr(other, 'auth_optional') and other.auth_optional is not None else self.auth_optional,
+            auth_optional=other.auth_optional
+            if hasattr(other, "auth_optional") and other.auth_optional is not None
+            else self.auth_optional,
             require_permission=None,  # Combined into require_permissions
             require_permissions=list(set(combined_permissions)),
-            require_any_permission=list(set(self.require_any_permission + other.require_any_permission)),
+            require_any_permission=list(
+                set(self.require_any_permission + other.require_any_permission)
+            ),
             require_role=None,  # Combined into require_roles
             require_roles=list(set(combined_roles)),
-            allow_anonymous=other.allow_anonymous if hasattr(other, 'allow_anonymous') and other.allow_anonymous is not None else self.allow_anonymous,
+            allow_anonymous=other.allow_anonymous
+            if hasattr(other, "allow_anonymous") and other.allow_anonymous is not None
+            else self.allow_anonymous,
         )
 
     def __eq__(self, other) -> bool:
@@ -270,26 +276,33 @@ class DeclarativeAuthProcessor:
     def validate_auth_config(auth_config: dict[str, Any]) -> None:
         """
         Validate auth configuration for common errors.
-        
+
         Args:
             auth_config: Auth configuration dictionary
-            
+
         Raises:
             ValueError: If configuration is invalid
         """
         if not isinstance(auth_config, dict):
             raise ValueError("Auth configuration must be a dictionary")
-            
+
         # Check for unknown keys
         valid_keys = {
-            "require_auth", "auth_optional", "require_permission", 
-            "require_permissions", "require_any_permission",
-            "require_role", "require_roles", "allow_anonymous"
+            "require_auth",
+            "auth_optional",
+            "require_permission",
+            "require_permissions",
+            "require_any_permission",
+            "require_role",
+            "require_roles",
+            "allow_anonymous",
         }
         unknown_keys = set(auth_config.keys()) - valid_keys
         if unknown_keys:
-            raise ValueError(f"Unknown auth configuration keys: {', '.join(unknown_keys)}")
-            
+            raise ValueError(
+                f"Unknown auth configuration keys: {', '.join(unknown_keys)}"
+            )
+
         # Validate permission lists
         for key in ["require_permissions", "require_any_permission"]:
             if key in auth_config:
@@ -298,8 +311,8 @@ class DeclarativeAuthProcessor:
                     raise ValueError(f"{key} must be a list")
                 if not all(isinstance(p, str) for p in value):
                     raise ValueError(f"All items in {key} must be strings")
-                    
-        # Validate role lists  
+
+        # Validate role lists
         for key in ["require_roles"]:
             if key in auth_config:
                 value = auth_config[key]
@@ -307,14 +320,14 @@ class DeclarativeAuthProcessor:
                     raise ValueError(f"{key} must be a list")
                 if not all(isinstance(r, str) for r in value):
                     raise ValueError(f"All items in {key} must be strings")
-                    
+
         # Validate single permission/role strings
         for key in ["require_permission", "require_role"]:
             if key in auth_config:
                 value = auth_config[key]
                 if not isinstance(value, str):
                     raise ValueError(f"{key} must be a string")
-                    
+
         # Validate boolean fields
         for key in ["require_auth", "auth_optional", "allow_anonymous"]:
             if key in auth_config:

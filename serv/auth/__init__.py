@@ -17,10 +17,15 @@ should follow security best practices including:
 
 from .audit_logger import AuditLogger
 from .auth_provider import AuthProvider
+from .config_loader import AuthConfigLoader, configure_auth_from_app_config
 from .credential_vault import CredentialVault
 from .declarative import AuthRule, DeclarativeAuthProcessor
-from .factory import AuthConfigError, AuthSystemFactory, BackendLoader, create_auth_system
-from .config_loader import AuthConfigLoader, configure_auth_from_app_config
+from .factory import (
+    AuthConfigError,
+    AuthSystemFactory,
+    BackendLoader,
+    create_auth_system,
+)
 from .policy_engine import PolicyEngine
 from .rate_limiter import RateLimiter
 from .role_registry import RoleRegistry
@@ -68,7 +73,7 @@ __all__ = [
     "AuthRule",
     "DeclarativeAuthProcessor",
     # Configuration and factory
-    "AuthConfigError", 
+    "AuthConfigError",
     "AuthSystemFactory",
     "BackendLoader",
     "create_auth_system",
