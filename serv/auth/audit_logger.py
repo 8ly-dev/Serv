@@ -304,6 +304,7 @@ class AuditLogger(ABC):
 
         await self.log_event(event)
 
+    @abstractmethod
     async def get_event_statistics(
         self, start_time: datetime, end_time: datetime, group_by: str = "event_type"
     ) -> dict[str, int]:
@@ -318,9 +319,9 @@ class AuditLogger(ABC):
         Returns:
             Dictionary mapping group values to event counts
         """
-        # Default implementation - providers should override
-        return {}
+        pass
 
+    @abstractmethod
     async def verify_log_integrity(
         self, start_time: datetime | None = None, end_time: datetime | None = None
     ) -> dict[str, Any]:
@@ -336,8 +337,7 @@ class AuditLogger(ABC):
         Returns:
             Integrity verification results
         """
-        # Default implementation - providers should override
-        return {"verified": True, "issues": []}
+        pass
 
     def _sanitize_changes(self, changes: dict[str, Any]) -> dict[str, Any]:
         """
@@ -393,6 +393,7 @@ class AuditLogger(ABC):
 
         return event_type in enabled_events
 
+    @abstractmethod
     async def cleanup_old_events(self, retention_days: int) -> int:
         """
         Clean up audit events older than retention period.
@@ -403,8 +404,7 @@ class AuditLogger(ABC):
         Returns:
             Number of events cleaned up
         """
-        # Default implementation - providers should override
-        return 0
+        pass
 
     @abstractmethod
     async def cleanup(self) -> None:
