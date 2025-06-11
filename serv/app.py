@@ -258,6 +258,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
         self._database_manager = DatabaseManager(self._config, self._container)
 
         self._init_container()
+        self._init_auth_system()
         self._register_default_error_handlers()
         self._init_extensions(
             self._config.get("extensions", self._config.get("extensions", []))
@@ -290,6 +291,21 @@ class App(EventEmitterProtocol, AppContextProtocol):
         # Register protocol implementations using instances dict for protocols
         self._container.instances[EventEmitterProtocol] = self._emit
         self._container.instances[AppContextProtocol] = self
+
+    def _init_auth_system(self):
+        """Initialize the authentication system from configuration."""
+        try:
+            from serv.auth.config_loader import configure_auth_from_app_config
+            self._auth_loader = configure_auth_from_app_config(self._config, self._container)
+        except Exception as e:
+            # Import error means auth system is not available, which is okay
+            import logging
+            logger = logging.getLogger(__name__)
+            if "auth" in self._config:
+                logger.warning(f"Auth configuration found but auth system failed to initialize: {e}")
+            else:
+                logger.debug(f"No auth configuration found, auth system not initialized: {e}")
+            self._auth_loader = None
 
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
@@ -1219,16 +1235,21 @@ class App(EventEmitterProtocol, AppContextProtocol):
         """
         Check declarative auth rules before route handler execution.
         
+        Uses dependency injection to access auth services configured in the system,
+        keeping coupling loose by depending on abstract interfaces.
+        
         Args:
-            container: The DI container with request context
+            container: The DI container with request context and auth services
             route_settings: Route settings containing potential auth rules
             
         Raises:
             HTTPException: If auth check fails (401/403)
         """
         from serv.auth.declarative import AuthRule, DeclarativeAuthProcessor
+        from serv.auth import AuthProvider, SessionManager, RateLimiter
         from serv.http import Request
         from serv.exceptions import HTTPUnauthorizedException, HTTPForbiddenException
+        from bevy import Inject, injectable
         
         # Get auth rule from route settings
         auth_rule = route_settings.get("auth_rule")
@@ -1236,43 +1257,72 @@ class App(EventEmitterProtocol, AppContextProtocol):
             # No auth rule defined, allow access
             return
         
-        # Get request from container to access user_context
-        request = container.get(Request)
+        # Create an injectable function to handle auth with proper DI
+        @injectable
+        async def check_auth_with_services(
+            request: Inject[Request],
+            auth_provider: Inject[AuthProvider] | None = None,
+            session_manager: Inject[SessionManager] | None = None,
+            rate_limiter: Inject[RateLimiter] | None = None
+        ):
+            # Try to get user_context from request
+            user_context = getattr(request, "user_context", None)
+            
+            # If no user_context but auth services are available, try to authenticate
+            if not user_context and auth_provider and session_manager:
+                try:
+                    # Try to extract and validate session/token from request
+                    auth_header = request.headers.get("authorization", "")
+                    session_id = request.cookies.get("session_id", "")
+                    
+                    if auth_header or session_id:
+                        # Let auth services handle the authentication
+                        # This is where the concrete implementations would do their work
+                        # For now, we'll rely on middleware to set user_context
+                        pass
+                except Exception:
+                    # Auth service errors shouldn't crash the auth check
+                    pass
+            
+            # Apply rate limiting if configured
+            if rate_limiter and user_context:
+                try:
+                    # Rate limit based on user or IP
+                    client_id = user_context.get("user_id", request.client.host if hasattr(request, "client") else "unknown")
+                    # Note: Actual rate limiting would happen here with concrete implementation
+                except Exception:
+                    # Rate limiting errors shouldn't crash the auth check
+                    pass
+            
+            # Evaluate auth rule using the established pattern
+            is_allowed, reason = DeclarativeAuthProcessor.evaluate_auth_rule(
+                auth_rule, user_context
+            )
+            
+            if not is_allowed:
+                # Auth failed - determine appropriate HTTP status
+                if not user_context and auth_rule.requires_authentication():
+                    # No user context and auth required -> 401 Unauthorized
+                    raise HTTPUnauthorizedException(
+                        "Authentication required",
+                        detail={"message": "You must be authenticated to access this resource", "reason": reason}
+                    )
+                elif user_context and (
+                    auth_rule.get_all_required_permissions() or 
+                    auth_rule.get_any_required_permissions() or 
+                    auth_rule.get_required_roles()
+                ):
+                    # User authenticated but lacks permissions/roles -> 403 Forbidden
+                    raise HTTPForbiddenException(
+                        "Insufficient permissions",
+                        detail={"message": "You do not have permission to access this resource", "reason": reason}
+                    )
+                else:
+                    # Generic auth failure -> 401 Unauthorized
+                    raise HTTPUnauthorizedException(
+                        "Authentication failed",
+                        detail={"message": "Access denied", "reason": reason}
+                    )
         
-        # Try to get user_context from request first, then from container
-        user_context = getattr(request, "user_context", None)
-        if user_context is None:
-            try:
-                user_context = container.get(dict, key="user_context")
-            except:
-                pass  # No user_context available
-        
-        # Evaluate auth rule
-        is_allowed, reason = DeclarativeAuthProcessor.evaluate_auth_rule(
-            auth_rule, user_context
-        )
-        
-        if not is_allowed:
-            # Auth failed - determine appropriate HTTP status
-            if not user_context and auth_rule.requires_authentication():
-                # No user context and auth required -> 401 Unauthorized
-                raise HTTPUnauthorizedException(
-                    "Authentication required",
-                    detail={"message": "You must be authenticated to access this resource", "reason": reason}
-                )
-            elif user_context and (
-                auth_rule.get_all_required_permissions() or 
-                auth_rule.get_any_required_permissions() or 
-                auth_rule.get_required_roles()
-            ):
-                # User authenticated but lacks permissions/roles -> 403 Forbidden
-                raise HTTPForbiddenException(
-                    "Insufficient permissions",
-                    detail={"message": "You do not have permission to access this resource", "reason": reason}
-                )
-            else:
-                # Generic auth failure -> 401 Unauthorized
-                raise HTTPUnauthorizedException(
-                    "Authentication failed",
-                    detail={"message": "Access denied", "reason": reason}
-                )
+        # Call the auth check function with dependency injection
+        await container.call(check_auth_with_services)

@@ -19,6 +19,8 @@ from .audit_logger import AuditLogger
 from .auth_provider import AuthProvider
 from .credential_vault import CredentialVault
 from .declarative import AuthRule, DeclarativeAuthProcessor
+from .factory import AuthConfigError, AuthSystemFactory, BackendLoader, create_auth_system
+from .config_loader import AuthConfigLoader, configure_auth_from_app_config
 from .policy_engine import PolicyEngine
 from .rate_limiter import RateLimiter
 from .role_registry import RoleRegistry
@@ -65,4 +67,11 @@ __all__ = [
     # Declarative auth
     "AuthRule",
     "DeclarativeAuthProcessor",
+    # Configuration and factory
+    "AuthConfigError", 
+    "AuthSystemFactory",
+    "BackendLoader",
+    "create_auth_system",
+    "AuthConfigLoader",
+    "configure_auth_from_app_config",
 ]
