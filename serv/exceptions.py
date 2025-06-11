@@ -202,6 +202,27 @@ class HTTPBadRequestException(ServException):
     status_code = 400
 
 
-# Add other common HTTP exceptions as needed, e.g.:
-# class HTTPUnauthorizedException(ServException): status_code = 401
-# class HTTPForbiddenException(ServException): status_code = 403
+class HTTPUnauthorizedException(ServException):
+    """Raised when authentication is required but not provided (HTTP 401).
+    
+    This exception should be raised when a route requires authentication
+    but the request lacks valid authentication credentials.
+    """
+    status_code = 401
+
+    def __init__(self, message: str = "Authentication required", detail: dict | None = None):
+        super().__init__(message)
+        self.detail = detail or {}
+
+
+class HTTPForbiddenException(ServException):
+    """Raised when the request is authenticated but lacks required permissions (HTTP 403).
+    
+    This exception should be raised when a user is authenticated but does not
+    have the necessary permissions to access the requested resource.
+    """
+    status_code = 403
+
+    def __init__(self, message: str = "Forbidden", detail: dict | None = None):
+        super().__init__(message)
+        self.detail = detail or {}

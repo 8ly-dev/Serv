@@ -294,6 +294,9 @@ class App(EventEmitterProtocol, AppContextProtocol):
     def _register_default_error_handlers(self):
         self.add_error_handler(HTTPNotFoundException, self._default_404_handler)
         self.add_error_handler(HTTPMethodNotAllowedException, self._default_405_handler)
+        from serv.exceptions import HTTPUnauthorizedException, HTTPForbiddenException
+        self.add_error_handler(HTTPUnauthorizedException, self._default_401_handler)
+        self.add_error_handler(HTTPForbiddenException, self._default_403_handler)
 
     @property
     def dev_mode(self) -> bool:
@@ -830,6 +833,100 @@ class App(EventEmitterProtocol, AppContextProtocol):
             response.body(f"405 Method Not Allowed: {message}")
 
     @injectable
+    async def _default_401_handler(
+        self,
+        error,  # HTTPUnauthorizedException
+        response: Inject[ResponseBuilder],
+        request: Inject[Request],
+    ):
+        response.set_status(401)
+
+        # Check if the client accepts HTML
+        accept_header = request.headers.get("accept", "")
+        if "text/html" in accept_header:
+            # Use HTML response
+            response.content_type("text/html")
+            context = {
+                "status_code": 401,
+                "error_title": "Unauthorized",
+                "error_message": error.args[0] if error.args else "Authentication required.",
+                "error_type": type(error).__name__,
+                "error_str": str(error),
+                "request_path": request.path,
+                "request_method": request.method,
+                "show_details": False,
+            }
+
+            html_content = self._render_template("error/generic_error.html", context)
+            response.body(html_content)
+        elif "application/json" in accept_header:
+            # Use JSON response
+            response.content_type("application/json")
+            error_data = {
+                "status_code": 401,
+                "error": "Authentication required",
+                "message": error.args[0] if error.args else "You must be authenticated to access this resource.",
+                "path": request.path,
+                "method": request.method,
+            }
+            # Include detail if available
+            if hasattr(error, 'detail'):
+                error_data.update(error.detail)
+            response.body(json.dumps(error_data))
+        else:
+            # Use plaintext response
+            response.content_type("text/plain")
+            message = error.args[0] if error.args else "Authentication required."
+            response.body(f"401 Unauthorized: {message}")
+
+    @injectable
+    async def _default_403_handler(
+        self,
+        error,  # HTTPForbiddenException
+        response: Inject[ResponseBuilder],
+        request: Inject[Request],
+    ):
+        response.set_status(403)
+
+        # Check if the client accepts HTML
+        accept_header = request.headers.get("accept", "")
+        if "text/html" in accept_header:
+            # Use HTML response
+            response.content_type("text/html")
+            context = {
+                "status_code": 403,
+                "error_title": "Forbidden",
+                "error_message": error.args[0] if error.args else "Access denied.",
+                "error_type": type(error).__name__,
+                "error_str": str(error),
+                "request_path": request.path,
+                "request_method": request.method,
+                "show_details": False,
+            }
+
+            html_content = self._render_template("error/generic_error.html", context)
+            response.body(html_content)
+        elif "application/json" in accept_header:
+            # Use JSON response
+            response.content_type("application/json")
+            error_data = {
+                "status_code": 403,
+                "error": "Insufficient permissions",
+                "message": error.args[0] if error.args else "You do not have permission to access this resource.",
+                "path": request.path,
+                "method": request.method,
+            }
+            # Include detail if available
+            if hasattr(error, 'detail'):
+                error_data.update(error.detail)
+            response.body(json.dumps(error_data))
+        else:
+            # Use plaintext response
+            response.content_type("text/plain")
+            message = error.args[0] if error.args else "Access denied."
+            response.body(f"403 Forbidden: {message}")
+
+    @injectable
     async def _run_error_handler(self, error: Exception, container: Inject[Container]):
         response_builder = container.get(ResponseBuilder)
         if not response_builder._headers_sent:
@@ -982,13 +1079,22 @@ class App(EventEmitterProtocol, AppContextProtocol):
 
                     route_container.add(RouteSettings, RouteSettings(**route_settings))
 
+                    # Check declarative auth before handler execution
                     try:
-                        await route_container.call(handler_callable, **path_params)
+                        await self._check_declarative_auth(route_container, route_settings)
                     except Exception as e:
                         logger.info(
-                            f"Handler execution resulted in exception: {type(e).__name__}: {e}"
+                            f"Auth check resulted in exception: {type(e).__name__}: {e}"
                         )
                         error_to_propagate = e
+                    else:
+                        try:
+                            await route_container.call(handler_callable, **path_params)
+                        except Exception as e:
+                            logger.info(
+                                f"Handler execution resulted in exception: {type(e).__name__}: {e}"
+                            )
+                            error_to_propagate = e
 
             await self.emit(
                 "app.request.after_router",
@@ -1108,3 +1214,65 @@ class App(EventEmitterProtocol, AppContextProtocol):
                     pass  # Connection may already be closed
 
                 await container.call(self._emit.emit, "app.websocket.end", error=e)
+
+    async def _check_declarative_auth(self, container, route_settings: dict):
+        """
+        Check declarative auth rules before route handler execution.
+        
+        Args:
+            container: The DI container with request context
+            route_settings: Route settings containing potential auth rules
+            
+        Raises:
+            HTTPException: If auth check fails (401/403)
+        """
+        from serv.auth.declarative import AuthRule, DeclarativeAuthProcessor
+        from serv.http import Request
+        from serv.exceptions import HTTPUnauthorizedException, HTTPForbiddenException
+        
+        # Get auth rule from route settings
+        auth_rule = route_settings.get("auth_rule")
+        if not isinstance(auth_rule, AuthRule):
+            # No auth rule defined, allow access
+            return
+        
+        # Get request from container to access user_context
+        request = container.get(Request)
+        
+        # Try to get user_context from request first, then from container
+        user_context = getattr(request, "user_context", None)
+        if user_context is None:
+            try:
+                user_context = container.get(dict, key="user_context")
+            except:
+                pass  # No user_context available
+        
+        # Evaluate auth rule
+        is_allowed, reason = DeclarativeAuthProcessor.evaluate_auth_rule(
+            auth_rule, user_context
+        )
+        
+        if not is_allowed:
+            # Auth failed - determine appropriate HTTP status
+            if not user_context and auth_rule.requires_authentication():
+                # No user context and auth required -> 401 Unauthorized
+                raise HTTPUnauthorizedException(
+                    "Authentication required",
+                    detail={"message": "You must be authenticated to access this resource", "reason": reason}
+                )
+            elif user_context and (
+                auth_rule.get_all_required_permissions() or 
+                auth_rule.get_any_required_permissions() or 
+                auth_rule.get_required_roles()
+            ):
+                # User authenticated but lacks permissions/roles -> 403 Forbidden
+                raise HTTPForbiddenException(
+                    "Insufficient permissions",
+                    detail={"message": "You do not have permission to access this resource", "reason": reason}
+                )
+            else:
+                # Generic auth failure -> 401 Unauthorized
+                raise HTTPUnauthorizedException(
+                    "Authentication failed",
+                    detail={"message": "Access denied", "reason": reason}
+                )

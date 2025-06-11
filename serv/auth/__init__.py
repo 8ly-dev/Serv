@@ -18,6 +18,7 @@ should follow security best practices including:
 from .audit_logger import AuditLogger
 from .auth_provider import AuthProvider
 from .credential_vault import CredentialVault
+from .declarative import AuthRule, DeclarativeAuthProcessor
 from .policy_engine import PolicyEngine
 from .rate_limiter import RateLimiter
 from .role_registry import RoleRegistry
@@ -61,4 +62,7 @@ __all__ = [
     "AuditLogger",
     "RoleRegistry",
     "CredentialVault",
+    # Declarative auth
+    "AuthRule",
+    "DeclarativeAuthProcessor",
 ]

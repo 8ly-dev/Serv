@@ -74,6 +74,18 @@ def get_package_location(package_name: str) -> Path:
     return Path(spec.origin).parent
 
 
+class AuthConfig(TypedDict):
+    """Authentication and authorization configuration for routers and routes."""
+    require_auth: NotRequired[bool]
+    auth_optional: NotRequired[bool]
+    require_permission: NotRequired[str]
+    require_permissions: NotRequired[list[str]]
+    require_any_permission: NotRequired[list[str]]
+    require_role: NotRequired[str]
+    require_roles: NotRequired[list[str]]
+    allow_anonymous: NotRequired[bool]
+
+
 class RouteConfig(TypedDict):
     path: str
     handler: str
@@ -81,6 +93,7 @@ class RouteConfig(TypedDict):
     methods: NotRequired[
         list[Literal["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]]
     ]
+    auth: NotRequired[AuthConfig]
 
 
 class ListenerConfig(TypedDict):
@@ -93,6 +106,7 @@ class RouterConfig(TypedDict):
     routes: list[RouteConfig]
     mount: NotRequired[str]
     config: NotRequired[dict[str, Any]]
+    auth: NotRequired[AuthConfig]
 
 
 class ExtensionConfig(TypedDict):
