@@ -61,16 +61,16 @@ async def create_ommi(
     if connection_string.startswith("sqlite"):
         SQLiteDriver = _import_sqlite_driver()
         from ommi.ext.drivers.sqlite.driver import SQLiteSettings
-        
+
         # Extract database path from connection string
         # Format: sqlite:///path/to/db.db -> path/to/db.db
         if connection_string.startswith("sqlite:///"):
             database_path = connection_string[10:]  # Remove "sqlite:///"
         elif connection_string.startswith("sqlite://"):
-            database_path = connection_string[9:]   # Remove "sqlite://"
+            database_path = connection_string[9:]  # Remove "sqlite://"
         else:
             database_path = connection_string
-        
+
         # Create SQLiteSettings with the database path
         settings = SQLiteSettings(database_path=database_path)
         driver = SQLiteDriver.connect(settings)

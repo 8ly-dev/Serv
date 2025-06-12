@@ -100,4 +100,3 @@ def create_app(
     except Exception as e:
         logger.error(f"Error creating app instance: {e}")
         raise
-

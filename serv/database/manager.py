@@ -60,9 +60,7 @@ class DatabaseManager:
         await self.exit_stack.aclose()
         self.connections.clear()
 
-    def register_connection(
-        self, name: str, connection: Any
-    ) -> None:
+    def register_connection(self, name: str, connection: Any) -> None:
         """Register database connection with dependency injection using Bevy 3.1 qualifiers.
 
         Args:

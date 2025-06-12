@@ -20,7 +20,7 @@ class MicroblogExtension(Listener):
     async def setup_database(self, ommi: Inject[Ommi, Options(qualifier="blog")]):
         """Initialize the database schema on app startup."""
         logger.info("Initializing microblog database schema...")
-        
+
         try:
             await ommi.use_models(microblog_collection)
 
@@ -58,7 +58,7 @@ Your microblog is now fully functional with modern styling and **markdown suppor
 3. See the live preview as you type!
 
 > This demonstrates Serv's powerful database integration system with Ommi ORM and a beautiful modern interface!""",
-            created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
         await ommi.add(welcome_post).or_raise()
         logger.info("Microblog extension started successfully")

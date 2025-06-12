@@ -16,7 +16,7 @@ async def test_create_test_app_client_basic():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         config_path = temp_path / "serv.config.yaml"
-        
+
         # Write a minimal config
         config_content = """site_info:
   name: "Test App"
@@ -25,7 +25,7 @@ async def test_create_test_app_client_basic():
 extensions: []
 """
         config_path.write_text(config_content)
-        
+
         # Test the client
         async with create_test_app_client(config_path) as client:
             assert client is not None
@@ -40,7 +40,7 @@ async def test_create_test_app_client_dev_mode():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         config_path = temp_path / "serv.config.yaml"
-        
+
         config_content = """site_info:
   name: "Test App Dev"
   description: "Test application in dev mode"
@@ -48,7 +48,7 @@ async def test_create_test_app_client_dev_mode():
 extensions: []
 """
         config_path.write_text(config_content)
-        
+
         async with create_test_app_client(config_path, dev=True) as client:
             assert client is not None
             response = await client.get("/")
@@ -61,7 +61,7 @@ async def test_create_test_app_client_dry_run():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         config_path = temp_path / "serv.config.yaml"
-        
+
         config_content = """site_info:
   name: "Test App Dry Run"
   description: "Test application in dry run mode"
@@ -69,7 +69,7 @@ async def test_create_test_app_client_dry_run():
 extensions: []
 """
         config_path.write_text(config_content)
-        
+
         # In dry run mode, client should be None
         async with create_test_app_client(config_path, dry_run=True) as client:
             assert client is None
@@ -81,11 +81,11 @@ async def test_create_test_app_client_with_custom_extension_dir():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         config_path = temp_path / "serv.config.yaml"
-        
+
         # Create a custom extensions directory
         extensions_dir = temp_path / "my_extensions"
         extensions_dir.mkdir()
-        
+
         config_content = """site_info:
   name: "Test App Custom Extensions"
   description: "Test application with custom extension directory"
@@ -93,10 +93,9 @@ async def test_create_test_app_client_with_custom_extension_dir():
 extensions: []
 """
         config_path.write_text(config_content)
-        
+
         async with create_test_app_client(
-            config_path, 
-            extension_dirs=str(extensions_dir)
+            config_path, extension_dirs=str(extensions_dir)
         ) as client:
             assert client is not None
             response = await client.get("/")
@@ -109,7 +108,7 @@ async def test_create_test_app_client_path_types():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         config_path = temp_path / "serv.config.yaml"
-        
+
         config_content = """site_info:
   name: "Test App Path Types"
   description: "Test path parameter types"
@@ -117,13 +116,13 @@ async def test_create_test_app_client_path_types():
 extensions: []
 """
         config_path.write_text(config_content)
-        
+
         # Test with Path object
         async with create_test_app_client(config_path) as client:
             assert client is not None
             response = await client.get("/")
             assert response.status_code == 404
-        
+
         # Test with string path
         async with create_test_app_client(str(config_path)) as client:
             assert client is not None
@@ -137,7 +136,7 @@ async def test_create_test_app_client_no_lifespan():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         config_path = temp_path / "serv.config.yaml"
-        
+
         config_content = """site_info:
   name: "Test App No Lifespan"
   description: "Test application without lifespan events"
@@ -145,7 +144,7 @@ async def test_create_test_app_client_no_lifespan():
 extensions: []
 """
         config_path.write_text(config_content)
-        
+
         async with create_test_app_client(config_path, use_lifespan=False) as client:
             assert client is not None
             response = await client.get("/")
@@ -158,7 +157,7 @@ async def test_create_test_app_client_custom_base_url():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         config_path = temp_path / "serv.config.yaml"
-        
+
         config_content = """site_info:
   name: "Test App Custom URL"
   description: "Test application with custom base URL"
@@ -166,11 +165,10 @@ async def test_create_test_app_client_custom_base_url():
 extensions: []
 """
         config_path.write_text(config_content)
-        
+
         custom_base_url = "http://custom.test"
         async with create_test_app_client(
-            config_path, 
-            base_url=custom_base_url
+            config_path, base_url=custom_base_url
         ) as client:
             assert client is not None
             assert str(client.base_url) == custom_base_url
@@ -184,10 +182,10 @@ async def test_create_test_app_client_error_handling():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         config_path = temp_path / "invalid.yaml"
-        
+
         # Write invalid YAML to trigger an error
         config_path.write_text("invalid: yaml: content: [")
-        
+
         # Should raise an exception for invalid YAML
         with pytest.raises(Exception):
             async with create_test_app_client(config_path) as client:

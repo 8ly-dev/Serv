@@ -214,4 +214,3 @@ async def create_test_app_client(
             transport=transport, base_url=base_url, timeout=timeout
         ) as client:
             yield client
-

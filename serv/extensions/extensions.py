@@ -352,7 +352,7 @@ class Listener:
 
             # Create a branched container with event arguments for injection
             execution_container = get_container(container).branch()
-            
+
             # Add event arguments to the container so they can be injected
             for arg_name, arg_value in kwargs.items():
                 if arg_value is not None:

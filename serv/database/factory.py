@@ -120,10 +120,14 @@ class FactoryLoader:
             params = list(sig.parameters.values())[1:]
 
             # Check if function accepts **kwargs
-            has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
+            has_var_keyword = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in params
+            )
 
             # Get parameter names (excluding VAR_KEYWORD)
-            param_names = {p.name for p in params if p.kind != inspect.Parameter.VAR_KEYWORD}
+            param_names = {
+                p.name for p in params if p.kind != inspect.Parameter.VAR_KEYWORD
+            }
 
             for param in params:
                 # Skip **kwargs parameters
