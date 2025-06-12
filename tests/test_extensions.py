@@ -26,7 +26,7 @@ async def test_extensions():
             assert user.user_name == "John Doe"
 
     container = get_container().branch()
-    container.add(_TestUser(1, "John Doe"))
+    container.add(_TestUser, _TestUser(1, "John Doe"))
 
     # Patch the module for this locally defined TestExtension
     test_extension_module = sys.modules[TestExtension.__module__]
