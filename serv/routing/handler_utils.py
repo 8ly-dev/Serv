@@ -155,7 +155,14 @@ class HandlerProcessor:
         params = list(sig.parameters.values())[1:]  # Skip 'self'
         kwargs = {}
 
-        type_hints = get_safe_type_hints(method, include_extras=True)
+        # Cache type hints to avoid repeated evaluation
+        if not hasattr(self, '_type_hints_cache'):
+            self._type_hints_cache = {}
+
+        cache_key = id(method)
+        if cache_key not in self._type_hints_cache:
+            self._type_hints_cache[cache_key] = get_safe_type_hints(method, include_extras=True)
+        type_hints = self._type_hints_cache[cache_key]
 
         for param in params:
             value = await self._extract_single_parameter(
@@ -190,12 +197,18 @@ class HandlerProcessor:
             if value is not None:
                 return value
 
-        # Try path parameters
-        if param.name in path_params:
-            return path_params[param.name]
+        # Try path parameters (validate input)
+        if param.name in path_params and path_params is not None:
+            value = path_params.get(param.name)
+            # Basic validation to prevent injection attacks
+            if isinstance(value, str) and len(value) > 10000:  # Reasonable URL length limit
+                raise ValueError(f"Path parameter '{param.name}' too long")
+            return value
 
         # Try container injection for request types
         param_annotation = type_hints.get(param.name, param.annotation)
+        if param_annotation is None:
+            return None
         return await self.extractor.try_container_injection(
             param_annotation, request, container
         )
@@ -314,7 +327,7 @@ class ResponseProcessor:
         wrapper_class = self.route.__annotated_response_wrappers__[handler_name]
 
         match data:
-            case tuple():
+            case tuple() if all(isinstance(item, str | int | float | bool | type(None)) for item in data):
                 return wrapper_class(*data)
             case _:
                 return wrapper_class(data)
@@ -339,8 +352,9 @@ class ResponseProcessor:
                 if handler_lines:
                     handler_line = handler_lines[1]
         except (OSError, TypeError, AttributeError):
-            # Expected failures during introspection
-            pass
+            # Expected failures during introspection - use safe defaults
+            handler_file = "<unknown>"
+            handler_line = "<unknown>"
 
         # Check if handler should have wrapper
         should_have_wrapper, wrapper_info = self._check_missing_wrapper(handler_name)
