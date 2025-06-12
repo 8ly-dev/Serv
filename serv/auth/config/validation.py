@@ -271,9 +271,9 @@ class AuthConfigValidator:
     def _validate_security_config(cls, security: Any) -> None:
         """Validate security configuration."""
         # Validate security headers
-        if hasattr(security, "headers") and security.headers:
+        if security.headers:
             headers = security.headers
-            if hasattr(headers, "x_frame_options"):
+            if headers.x_frame_options:
                 valid_values = ["DENY", "SAMEORIGIN"]
                 if headers.x_frame_options not in valid_values:
                     raise ConfigurationError(
@@ -283,11 +283,11 @@ class AuthConfigValidator:
     @classmethod
     def _validate_development_config(cls, development: Any) -> None:
         """Validate development configuration."""
-        if hasattr(development, "test_users") and development.test_users:
+        if development.test_users:
             for i, user in enumerate(development.test_users):
-                if not hasattr(user, "username") or not user.username:
+                if not user.username:
                     raise ConfigurationError(f"test_users[{i}] must have a username")
-                if not hasattr(user, "password") or not user.password:
+                if not user.password:
                     raise ConfigurationError(f"test_users[{i}] must have a password")
 
     @classmethod
@@ -296,7 +296,7 @@ class AuthConfigValidator:
         permission_names = set()
 
         for i, perm in enumerate(permissions):
-            if not hasattr(perm, "permission") or not perm.permission:
+            if not perm.permission:
                 raise ConfigurationError(
                     f"permissions[{i}] must have a permission name"
                 )
@@ -314,7 +314,7 @@ class AuthConfigValidator:
         role_names = set()
 
         for i, role in enumerate(roles):
-            if not hasattr(role, "name") or not role.name:
+            if not role.name:
                 raise ConfigurationError(f"roles[{i}] must have a name")
 
             if role.name in role_names:
@@ -326,10 +326,10 @@ class AuthConfigValidator:
     def _validate_routes(cls, routes: List[Any]) -> None:
         """Validate route configurations."""
         for i, route in enumerate(routes):
-            if not hasattr(route, "path") or not route.path:
+            if not route.path:
                 raise ConfigurationError(f"routes[{i}] must have a path")
 
-            if hasattr(route, "methods") and route.methods:
+            if route.methods:
                 valid_methods = [
                     "GET",
                     "POST",
@@ -352,7 +352,7 @@ class AuthConfigValidator:
         router_names = set()
 
         for i, router in enumerate(routers):
-            if not hasattr(router, "name") or not router.name:
+            if not router.name:
                 raise ConfigurationError(f"routers[{i}] must have a name")
 
             if router.name in router_names:
