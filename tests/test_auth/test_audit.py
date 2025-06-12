@@ -403,3 +403,118 @@ class TestTypeBasedAuditInjection:
         import asyncio
         result = asyncio.run(logout("session123"))
         assert result is True
+
+
+class TestAuditOverrideValidation:
+    """Test audit requirement override validation in inheritance."""
+    
+    def test_audit_override_prevention(self):
+        """Test that subclasses cannot override parent audit requirements."""
+        
+        class BaseProvider(AuditEnforced):
+            @AuditRequired(AuditEventType.AUTH_ATTEMPT)
+            async def authenticate(self, audit_emitter: AuditEmitter):
+                return True
+        
+        # This should raise an AuditError
+        with pytest.raises(AuditError, match="cannot override audit requirements"):
+            class BadProvider(BaseProvider):
+                @AuditRequired(AuditEventType.AUTH_SUCCESS)  # Different requirement!
+                async def authenticate(self, audit_emitter: AuditEmitter):
+                    return True
+    
+    def test_audit_identical_requirements_allowed(self):
+        """Test that subclasses can have identical audit requirements."""
+        
+        class BaseProvider(AuditEnforced):
+            @AuditRequired(AuditEventType.AUTH_ATTEMPT)
+            async def authenticate(self, audit_emitter: AuditEmitter):
+                return True
+        
+        # This should work fine - same requirement
+        class GoodProvider(BaseProvider):
+            @AuditRequired(AuditEventType.AUTH_ATTEMPT)  # Same requirement
+            async def authenticate(self, audit_emitter: AuditEmitter):
+                # Different implementation, same audit requirement
+                audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
+                return True
+        
+        # Should create successfully
+        provider = GoodProvider()
+        assert hasattr(provider.authenticate, '_audit_pipeline')
+        assert provider.authenticate._audit_pipeline == AuditEventType.AUTH_ATTEMPT
+    
+    def test_audit_override_complex_pipeline(self):
+        """Test override validation with complex audit pipelines."""
+        
+        complex_pipeline = AuditEventType.AUTH_ATTEMPT >> AuditEventType.AUTH_SUCCESS
+        
+        class BaseProvider(AuditEnforced):
+            @AuditRequired(complex_pipeline)
+            async def authenticate(self, audit_emitter: AuditEmitter):
+                return True
+        
+        # This should fail - different pipeline
+        with pytest.raises(AuditError, match="cannot override audit requirements"):
+            class BadProvider(BaseProvider):
+                @AuditRequired(AuditEventType.AUTH_ATTEMPT)  # Simpler requirement
+                async def authenticate(self, audit_emitter: AuditEmitter):
+                    return True
+    
+    def test_audit_no_parent_requirement_allowed(self):
+        """Test that adding audit requirements to methods without parent requirements is allowed."""
+        
+        class BaseProvider(AuditEnforced):
+            async def some_method(self):
+                return True
+        
+        # This should work - parent has no audit requirement
+        class ChildProvider(BaseProvider):
+            @AuditRequired(AuditEventType.USER_CREATE)
+            async def some_method(self, audit_emitter: AuditEmitter):
+                audit_emitter.emit(AuditEventType.USER_CREATE)
+                return True
+        
+        provider = ChildProvider()
+        assert hasattr(provider.some_method, '_audit_pipeline')
+    
+    def test_audit_multiple_inheritance_validation(self):
+        """Test audit validation with multiple inheritance."""
+        
+        class MixinA(AuditEnforced):
+            @AuditRequired(AuditEventType.AUTH_ATTEMPT)
+            async def authenticate(self, audit_emitter: AuditEmitter):
+                return True
+        
+        class MixinB(AuditEnforced):
+            async def other_method(self):
+                return True
+        
+        # This should work - inheriting same requirement
+        class Provider(MixinA, MixinB):
+            @AuditRequired(AuditEventType.AUTH_ATTEMPT)  # Same as MixinA
+            async def authenticate(self, audit_emitter: AuditEmitter):
+                return True
+        
+        provider = Provider()
+        assert provider.authenticate._audit_pipeline == AuditEventType.AUTH_ATTEMPT
+    
+    def test_audit_deep_inheritance_chain(self):
+        """Test audit validation through deep inheritance chains."""
+        
+        class BaseProvider(AuditEnforced):
+            @AuditRequired(AuditEventType.AUTH_ATTEMPT)
+            async def authenticate(self, audit_emitter: AuditEmitter):
+                return True
+        
+        class MiddleProvider(BaseProvider):
+            @AuditRequired(AuditEventType.AUTH_ATTEMPT)  # Same requirement
+            async def authenticate(self, audit_emitter: AuditEmitter):
+                return True
+        
+        # This should fail - trying to override deep in the chain
+        with pytest.raises(AuditError, match="cannot override audit requirements"):
+            class FinalProvider(MiddleProvider):
+                @AuditRequired(AuditEventType.AUTH_SUCCESS)  # Different requirement
+                async def authenticate(self, audit_emitter: AuditEmitter):
+                    return True
