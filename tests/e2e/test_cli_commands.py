@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from serv.app import App
+from serv._app import App
 from tests.e2e.helpers import create_test_client
 
 
@@ -131,7 +131,7 @@ class TestCliCommands:
         plugin_code = """
 from serv.extensions import Extension, on
 from bevy import injectable, Inject
-from serv.routing import Router
+from serv._routing import Router
 from serv.responses import ResponseBuilder
 
 class TestExtension(Extension):

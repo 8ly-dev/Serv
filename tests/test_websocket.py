@@ -6,7 +6,7 @@ from typing import Annotated
 import pytest
 
 from serv import App, WebSocket
-from serv.routing import Router
+from serv._routing import Router
 from serv.websocket import (
     FrameType,
     WebSocketConnectionError,

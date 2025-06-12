@@ -5,7 +5,7 @@ Pytest fixtures for end-to-end testing of Serv applications.
 import pytest
 import pytest_asyncio
 
-from serv.app import App
+from serv._app import App
 from serv.responses import ResponseBuilder
 from tests.e2e.helpers import AppBuilder, create_test_client
 

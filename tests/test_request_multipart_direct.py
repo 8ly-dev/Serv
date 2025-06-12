@@ -9,10 +9,10 @@ import pytest
 from bevy import Inject, injectable
 from httpx import AsyncClient
 
-from serv.app import App
+from serv._app import App
 from serv.extensions import Extension, on
 from serv.routes import JsonResponse, PostRequest, Route, handle
-from serv.routing import Router
+from serv._routing import Router
 
 
 # Extension to add Route classes

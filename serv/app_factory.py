@@ -10,7 +10,7 @@ from inspect import isclass
 from pathlib import Path
 from typing import Any
 
-from serv.app import App
+from serv._app import App
 from serv.config import import_from_string
 
 logger = logging.getLogger(__name__)

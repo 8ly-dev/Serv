@@ -14,7 +14,7 @@ from typing import Any
 
 from httpx import ASGITransport, AsyncClient
 
-from serv.app import App
+from serv._app import App
 from serv.app_factory import create_app
 
 

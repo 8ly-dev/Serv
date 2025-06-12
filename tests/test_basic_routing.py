@@ -2,7 +2,7 @@ import pytest
 from bevy import Inject, injectable
 from httpx import AsyncClient
 
-from serv.app import App
+from serv._app import App
 from serv.responses import ResponseBuilder
 from tests.helpers import EventWatcherExtension, RouteAddingExtension
 

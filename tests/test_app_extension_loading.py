@@ -5,7 +5,7 @@ import pytest
 import yaml
 from bevy.registries import Registry
 
-from serv.app import App
+from serv._app import App
 from serv.extensions import Listener, on
 from serv.extensions.loader import ExtensionSpec
 from tests.helpers import create_mock_importer
@@ -52,7 +52,7 @@ def test_real_plugin_loading_with_directory(
         yaml.dump(app_config, f)
 
     # Test that app can be created with empty plugin directory
-    with patch("serv.app.App._enable_welcome_extension") as mock_enable_welcome:
+    with patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome:
         with Registry():
             app = App(config=str(config_file), extension_dir=str(extension_dir))
 
@@ -81,7 +81,7 @@ def test_real_plugin_loading_with_entry_points(
         yaml.dump(app_config, f)
 
     # Test that app can be created with plugin configuration
-    with patch("serv.app.App._enable_welcome_extension") as mock_enable_welcome:
+    with patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome:
         with Registry():
             app = App(config=str(config_file), extension_dir=str(extension_dir))
 
@@ -108,7 +108,7 @@ def test_real_plugin_loading_with_middleware(
         yaml.dump(app_config, f)
 
     # Test that app can be created with middleware configuration
-    with patch("serv.app.App._enable_welcome_extension") as mock_enable_welcome:
+    with patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome:
         with Registry():
             app = App(config=str(config_file), extension_dir=str(extension_dir))
 

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from serv.app import App
+from serv._app import App
 from tests.e2e.helpers import create_test_client
 
 

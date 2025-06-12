@@ -37,7 +37,7 @@ class Router(RouterProtocol):
         Basic router setup:
 
         ```python
-        from serv.routing import Router
+        from serv._routing import Router
 
         router = Router()
 
@@ -263,46 +263,24 @@ class Router(RouterProtocol):
             ValueError: If the handler is not found in any router, or if required path
                        parameters are missing from kwargs.
         """
-        # First check if handler is a Route class
+        # Import generation functions to avoid circular dependency
+        from serv.routing.generation import url_for_route_class, url_for_function_handler
+        
         # Import routes at runtime to avoid circular dependency
         import serv.routes as routes
 
+        # First check if handler is a Route class
         if isinstance(handler, type) and issubclass(handler, routes.Route):
-            # Look for route class in the _route_class_paths dictionary
-            if handler in self._route_class_paths:
-                path_list = self._route_class_paths[handler]
-
-                # Find the best matching path based on provided kwargs
-                path = self._find_best_matching_path(path_list, kwargs)
-                if not path:
-                    # If no path can be fully satisfied with the provided kwargs,
-                    # use the most recently added path (last in the list)
-                    path = path_list[-1]
-            else:
-                # If not found directly, check mounted routers
-                for mount_path, mounted_router in self._mounted_routers:
-                    try:
-                        sub_path = mounted_router.url_for(handler, **kwargs)
-                        return f"{mount_path}{sub_path}"
-                    except ValueError:
-                        continue
-
-                # Check sub-routers
-                for sub_router in self._sub_routers:
-                    try:
-                        return sub_router.url_for(handler, **kwargs)
-                    except ValueError:
-                        continue
-
-                raise ValueError(
-                    f"Route class {handler.__name__} not found in any router"
-                )
+            return url_for_route_class(
+                self._route_class_paths,
+                self._mounted_routers,
+                self._sub_routers,
+                handler,
+                **kwargs
+            )
 
         # Handle methods on Route instances (less common case)
         elif hasattr(handler, "__self__"):
-            # Import routes at runtime to avoid circular dependency
-            import serv.routes as routes
-
             if isinstance(handler.__self__, routes.Route):
                 route_instance = handler.__self__
                 handler = route_instance.__call__
@@ -311,126 +289,24 @@ class Router(RouterProtocol):
                     raise ValueError(
                         f"Route instance method {handler.__name__} not found in any router"
                     )
+                
+                from serv.routing.generation import build_url_from_path
+                return build_url_from_path(path, kwargs)
 
         # For function handlers
         else:
-            # Try to find all paths for this handler
-            paths = self._find_all_handler_paths(handler)
-            if not paths:
-                # If not found directly, check mounted routers
-                for mount_path, mounted_router in self._mounted_routers:
-                    try:
-                        sub_path = mounted_router.url_for(handler, **kwargs)
-                        return f"{mount_path}{sub_path}"
-                    except ValueError:
-                        continue
-
-                # If not found in mounted routers, check sub-routers
-                for sub_router in self._sub_routers:
-                    try:
-                        return sub_router.url_for(handler, **kwargs)
-                    except ValueError:
-                        continue
-
-                raise ValueError(f"Handler {handler.__name__} not found in any router")
-
-            # Try to find the best path based on the provided kwargs
-            path = self._find_best_matching_path(paths, kwargs)
-            if not path:
-                # If no path can be fully satisfied, use the last registered path
-                path = paths[-1]
-
-        # Try to build the URL with the selected path
-        # If the required parameters aren't in kwargs, we'll need to try other paths
-        try:
-            return self._build_url_from_path(path, kwargs)
-        except ValueError as e:
-            # Import routes at runtime to avoid circular dependency
-            import serv.routes as routes
-
-            if isinstance(handler, type) and issubclass(handler, routes.Route):
-                # For Route classes, try other paths if available
-                path_list = self._route_class_paths[handler]
-                for alt_path in reversed(path_list):
-                    if alt_path != path:
-                        try:
-                            return self._build_url_from_path(alt_path, kwargs)
-                        except ValueError:
-                            continue
-
-            elif paths and len(paths) > 1:
-                # For function handlers, try other paths if available
-                for alt_path in reversed(paths):
-                    if alt_path != path:
-                        try:
-                            return self._build_url_from_path(alt_path, kwargs)
-                        except ValueError:
-                            continue
-
-            # If we get here, no path could be satisfied with the provided kwargs
-            raise e
-
-    def _build_url_from_path(self, path: str, kwargs: dict) -> str:
-        """Build a URL by substituting path parameters from kwargs."""
-        parts = path.split("/")
-        result_parts = []
-
-        for part in parts:
-            if part.startswith("{") and part.endswith("}"):
-                param_name = part[1:-1]
-                if param_name not in kwargs:
-                    raise ValueError(f"Missing required path parameter: {param_name}")
-                result_parts.append(str(kwargs[param_name]))
-            else:
-                result_parts.append(part)
-
-        return "/" + "/".join(p for p in result_parts if p)
-
-    def _find_all_handler_paths(self, handler: Callable) -> list[str]:
-        """Finds all path patterns for a given handler in this router."""
-        return [
-            path
-            for path, _, route_handler, _ in self._routes
-            if route_handler == handler
-        ]
-
-    def _find_best_matching_path(self, paths: list[str], kwargs: dict) -> str | None:
-        """Find the best matching path based on the provided kwargs.
-
-        This method tries to find a path where all required parameters are provided in kwargs.
-        It prioritizes:
-        1. Paths where all parameters are provided and the most parameters are used
-        2. The most recently added path (last in the list)
-
-        If no path can be fully satisfied, it returns None.
-        """
-        valid_paths = []
-
-        for path in paths:
-            param_names = [
-                part[1:-1]
-                for part in path.split("/")
-                if part.startswith("{") and part.endswith("}")
-            ]
-
-            # Check if all parameters for this path are provided
-            if all(param in kwargs for param in param_names):
-                # Score is based on how many parameters are used by this path
-                valid_paths.append((path, len(param_names)))
-
-        if not valid_paths:
-            return None
-
-        # Return the path with the most parameters (to use as many kwargs as possible)
-        valid_paths.sort(key=lambda x: x[1], reverse=True)
-        return valid_paths[0][0]
+            return url_for_function_handler(
+                self._routes,
+                self._mounted_routers,
+                self._sub_routers,
+                handler,
+                **kwargs
+            )
 
     def _find_handler_path(self, handler: Callable) -> str | None:
         """Finds the first path pattern for a given handler in this router."""
-        for path, _, route_handler, _ in self._routes:
-            if route_handler == handler:
-                return path
-        return None
+        from serv.routing.generation import find_handler_path
+        return find_handler_path(self._routes, handler)
 
     def resolve_route(
         self, request_path: str, request_method: str
@@ -566,171 +442,9 @@ class Router(RouterProtocol):
         Supported types: {param}, {param:int}, {param:path}
         Returns a dict of path parameters if matched, else None.
         """
-        pattern_parts = path_pattern.strip("/").split("/")
-        request_parts = request_path.strip("/").split("/")
+        from serv.routing.patterns import match_path
+        return match_path(request_path, path_pattern)
 
-        # Handle special case for path type parameters that can consume multiple segments
-        if any("{" in part and ":path}" in part for part in pattern_parts):
-            return self._match_path_with_path_type(request_path, path_pattern)
-
-        if len(pattern_parts) != len(request_parts):
-            return None
-
-        params = {}
-        for p_part, r_part in zip(pattern_parts, request_parts, strict=False):
-            if "{" in p_part and "}" in p_part:
-                # Handle parameters that might be embedded in text (like "v{version:int}")
-                result = self._match_segment_with_params(p_part, r_part)
-                if result is None:
-                    return None
-                params.update(result)
-            elif p_part != r_part:
-                return None
-
-        return params
-
-    def _match_segment_with_params(
-        self, pattern_segment: str, request_segment: str
-    ) -> dict[str, Any] | None:
-        """Match a single path segment that may contain embedded parameters."""
-        import re
-
-        # Find all parameters in the pattern segment
-        param_pattern = r"\{([^}]+)\}"
-        params = {}
-
-        # Build a regex pattern by replacing parameter placeholders
-        regex_pattern = pattern_segment
-        param_matches = re.finditer(param_pattern, pattern_segment)
-
-        for match in reversed(list(param_matches)):  # Reverse to maintain indices
-            param_spec = match.group(1)
-            if ":" in param_spec:
-                param_name, param_type = param_spec.split(":", 1)
-                if param_type == "int":
-                    # Replace with regex for integers
-                    regex_pattern = (
-                        regex_pattern[: match.start()]
-                        + r"(\d+)"
-                        + regex_pattern[match.end() :]
-                    )
-                elif param_type == "path":
-                    # For path type in a segment, match everything
-                    regex_pattern = (
-                        regex_pattern[: match.start()]
-                        + r"(.+)"
-                        + regex_pattern[match.end() :]
-                    )
-                else:
-                    # Default to matching non-slash characters
-                    regex_pattern = (
-                        regex_pattern[: match.start()]
-                        + r"([^/]+)"
-                        + regex_pattern[match.end() :]
-                    )
-            else:
-                # Simple parameter, match non-slash characters
-                regex_pattern = (
-                    regex_pattern[: match.start()]
-                    + r"([^/]+)"
-                    + regex_pattern[match.end() :]
-                )
-
-        # Escape any remaining regex special characters in the pattern
-        regex_pattern = regex_pattern.replace(".", r"\.")
-        regex_pattern = "^" + regex_pattern + "$"
-
-        # Try to match the request segment
-        match = re.match(regex_pattern, request_segment)
-        if not match:
-            return None
-
-        # Extract parameter values
-        param_matches = list(re.finditer(param_pattern, pattern_segment))
-        for i, param_match in enumerate(param_matches):
-            param_spec = param_match.group(1)
-            value = match.group(i + 1)
-
-            if ":" in param_spec:
-                param_name, param_type = param_spec.split(":", 1)
-                try:
-                    if param_type == "int":
-                        params[param_name] = int(value)
-                    elif param_type == "path":
-                        params[param_name] = value
-                    else:
-                        params[param_name] = value
-                except ValueError:
-                    return None
-            else:
-                params[param_spec] = value
-
-        return params
-
-    def _match_path_with_path_type(
-        self, request_path: str, path_pattern: str
-    ) -> dict[str, Any] | None:
-        """Handle path patterns with path type parameters that can consume multiple segments."""
-        pattern_parts = path_pattern.strip("/").split("/")
-        request_parts = request_path.strip("/").split("/")
-
-        params = {}
-        pattern_idx = 0
-        request_idx = 0
-
-        while pattern_idx < len(pattern_parts) and request_idx < len(request_parts):
-            p_part = pattern_parts[pattern_idx]
-
-            if p_part.startswith("{") and p_part.endswith("}"):
-                param_spec = p_part[1:-1]
-                if ":" in param_spec:
-                    param_name, param_type = param_spec.split(":", 1)
-                    if param_type == "path":
-                        # Path type consumes remaining segments
-                        remaining_pattern = len(pattern_parts) - pattern_idx - 1
-                        if remaining_pattern == 0:
-                            # This is the last part, consume all remaining request parts
-                            path_value = "/".join(request_parts[request_idx:])
-                            params[param_name] = path_value
-                            return params
-                        else:
-                            # Calculate how many segments to consume
-                            remaining_request = len(request_parts) - request_idx
-                            segments_to_consume = remaining_request - remaining_pattern
-                            if segments_to_consume < 1:
-                                return None
-                            path_value = "/".join(
-                                request_parts[
-                                    request_idx : request_idx + segments_to_consume
-                                ]
-                            )
-                            params[param_name] = path_value
-                            request_idx += segments_to_consume
-                    elif param_type == "int":
-                        try:
-                            params[param_name] = int(request_parts[request_idx])
-                        except ValueError:
-                            return None
-                        request_idx += 1
-                    else:
-                        params[param_name] = request_parts[request_idx]
-                        request_idx += 1
-                else:
-                    params[param_spec] = request_parts[request_idx]
-                    request_idx += 1
-            else:
-                # Exact match required
-                if p_part != request_parts[request_idx]:
-                    return None
-                request_idx += 1
-
-            pattern_idx += 1
-
-        # Check if we consumed all parts
-        if pattern_idx == len(pattern_parts) and request_idx == len(request_parts):
-            return params
-
-        return None
 
     def resolve_websocket(
         self, request_path: str

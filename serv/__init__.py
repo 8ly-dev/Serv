@@ -66,7 +66,7 @@ Key Components:
 For detailed documentation and examples, visit: https://serv.dev/docs
 """
 
-from serv.app import App
+from serv._app import App
 from serv.routes import handle
 from serv.test_client import create_test_app_client
 from serv.websocket import WebSocket

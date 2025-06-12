@@ -36,7 +36,7 @@ from serv.injectors import inject_request_object, inject_websocket_object
 from serv.protocols import AppContextProtocol, EventEmitterProtocol, RouterProtocol
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from serv.routing import HTTPNotFoundException, Router
+from serv._routing import HTTPNotFoundException, Router
 
 logger = logging.getLogger(__name__)
 
@@ -979,9 +979,24 @@ class App(EventEmitterProtocol, AppContextProtocol):
                 # Create a branch of the container with route settings
                 with container.branch() as route_container:
                     # Add route settings to the container using RouteSettings
-                    from serv.routing import RouteSettings
+                    from serv._routing import RouteSettings
 
                     route_container.add(RouteSettings, RouteSettings(**route_settings))
+
+                    # Ensure essential dependencies are available in route container
+                    # Copy from parent container if missing
+                    for dep_type in [Request, ResponseBuilder, Container, Router]:
+                        try:
+                            parent_instance = container.get(dep_type)
+                            # Try to get from route container to see if it's already there
+                            try:
+                                route_container.get(dep_type)
+                            except:
+                                # Not found in route container, add it
+                                route_container.add(dep_type, parent_instance)
+                        except:
+                            # Parent doesn't have it, skip
+                            pass
 
                     try:
                         await route_container.call(handler_callable, **path_params)
@@ -1080,7 +1095,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
 
                 # Create a branch of the container with route settings and WebSocket instance
                 with container.branch() as route_container:
-                    from serv.routing import RouteSettings
+                    from serv._routing import RouteSettings
 
                     route_container.add(RouteSettings, RouteSettings(**route_settings))
                     route_container.add(WebSocket, websocket)
