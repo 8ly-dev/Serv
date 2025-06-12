@@ -16,47 +16,36 @@ class TestParseAuthConfig:
 
     def test_parse_valid_auth_config(self):
         """Test parsing valid auth configuration."""
-        app_config = {
-            "auth": {
-                "enabled": True,
-                "providers": {
-                    "credential": {"provider": "memory"},
-                    "session": {"provider": "memory"},
-                    "user": {"provider": "memory"},
-                    "audit": {"provider": "memory"},
-                    "policy": {"provider": "rbac"}
-                }
+        auth_config = {
+            "enabled": True,
+            "providers": {
+                "credential": {"provider": "memory"},
+                "session": {"provider": "memory"},
+                "user": {"provider": "memory"},
+                "audit": {"provider": "memory"},
+                "policy": {"provider": "rbac"}
             }
         }
         
-        config = parse_auth_config(app_config)
+        config = parse_auth_config(auth_config)
         assert isinstance(config, AuthConfig)
         assert config.enabled is True
         assert config.providers.credential.provider == "memory"
 
-    def test_parse_empty_app_config(self):
-        """Test parsing empty app config raises error."""
-        with pytest.raises(ConfigurationError, match="Application configuration is empty"):
+    def test_parse_empty_auth_config(self):
+        """Test parsing empty auth config raises error."""
+        with pytest.raises(ConfigurationError, match="Auth configuration is empty"):
             parse_auth_config({})
-
-    def test_parse_missing_auth_section(self):
-        """Test missing auth section raises error."""
-        app_config = {"site_info": {"name": "Test"}}
-        
-        with pytest.raises(ConfigurationError, match="No 'auth' section found"):
-            parse_auth_config(app_config)
 
     def test_parse_invalid_auth_config(self):
         """Test invalid auth config raises validation error."""
-        app_config = {
-            "auth": {
-                "enabled": "not_a_boolean",  # Invalid type
-                "providers": {}  # Missing required fields
-            }
+        auth_config = {
+            "enabled": "not_a_boolean",  # Invalid type
+            "providers": {}  # Missing required fields
         }
         
         with pytest.raises(ConfigurationError, match="Invalid auth configuration"):
-            parse_auth_config(app_config)
+            parse_auth_config(auth_config)
 
 
 class TestParseExtensionAuthConfig:

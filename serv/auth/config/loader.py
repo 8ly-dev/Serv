@@ -1,4 +1,4 @@
-"""Simple config loading utilities for auth system integration with app config."""
+"""Simple config parsing utilities for auth system."""
 
 from typing import Any, Dict, Optional
 
@@ -8,25 +8,20 @@ from ..exceptions import ConfigurationError
 from .schema import AuthConfig, ExtensionAuthConfig
 
 
-def parse_auth_config(app_config: Dict[str, Any]) -> AuthConfig:
-    """Parse auth configuration from app config.
+def parse_auth_config(auth_config: Dict[str, Any]) -> AuthConfig:
+    """Parse and validate auth configuration.
     
     Args:
-        app_config: Full application configuration dictionary
+        auth_config: Auth configuration dictionary (from app's config['auth'])
         
     Returns:
         Validated AuthConfig instance
         
     Raises:
-        ConfigurationError: If auth configuration is invalid or missing
+        ConfigurationError: If auth configuration is invalid
     """
-    if not app_config:
-        raise ConfigurationError("Application configuration is empty")
-    
-    # Extract auth section
-    auth_config = app_config.get("auth", {})
     if not auth_config:
-        raise ConfigurationError("No 'auth' section found in application configuration")
+        raise ConfigurationError("Auth configuration is empty")
     
     # Validate configuration using Pydantic
     try:
