@@ -45,7 +45,7 @@ class DatabaseManager:
                 self.connections[name] = connection
 
                 # Register with DI container
-                self.register_with_di(name, connection)
+                self.register_connection(name, connection)
 
                 # Register cleanup
                 self.lifecycle.register_cleanup(connection)
@@ -60,8 +60,8 @@ class DatabaseManager:
         await self.exit_stack.aclose()
         self.connections.clear()
 
-    def register_with_di(
-        self, name: str, connection: Any,
+    def register_connection(
+        self, name: str, connection: Any
     ) -> None:
         """Register database connection with dependency injection using Bevy 3.1 qualifiers.
 

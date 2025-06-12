@@ -115,7 +115,7 @@ class TestDatabaseManager:
         mock_connection.__class__ = type("MockDB", (), {})
 
         # Register with DI
-        manager.register_with_di("test_db", mock_connection, "test_qualifier")
+        manager.register_connection("test_db", mock_connection)
 
         # Verify registration (this tests that the method runs without error)
         # The actual DI testing would require a more complex setup
