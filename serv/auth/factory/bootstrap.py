@@ -89,13 +89,12 @@ class AuthSystemBootstrap:
             # Set up any additional infrastructure
             await self._setup_additional_infrastructure(container)
 
+        except (ConfigurationError, ProviderInitializationError):
+            raise
         except Exception as e:
-            if isinstance(e, (ConfigurationError, ProviderInitializationError)):
-                raise
-            else:
-                raise ProviderInitializationError(
-                    f"Failed to setup auth system: {e}"
-                ) from e
+            raise ProviderInitializationError(
+                "Failed to setup auth system"
+            ) from e
 
     async def _create_credential_provider(
         self, container: Container
