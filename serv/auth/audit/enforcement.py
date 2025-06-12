@@ -246,30 +246,24 @@ def _find_audit_journal_parameter(
 
     Returns:
         Parameter name if found, None otherwise
+    
+    Raises:
+        Any annotation evaluation errors (NameError, TypeError, etc.)
     """
-    # First try to resolve type hints if function is available
     if func is not None:
-        try:
-            # Use get_type_hints to resolve string annotations properly
-            type_hints = get_type_hints(func)
-            for param_name, _param in signature.parameters.items():
-                if param_name in type_hints:
-                    resolved_type = type_hints[param_name]
-                    if _is_audit_journal_type(resolved_type):
-                        return param_name
-        except (NameError, TypeError, AttributeError):
-            # If get_type_hints fails, fall back to manual inspection
-            pass
+        # Use get_type_hints to resolve annotations - let any errors bubble up
+        type_hints = get_type_hints(func)
+        for param_name, _param in signature.parameters.items():
+            if param_name in type_hints:
+                resolved_type = type_hints[param_name]
+                if _is_audit_journal_type(resolved_type):
+                    return param_name
 
-    # Fallback: manual annotation inspection
+    # Fallback: check already-resolved annotations in signature
     for param_name, param in signature.parameters.items():
-        if param.annotation == inspect.Parameter.empty:
-            continue
-
-        if _is_audit_journal_type(param.annotation) or _is_audit_journal_string(
-            param.annotation
-        ):
-            return param_name
+        if param.annotation != inspect.Parameter.empty:
+            if _is_audit_journal_type(param.annotation):
+                return param_name
 
     return None
 
@@ -297,47 +291,3 @@ def _is_audit_journal_type(annotation: Any) -> bool:
     return False
 
 
-def _is_audit_journal_string(annotation: Any) -> bool:
-    """Check if string annotation likely represents AuditJournal.
-
-    Args:
-        annotation: The annotation to check
-
-    Returns:
-        True if string annotation likely represents AuditJournal
-    """
-    if not isinstance(annotation, str):
-        return False
-
-    # Clean up the string
-    annotation_str = annotation.strip()
-
-    # Check for simple AuditJournal reference
-    if annotation_str == "AuditJournal":
-        return True
-
-    # Check for qualified names ending with AuditJournal
-    if annotation_str.endswith(".AuditJournal"):
-        return True
-
-    # Check for union patterns containing AuditJournal
-    union_patterns = [
-        "AuditJournal | None",
-        "AuditJournal|None",
-        "None | AuditJournal",
-        "None|AuditJournal",
-        "Union[AuditJournal, None]",
-        "Union[None, AuditJournal]",
-    ]
-
-    for pattern in union_patterns:
-        if annotation_str == pattern:
-            return True
-
-    # Check if AuditJournal appears in a union with other types
-    if "AuditJournal" in annotation_str and (
-        "|" in annotation_str or "Union[" in annotation_str
-    ):
-        return True
-
-    return False
