@@ -159,65 +159,18 @@ class AuthSystemBootstrap:
     ) -> AuthProvider:
         """Create the main auth provider that orchestrates all others.
 
-        This will create a StandardAuthProvider that coordinates between
-        all the individual providers.
+        Creates a StandardAuthProvider that coordinates between all the
+        individual providers. The StandardAuthProvider is a scaffold
+        implementation that will be fully implemented in Phase 3.
         """
-        # For now, we'll create a placeholder since we haven't implemented
-        # the StandardAuthProvider yet. This will be updated in Phase 3.
+        from serv.bundled.auth.auth import StandardAuthProvider
 
-        # Import dynamically to avoid circular imports
-        try:
-            from serv.bundled.auth.auth import StandardAuthProvider
-
-            return StandardAuthProvider(
-                credential_provider=credential_provider,
-                session_provider=session_provider,
-                user_provider=user_provider,
-                audit_provider=audit_provider,
-            )
-        except ImportError:
-            # StandardAuthProvider not implemented yet, create a mock
-            class MockAuthProvider(AuthProvider):
-                def __init__(self, **kwargs):
-                    self.credential_provider = kwargs.get("credential_provider")
-                    self.session_provider = kwargs.get("session_provider")
-                    self.user_provider = kwargs.get("user_provider")
-                    self.audit_provider = kwargs.get("audit_provider")
-
-                async def authenticate(
-                    self,
-                    credentials,
-                    ip_address=None,
-                    user_agent=None,
-                    audit_journal=None,
-                ):
-                    # Mock implementation
-                    return None
-
-                async def authorize(
-                    self, session_id, permission, context=None, audit_journal=None
-                ):
-                    # Mock implementation
-                    return False
-
-                async def logout(self, session_id, audit_journal):
-                    # Mock implementation
-                    pass
-
-                async def validate_session(self, session_id):
-                    # Mock implementation
-                    return None
-
-                async def get_current_user(self, session_id):
-                    # Mock implementation
-                    return None
-
-            return MockAuthProvider(
-                credential_provider=credential_provider,
-                session_provider=session_provider,
-                user_provider=user_provider,
-                audit_provider=audit_provider,
-            )
+        return StandardAuthProvider(
+            credential_provider=credential_provider,
+            session_provider=session_provider,
+            user_provider=user_provider,
+            audit_provider=audit_provider,
+        )
 
     async def _setup_additional_infrastructure(self, container: Container) -> None:
         """Set up additional infrastructure like database models.
