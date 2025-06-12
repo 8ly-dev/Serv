@@ -800,65 +800,108 @@ class Route:
             param_name = param.name
             param_annotation = type_hints.get(param_name, param.annotation)
             value = None
+            param_is_required = param.default == param.empty
 
-            # Check for injection annotations
+            # Check for injection annotations - let bevy handle these through container.call()
+            # but we need to validate they can be satisfied for compatibility checking
             if get_origin(param_annotation) is Annotated:
                 args = get_args(param_annotation)
                 if len(args) >= 2:
                     marker = args[1]
 
-                    if isinstance(marker, Header):
-                        # HTTP headers are case-insensitive, so try lowercase
-                        header_value = request.headers.get(
-                            marker.name
-                        ) or request.headers.get(marker.name.lower())
-                        value = (
-                            header_value if header_value is not None else marker.default
+                    if isinstance(marker, Header | Cookie | Query):
+                        # Let bevy handle injection, but check if required param can be satisfied
+                        if isinstance(marker, Header):
+                            can_be_satisfied = (
+                                marker.name in request.headers
+                                or marker.name.lower() in request.headers
+                                or marker.default is not None
+                            )
+                            # Get value for scoring purposes
+                            header_value = request.headers.get(
+                                marker.name
+                            ) or request.headers.get(marker.name.lower())
+                            value = (
+                                header_value
+                                if header_value is not None
+                                else marker.default
+                            )
+                        elif isinstance(marker, Cookie):
+                            can_be_satisfied = (
+                                marker.name in request.cookies
+                                or marker.default is not None
+                            )
+                            # Get value for scoring purposes
+                            value = request.cookies.get(marker.name, marker.default)
+                        elif isinstance(marker, Query):
+                            can_be_satisfied = (
+                                marker.name in request.query_params
+                                or marker.default is not None
+                            )
+                            # Get value for scoring purposes
+                            value = request.query_params.get(
+                                marker.name, marker.default
+                            )
+
+                        # If this is a required parameter that can't be satisfied, handler is incompatible
+                        if param_is_required and not can_be_satisfied:
+                            from serv.exceptions import HTTPMethodNotAllowedException
+
+                            raise HTTPMethodNotAllowedException(
+                                f"Required parameter '{param_name}' cannot be satisfied"
+                            )
+
+                        # Include in kwargs for scoring, but bevy will re-inject during actual call
+                        if value is not None:
+                            kwargs[param_name] = value
+                        continue
+
+            # Handle path parameters
+            if param_name in path_params:
+                kwargs[param_name] = path_params[param_name]
+                continue
+
+            # Handle request types
+            injection_type = param_annotation
+            if get_origin(param_annotation) is Annotated:
+                injection_type = get_args(param_annotation)[0]
+
+            if injection_type != param.empty and injection_type is not type(None):
+                if hasattr(injection_type, "__mro__") and any(
+                    base.__name__ == "Request" for base in injection_type.__mro__
+                ):
+                    # This is a request type, create it from the incoming request
+                    if injection_type.__name__ in [
+                        "GetRequest",
+                        "PostRequest",
+                        "PutRequest",
+                        "DeleteRequest",
+                        "PatchRequest",
+                        "OptionsRequest",
+                        "HeadRequest",
+                    ]:
+                        kwargs[param_name] = injection_type(
+                            request.scope, request._receive
                         )
-                    elif isinstance(marker, Cookie):
-                        value = request.cookies.get(marker.name, marker.default)
-                    elif isinstance(marker, Query):
-                        value = request.query_params.get(marker.name, marker.default)
+                        continue
 
-            if value is None and param_name in path_params:
-                value = path_params[param_name]
+                # Try container injection for other types
+                try:
+                    value = container.get(injection_type)
+                    kwargs[param_name] = value
+                    continue
+                except Exception:
+                    pass
 
-            # If no injection marker found and no value extracted, check for request types first
-            if value is None:
-                # Extract the actual type if it's an Annotated type
-                injection_type = param_annotation
-                if get_origin(param_annotation) is Annotated:
-                    injection_type = get_args(param_annotation)[0]
+            # If we get here and the parameter is required, this handler is incompatible
+            if param_is_required:
+                from serv.exceptions import HTTPMethodNotAllowedException
 
-                # Special handling for request types - create from the incoming request
-                if injection_type != param.empty and injection_type is not type(None):
-                    if hasattr(injection_type, "__mro__") and any(
-                        base.__name__ == "Request" for base in injection_type.__mro__
-                    ):
-                        # This is a request type, create it from the incoming request
-                        if injection_type.__name__ in [
-                            "GetRequest",
-                            "PostRequest",
-                            "PutRequest",
-                            "DeleteRequest",
-                            "PatchRequest",
-                            "OptionsRequest",
-                            "HeadRequest",
-                        ]:
-                            value = injection_type(request.scope, request._receive)
+                raise HTTPMethodNotAllowedException(
+                    f"Required parameter '{param_name}' cannot be satisfied"
+                )
 
-                # If not a request type, try container injection
-                if value is None:
-                    try:
-                        value = container.get(injection_type)
-                    except Exception:
-                        pass
-
-            # If still no value and parameter has a default, we'll let the function handle it
-            if value is None:
-                continue  # Skip this parameter, let default value be used
-
-            kwargs[param_name] = value
+            # Optional parameter that couldn't be satisfied - skip it
 
         return kwargs
 
