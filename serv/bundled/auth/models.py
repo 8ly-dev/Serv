@@ -57,3 +57,76 @@ class RateLimitModel:
     request_time: str  # ISO format datetime
     metadata: str = "{}"  # JSON string
     id: Annotated[int, Key] = None  # Auto-generated primary key
+
+
+@ommi_model(collection=auth_collection)
+@dataclass
+class AuditEventModel:
+    """Audit event storage model for Ommi."""
+
+    event_id: str
+    event_type: str
+    user_id: str | None
+    session_id: str | None
+    timestamp: str  # ISO format datetime
+    source_ip: str | None
+    user_agent: str | None
+    resource: str | None
+    action: str | None
+    result: str | None
+    event_data: str = "{}"  # JSON string
+    metadata: str = "{}"  # JSON string
+    id: Annotated[int, Key] = None  # Auto-generated primary key
+
+
+@ommi_model(collection=auth_collection)
+@dataclass
+class RoleModel:
+    """Role definition model for Ommi."""
+
+    role_id: str
+    name: str
+    description: str
+    created_at: str  # ISO format datetime
+    updated_at: str  # ISO format datetime
+    is_active: bool = True
+    metadata: str = "{}"  # JSON string
+    id: Annotated[int, Key] = None  # Auto-generated primary key
+
+
+@ommi_model(collection=auth_collection)
+@dataclass
+class PermissionModel:
+    """Permission definition model for Ommi."""
+
+    permission_id: str
+    name: str
+    description: str
+    resource: str | None
+    created_at: str  # ISO format datetime
+    is_active: bool = True
+    id: Annotated[int, Key] = None  # Auto-generated primary key
+
+
+@ommi_model(collection=auth_collection)
+@dataclass
+class UserRoleModel:
+    """User-role assignment model for Ommi."""
+
+    user_id: str
+    role_id: str
+    assigned_at: str  # ISO format datetime
+    assigned_by: str
+    id: Annotated[int, Key] = None  # Auto-generated primary key
+
+
+@ommi_model(collection=auth_collection)
+@dataclass
+class RolePermissionModel:
+    """Role-permission assignment model for Ommi."""
+
+    role_id: str
+    permission_name: str
+    granted_at: str  # ISO format datetime
+    granted_by: str
+    id: Annotated[int, Key] = None  # Auto-generated primary key

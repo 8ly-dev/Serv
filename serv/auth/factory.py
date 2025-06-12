@@ -10,9 +10,12 @@ from typing import Any, TypeVar
 
 from bevy import Container, get_registry
 
+from .audit_logger import AuditLogger
 from .auth_provider import AuthProvider
 from .credential_vault import CredentialVault
+from .policy_engine import PolicyEngine
 from .rate_limiter import RateLimiter
+from .role_registry import RoleRegistry
 from .session_manager import SessionManager
 from .token_service import TokenService
 
@@ -228,6 +231,90 @@ class AuthSystemFactory:
 
         return service_class(service_config)
 
+    def create_audit_logger(self, config: dict[str, Any]) -> AuditLogger:
+        """
+        Create an audit logger from configuration.
+
+        Args:
+            config: Audit logger configuration containing 'backend' and other config
+
+        Returns:
+            Configured AuditLogger instance
+
+        Raises:
+            AuthConfigError: If configuration is invalid
+        """
+        if "backend" not in config:
+            raise AuthConfigError("Audit logger configuration missing 'backend' field")
+
+        backend_path = config["backend"]
+        logger_class = self._loader.load_class(backend_path)
+
+        # Validate that the class is actually an AuditLogger
+        if not issubclass(logger_class, AuditLogger):
+            raise AuthConfigError(f"Class {logger_class} is not an AuditLogger")
+
+        # Extract config excluding the backend field
+        logger_config = {k: v for k, v in config.items() if k != "backend"}
+
+        return logger_class(logger_config)
+
+    def create_policy_engine(self, config: dict[str, Any]) -> PolicyEngine:
+        """
+        Create a policy engine from configuration.
+
+        Args:
+            config: Policy engine configuration containing 'backend' and other config
+
+        Returns:
+            Configured PolicyEngine instance
+
+        Raises:
+            AuthConfigError: If configuration is invalid
+        """
+        if "backend" not in config:
+            raise AuthConfigError("Policy engine configuration missing 'backend' field")
+
+        backend_path = config["backend"]
+        engine_class = self._loader.load_class(backend_path)
+
+        # Validate that the class is actually a PolicyEngine
+        if not issubclass(engine_class, PolicyEngine):
+            raise AuthConfigError(f"Class {engine_class} is not a PolicyEngine")
+
+        # Extract config excluding the backend field
+        engine_config = {k: v for k, v in config.items() if k != "backend"}
+
+        return engine_class(engine_config)
+
+    def create_role_registry(self, config: dict[str, Any]) -> RoleRegistry:
+        """
+        Create a role registry from configuration.
+
+        Args:
+            config: Role registry configuration containing 'backend' and other config
+
+        Returns:
+            Configured RoleRegistry instance
+
+        Raises:
+            AuthConfigError: If configuration is invalid
+        """
+        if "backend" not in config:
+            raise AuthConfigError("Role registry configuration missing 'backend' field")
+
+        backend_path = config["backend"]
+        registry_class = self._loader.load_class(backend_path)
+
+        # Validate that the class is actually a RoleRegistry
+        if not issubclass(registry_class, RoleRegistry):
+            raise AuthConfigError(f"Class {registry_class} is not a RoleRegistry")
+
+        # Extract config excluding the backend field
+        registry_config = {k: v for k, v in config.items() if k != "backend"}
+
+        return registry_class(registry_config)
+
     def configure_auth_system(self, auth_config: dict[str, Any]) -> dict[str, Any]:
         """
         Configure the complete auth system from configuration.
@@ -283,6 +370,27 @@ class AuthSystemFactory:
             components["token_service"] = token_service
             # Register in DI container using the abstract base class as key
             self.container.add(TokenService, token_service)
+
+        # Create audit logger
+        if "audit_logger" in auth_config:
+            audit_logger = self.create_audit_logger(auth_config["audit_logger"])
+            components["audit_logger"] = audit_logger
+            # Register in DI container using the abstract base class as key
+            self.container.add(AuditLogger, audit_logger)
+
+        # Create policy engine
+        if "policy_engine" in auth_config:
+            policy_engine = self.create_policy_engine(auth_config["policy_engine"])
+            components["policy_engine"] = policy_engine
+            # Register in DI container using the abstract base class as key
+            self.container.add(PolicyEngine, policy_engine)
+
+        # Create role registry
+        if "role_registry" in auth_config:
+            role_registry = self.create_role_registry(auth_config["role_registry"])
+            components["role_registry"] = role_registry
+            # Register in DI container using the abstract base class as key
+            self.container.add(RoleRegistry, role_registry)
 
         return components
 

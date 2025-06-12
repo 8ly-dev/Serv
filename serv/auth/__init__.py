@@ -45,6 +45,18 @@ from .types import (
     Token,
     ValidationResult,
 )
+from .utils import (
+    configure_trusted_proxies,
+    generate_csrf_token,
+    generate_device_fingerprint,
+    get_client_ip,
+    get_common_trusted_proxies,
+    mask_sensitive_data,
+    sanitize_user_input,
+    secure_compare,
+    timing_protection,
+    validate_session_fingerprint,
+)
 
 __all__ = [
     # Data types
@@ -79,4 +91,15 @@ __all__ = [
     "create_auth_system",
     "AuthConfigLoader",
     "configure_auth_from_app_config",
+    # Utilities
+    "configure_trusted_proxies",
+    "generate_csrf_token",
+    "generate_device_fingerprint",
+    "get_client_ip",
+    "get_common_trusted_proxies",
+    "mask_sensitive_data",
+    "sanitize_user_input",
+    "secure_compare",
+    "timing_protection",
+    "validate_session_fingerprint",
 ]

@@ -11,12 +11,15 @@ import pytest
 from bevy import get_registry
 
 from serv.auth import (
+    AuditLogger,
     AuthConfigError,
     AuthProvider,
     AuthSystemFactory,
     BackendLoader,
     CredentialVault,
+    PolicyEngine,
     RateLimiter,
+    RoleRegistry,
     SessionManager,
     TokenService,
     create_auth_system,
@@ -249,6 +252,132 @@ class MockTokenService(TokenService):
         pass
 
 
+class MockAuditLogger(AuditLogger):
+    """Mock audit logger for testing."""
+
+    def _validate_config(self, config):
+        pass
+
+    async def log_event(self, event):
+        return "mock_event_id"
+
+    async def query_events(
+        self, start_time=None, end_time=None, user_id=None, event_type=None, limit=100
+    ):
+        from serv.auth.types import AuditEvent
+        
+        return [
+            AuditEvent(
+                event_id="mock_event_id",
+                event_type="mock_type",
+                user_id="mock_user",
+                timestamp=None,
+                result="success",
+            )
+        ]
+
+    async def get_event_statistics(self, start_time=None, end_time=None):
+        return {"total_events": 10, "event_types": {"test": 5}}
+
+    async def verify_log_integrity(self):
+        return True
+
+    async def cleanup_old_events(self):
+        return 5
+
+    async def cleanup(self):
+        pass
+
+
+class MockPolicyEngine(PolicyEngine):
+    """Mock policy engine for testing."""
+
+    def _validate_config(self, config):
+        pass
+
+    async def evaluate(self, resource, action, user_context):
+        from serv.auth.types import PolicyDecision
+        
+        return PolicyDecision(
+            allowed=True,
+            reason="Mock policy allows",
+            policy_id="mock_policy",
+            applied_policies=[],
+        )
+
+    async def register_policy(self, policy):
+        return "mock_policy_id"
+
+    async def bulk_evaluate(self, requests):
+        from serv.auth.types import PolicyDecision
+        
+        return [
+            PolicyDecision(
+                allowed=True,
+                reason="Mock bulk evaluation",
+                policy_id="mock_policy",
+                applied_policies=[],
+            )
+            for _ in requests
+        ]
+
+    async def get_user_permissions(self, user_context):
+        return {"read", "write"}
+
+    async def cleanup(self):
+        pass
+
+
+class MockRoleRegistry(RoleRegistry):
+    """Mock role registry for testing."""
+
+    def _validate_config(self, config):
+        pass
+
+    async def define_role(self, name, description="", permissions=None):
+        from serv.auth.types import Role
+        
+        return Role(
+            role_id="mock_role_id",
+            name=name,
+            description=description,
+            permissions=permissions or [],
+            metadata={},
+            created_at=None,
+            is_active=True,
+        )
+
+    async def define_permission(self, name, description="", resource=None):
+        from serv.auth.types import Permission
+        
+        return Permission(
+            permission_id="mock_permission_id",
+            name=name,
+            description=description,
+            resource=resource,
+            created_at=None,
+            is_active=True,
+        )
+
+    async def assign_role(self, user_id, role_name):
+        return True
+
+    async def revoke_role(self, user_id, role_name):
+        return True
+
+    async def check_permission(self, user_id, permission_name):
+        return True
+
+    async def get_user_roles(self, user_id):
+        return ["mock_role"]
+
+    async def get_user_permissions(self, user_id):
+        return ["mock_permission"]
+
+    async def cleanup(self):
+        pass
+
+
 class TestAuthSystemFactory:
     """Test the auth system factory."""
 
@@ -339,6 +468,69 @@ class TestAuthSystemFactory:
         assert isinstance(limiter, MockRateLimiter)
         assert limiter.config["default_limits"] == {"login": "5/min"}
 
+    def test_create_audit_logger(self):
+        """Test creating audit logger."""
+        config = {
+            "backend": "test.module:MockAuditLogger",
+            "retention_days": 365,
+        }
+
+        # Mock the loader
+        self.factory._loader.load_class = lambda path: MockAuditLogger
+
+        logger = self.factory.create_audit_logger(config)
+        assert isinstance(logger, MockAuditLogger)
+        assert logger.config["retention_days"] == 365
+
+    def test_create_audit_logger_missing_backend(self):
+        """Test creating audit logger without backend."""
+        config = {"retention_days": 365}
+
+        with pytest.raises(AuthConfigError, match="missing 'backend' field"):
+            self.factory.create_audit_logger(config)
+
+    def test_create_policy_engine(self):
+        """Test creating policy engine."""
+        config = {
+            "backend": "test.module:MockPolicyEngine",
+            "default_decision": "deny",
+        }
+
+        # Mock the loader
+        self.factory._loader.load_class = lambda path: MockPolicyEngine
+
+        engine = self.factory.create_policy_engine(config)
+        assert isinstance(engine, MockPolicyEngine)
+        assert engine.config["default_decision"] == "deny"
+
+    def test_create_policy_engine_missing_backend(self):
+        """Test creating policy engine without backend."""
+        config = {"default_decision": "deny"}
+
+        with pytest.raises(AuthConfigError, match="missing 'backend' field"):
+            self.factory.create_policy_engine(config)
+
+    def test_create_role_registry(self):
+        """Test creating role registry."""
+        config = {
+            "backend": "test.module:MockRoleRegistry",
+            "cache_expiry": 300,
+        }
+
+        # Mock the loader
+        self.factory._loader.load_class = lambda path: MockRoleRegistry
+
+        registry = self.factory.create_role_registry(config)
+        assert isinstance(registry, MockRoleRegistry)
+        assert registry.config["cache_expiry"] == 300
+
+    def test_create_role_registry_missing_backend(self):
+        """Test creating role registry without backend."""
+        config = {"cache_expiry": 300}
+
+        with pytest.raises(AuthConfigError, match="missing 'backend' field"):
+            self.factory.create_role_registry(config)
+
     def test_configure_auth_system_full(self):
         """Test configuring a complete auth system."""
         auth_config = {
@@ -359,6 +551,18 @@ class TestAuthSystemFactory:
                 "backend": "test.module:MockTokenService",
                 "expiry_time": 3600,
             },
+            "audit_logger": {
+                "backend": "test.module:MockAuditLogger",
+                "retention_days": 365,
+            },
+            "policy_engine": {
+                "backend": "test.module:MockPolicyEngine",
+                "default_decision": "deny",
+            },
+            "role_registry": {
+                "backend": "test.module:MockRoleRegistry",
+                "cache_expiry": 300,
+            },
         }
 
         # Mock all loaders
@@ -373,6 +577,12 @@ class TestAuthSystemFactory:
                 return MockRateLimiter
             elif "MockTokenService" in path:
                 return MockTokenService
+            elif "MockAuditLogger" in path:
+                return MockAuditLogger
+            elif "MockPolicyEngine" in path:
+                return MockPolicyEngine
+            elif "MockRoleRegistry" in path:
+                return MockRoleRegistry
             else:
                 raise ValueError(f"Unknown path: {path}")
 
@@ -386,6 +596,9 @@ class TestAuthSystemFactory:
         assert "credential_vault" in components
         assert "rate_limiter" in components
         assert "token_service" in components
+        assert "audit_logger" in components
+        assert "policy_engine" in components
+        assert "role_registry" in components
 
         # Verify types are registered in DI container using abstract base classes
         assert self.container.get(AuthProvider) is not None
@@ -393,6 +606,9 @@ class TestAuthSystemFactory:
         assert self.container.get(CredentialVault) is not None
         assert self.container.get(RateLimiter) is not None
         assert self.container.get(TokenService) is not None
+        assert self.container.get(AuditLogger) is not None
+        assert self.container.get(PolicyEngine) is not None
+        assert self.container.get(RoleRegistry) is not None
 
     def test_configure_auth_system_partial(self):
         """Test configuring auth system with only some components."""
@@ -423,6 +639,9 @@ class TestAuthSystemFactory:
         assert "credential_vault" not in components
         assert "rate_limiter" not in components
         assert "token_service" not in components
+        assert "audit_logger" not in components
+        assert "policy_engine" not in components
+        assert "role_registry" not in components
 
         # Verify only configured types are in DI container
         assert self.container.get(AuthProvider) is not None
@@ -435,6 +654,12 @@ class TestAuthSystemFactory:
             self.container.get(RateLimiter)
         with pytest.raises(Exception):  # noqa: B017
             self.container.get(TokenService)
+        with pytest.raises(Exception):  # noqa: B017
+            self.container.get(AuditLogger)
+        with pytest.raises(Exception):  # noqa: B017
+            self.container.get(PolicyEngine)
+        with pytest.raises(Exception):  # noqa: B017
+            self.container.get(RoleRegistry)
 
     def test_configure_auth_system_empty(self):
         """Test configuring auth system with empty config."""
