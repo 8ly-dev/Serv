@@ -1,409 +1,163 @@
-"""Test configuration loading functionality."""
-
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import patch
+"""Test auth config parsing utilities."""
 
 import pytest
-import yaml
 
-from serv.auth.config.loader import AuthConfigLoader
+from serv.auth.config.loader import (
+    parse_auth_config,
+    parse_extension_auth_config, 
+    merge_extension_configs,
+)
+from serv.auth.config.schema import AuthConfig, ExtensionAuthConfig
 from serv.auth.exceptions import ConfigurationError
 
 
-class TestAuthConfigLoader:
-    """Test AuthConfigLoader functionality."""
+class TestParseAuthConfig:
+    """Test parse_auth_config function."""
 
-    def test_load_valid_config(self):
-        """Test loading a valid configuration file."""
-        config_data = {
+    def test_parse_valid_auth_config(self):
+        """Test parsing valid auth configuration."""
+        app_config = {
             "auth": {
                 "enabled": True,
                 "providers": {
-                    "credential": {"provider": "memory", "config": {}},
-                    "session": {"provider": "memory", "config": {}},
-                    "user": {"provider": "memory", "config": {}},
-                    "audit": {"provider": "memory", "config": {}},
-                    "policy": {"provider": "rbac", "config": {}},
-                },
+                    "credential": {"provider": "memory"},
+                    "session": {"provider": "memory"},
+                    "user": {"provider": "memory"},
+                    "audit": {"provider": "memory"},
+                    "policy": {"provider": "rbac"}
+                }
             }
         }
+        
+        config = parse_auth_config(app_config)
+        assert isinstance(config, AuthConfig)
+        assert config.enabled is True
+        assert config.providers.credential.provider == "memory"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
+    def test_parse_empty_app_config(self):
+        """Test parsing empty app config raises error."""
+        with pytest.raises(ConfigurationError, match="Application configuration is empty"):
+            parse_auth_config({})
 
-        try:
-            config = AuthConfigLoader.load_auth_config(config_path)
+    def test_parse_missing_auth_section(self):
+        """Test missing auth section raises error."""
+        app_config = {"site_info": {"name": "Test"}}
+        
+        with pytest.raises(ConfigurationError, match="No 'auth' section found"):
+            parse_auth_config(app_config)
 
-            assert config.enabled is True
-            assert config.providers.credential.provider == "memory"
-            assert config.providers.session.provider == "memory"
-            assert config.providers.user.provider == "memory"
-            assert config.providers.audit.provider == "memory"
-            assert config.providers.policy.provider == "rbac"
-        finally:
-            config_path.unlink()
-
-    def test_load_config_file_not_found(self):
-        """Test loading non-existent configuration file."""
-        non_existent_path = Path("/non/existent/config.yaml")
-
-        with pytest.raises(ConfigurationError, match="Configuration file not found"):
-            AuthConfigLoader.load_auth_config(non_existent_path)
-
-    def test_load_config_invalid_yaml(self):
-        """Test loading configuration file with invalid YAML."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("invalid: yaml: content: [")
-            config_path = Path(f.name)
-
-        try:
-            with pytest.raises(ConfigurationError, match="Invalid YAML"):
-                AuthConfigLoader.load_auth_config(config_path)
-        finally:
-            config_path.unlink()
-
-    def test_load_config_empty_file(self):
-        """Test loading empty configuration file."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("")
-            config_path = Path(f.name)
-
-        try:
-            with pytest.raises(ConfigurationError, match="Configuration file is empty"):
-                AuthConfigLoader.load_auth_config(config_path)
-        finally:
-            config_path.unlink()
-
-    def test_load_config_no_auth_section(self):
-        """Test loading configuration file without auth section."""
-        config_data = {"other": {"setting": "value"}}
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
-
-        try:
-            with pytest.raises(ConfigurationError, match="No 'auth' section found"):
-                AuthConfigLoader.load_auth_config(config_path)
-        finally:
-            config_path.unlink()
-
-    def test_load_config_invalid_auth_config(self):
-        """Test loading configuration file with invalid auth configuration."""
-        config_data = {
+    def test_parse_invalid_auth_config(self):
+        """Test invalid auth config raises validation error."""
+        app_config = {
             "auth": {
-                "enabled": True,
-                "providers": {
-                    # Missing required providers
-                    "credential": {"provider": "memory", "config": {}}
-                },
+                "enabled": "not_a_boolean",  # Invalid type
+                "providers": {}  # Missing required fields
             }
         }
+        
+        with pytest.raises(ConfigurationError, match="Invalid auth configuration"):
+            parse_auth_config(app_config)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
 
-        try:
-            with pytest.raises(ConfigurationError, match="Invalid auth configuration"):
-                AuthConfigLoader.load_auth_config(config_path)
-        finally:
-            config_path.unlink()
+class TestParseExtensionAuthConfig:
+    """Test parse_extension_auth_config function."""
 
-    def test_load_extension_config_valid(self):
-        """Test loading valid extension auth configuration."""
-        config_data = {
-            "name": "Test Extension",
+    def test_parse_valid_extension_config(self):
+        """Test parsing valid extension auth config."""
+        extension_config = {
             "auth": {
-                "policies": {"default": "authenticated"},
                 "permissions": [
                     {
-                        "permission": "read:test",
-                        "description": "Read test resources",
-                        "resource": "test",
-                        "actions": ["read"],
+                        "permission": "blog.create",
+                        "description": "Create blog posts",
+                        "resource": "blog",
+                        "actions": ["create"]
                     }
-                ],
-            },
+                ]
+            }
         }
+        
+        config = parse_extension_auth_config(extension_config)
+        assert isinstance(config, ExtensionAuthConfig)
+        assert len(config.permissions) == 1
+        assert config.permissions[0].permission == "blog.create"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
-
-        try:
-            config = AuthConfigLoader.load_extension_auth_config(config_path)
-
-            assert config is not None
-            assert config.policies.default == "authenticated"
-            assert len(config.permissions) == 1
-            assert config.permissions[0].permission == "read:test"
-        finally:
-            config_path.unlink()
-
-    def test_load_extension_config_no_auth_section(self):
-        """Test loading extension configuration without auth section."""
-        config_data = {"name": "Test Extension", "other": "data"}
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
-
-        try:
-            config = AuthConfigLoader.load_extension_auth_config(config_path)
-            assert config is None
-        finally:
-            config_path.unlink()
-
-    def test_load_extension_config_file_not_found(self):
-        """Test loading non-existent extension configuration file."""
-        non_existent_path = Path("/non/existent/extension.yaml")
-
-        config = AuthConfigLoader.load_extension_auth_config(non_existent_path)
+    def test_parse_empty_extension_config(self):
+        """Test parsing empty extension config returns None."""
+        config = parse_extension_auth_config({})
         assert config is None
 
+    def test_parse_extension_config_no_auth_section(self):
+        """Test extension config without auth section returns None."""
+        extension_config = {"name": "blog", "version": "1.0.0"}
+        
+        config = parse_extension_auth_config(extension_config)
+        assert config is None
 
-class TestEnvironmentVariableSubstitution:
-    """Test environment variable substitution functionality."""
-
-    def test_simple_env_var_substitution(self):
-        """Test simple environment variable substitution."""
-        config_data = {
+    def test_parse_invalid_extension_config(self):
+        """Test invalid extension auth config raises validation error."""
+        extension_config = {
             "auth": {
-                "enabled": True,
-                "providers": {
-                    "credential": {
-                        "provider": "database",
-                        "config": {"database_url": "${DATABASE_URL}"},
-                    },
-                    "session": {"provider": "memory", "config": {}},
-                    "user": {"provider": "memory", "config": {}},
-                    "audit": {"provider": "memory", "config": {}},
-                    "policy": {"provider": "rbac", "config": {}},
-                },
+                "permissions": [
+                    {
+                        # Missing required 'permission' field
+                        "description": "Test",
+                        "resource": "test",
+                        "actions": []
+                    }
+                ]
             }
         }
+        
+        with pytest.raises(ConfigurationError, match="Invalid extension auth configuration"):
+            parse_extension_auth_config(extension_config)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
 
-        try:
-            with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test.db"}):
-                config = AuthConfigLoader.load_auth_config(config_path)
+class TestMergeExtensionConfigs:
+    """Test merge_extension_configs function."""
 
-                assert (
-                    config.providers.credential.config["database_url"]
-                    == "sqlite:///test.db"
-                )
-        finally:
-            config_path.unlink()
-
-    def test_env_var_with_default(self):
-        """Test environment variable substitution with default value."""
-        config_data = {
-            "auth": {
-                "enabled": True,
-                "providers": {
-                    "credential": {
-                        "provider": "memory",
-                        "config": {"timeout": "${CONNECTION_TIMEOUT:-30}"},
-                    },
-                    "session": {"provider": "memory", "config": {}},
-                    "user": {"provider": "memory", "config": {}},
-                    "audit": {"provider": "memory", "config": {}},
-                    "policy": {"provider": "rbac", "config": {}},
-                },
+    def test_merge_configs_basic(self):
+        """Test basic config merging (currently returns base config)."""
+        base_config = AuthConfig(
+            enabled=True,
+            providers={
+                "credential": {"provider": "memory"},
+                "session": {"provider": "memory"}, 
+                "user": {"provider": "memory"},
+                "audit": {"provider": "memory"},
+                "policy": {"provider": "rbac"}
             }
-        }
+        )
+        
+        extension_configs = []
+        
+        merged = merge_extension_configs(base_config, extension_configs)
+        assert merged == base_config
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
-
-        try:
-            # Test with environment variable not set (should use default)
-            with patch.dict(os.environ, {}, clear=True):
-                config = AuthConfigLoader.load_auth_config(config_path)
-                assert config.providers.credential.config["timeout"] == "30"
-
-            # Test with environment variable set
-            with patch.dict(os.environ, {"CONNECTION_TIMEOUT": "60"}):
-                config = AuthConfigLoader.load_auth_config(config_path)
-                assert config.providers.credential.config["timeout"] == "60"
-        finally:
-            config_path.unlink()
-
-    def test_required_env_var_missing(self):
-        """Test required environment variable that is missing."""
-        config_data = {
-            "auth": {
-                "enabled": True,
-                "providers": {
-                    "credential": {
-                        "provider": "database",
-                        "config": {
-                            "api_key": "${API_KEY:?API key is required for authentication}"
-                        },
-                    },
-                    "session": {"provider": "memory", "config": {}},
-                    "user": {"provider": "memory", "config": {}},
-                    "audit": {"provider": "memory", "config": {}},
-                    "policy": {"provider": "rbac", "config": {}},
-                },
+    def test_merge_with_extension_configs(self):
+        """Test merging with extension configs (placeholder implementation)."""
+        base_config = AuthConfig(
+            enabled=True,
+            providers={
+                "credential": {"provider": "memory"},
+                "session": {"provider": "memory"},
+                "user": {"provider": "memory"}, 
+                "audit": {"provider": "memory"},
+                "policy": {"provider": "rbac"}
             }
-        }
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
-
-        try:
-            with patch.dict(os.environ, {}, clear=True):
-                with pytest.raises(ConfigurationError, match="API key is required"):
-                    AuthConfigLoader.load_auth_config(config_path)
-        finally:
-            config_path.unlink()
-
-    def test_required_env_var_present(self):
-        """Test required environment variable that is present."""
-        config_data = {
-            "auth": {
-                "enabled": True,
-                "providers": {
-                    "credential": {
-                        "provider": "database",
-                        "config": {
-                            "api_key": "${API_KEY:?API key is required for authentication}"
-                        },
-                    },
-                    "session": {"provider": "memory", "config": {}},
-                    "user": {"provider": "memory", "config": {}},
-                    "audit": {"provider": "memory", "config": {}},
-                    "policy": {"provider": "rbac", "config": {}},
-                },
-            }
-        }
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
-
-        try:
-            with patch.dict(os.environ, {"API_KEY": "secret_key_123"}):
-                config = AuthConfigLoader.load_auth_config(config_path)
-                assert config.providers.credential.config["api_key"] == "secret_key_123"
-        finally:
-            config_path.unlink()
-
-    def test_env_var_missing_no_default(self):
-        """Test environment variable that is missing without default."""
-        config_data = {
-            "auth": {
-                "enabled": True,
-                "providers": {
-                    "credential": {
-                        "provider": "memory",
-                        "config": {"setting": "${MISSING_VAR}"},
-                    },
-                    "session": {"provider": "memory", "config": {}},
-                    "user": {"provider": "memory", "config": {}},
-                    "audit": {"provider": "memory", "config": {}},
-                    "policy": {"provider": "rbac", "config": {}},
-                },
-            }
-        }
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
-
-        try:
-            with patch.dict(os.environ, {}, clear=True):
-                with pytest.raises(
-                    ConfigurationError,
-                    match="Environment variable 'MISSING_VAR' not set",
-                ):
-                    AuthConfigLoader.load_auth_config(config_path)
-        finally:
-            config_path.unlink()
-
-    def test_nested_env_var_substitution(self):
-        """Test environment variable substitution in nested structures."""
-        config_data = {
-            "auth": {
-                "enabled": True,
-                "providers": {
-                    "credential": {
-                        "provider": "memory",
-                        "config": {
-                            "nested": {
-                                "database_url": "${DATABASE_URL:-sqlite:///default.db}",
-                                "timeout": "${TIMEOUT:-30}",
-                            }
-                        },
-                    },
-                    "session": {"provider": "memory", "config": {}},
-                    "user": {"provider": "memory", "config": {}},
-                    "audit": {"provider": "memory", "config": {}},
-                    "policy": {"provider": "rbac", "config": {}},
-                },
-            }
-        }
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(config_data, f)
-            config_path = Path(f.name)
-
-        try:
-            with patch.dict(
-                os.environ, {"DATABASE_URL": "postgresql://localhost/test"}
-            ):
-                config = AuthConfigLoader.load_auth_config(config_path)
-
-                nested = config.providers.credential.config["nested"]
-                assert nested["database_url"] == "postgresql://localhost/test"
-                assert nested["timeout"] == "30"  # Uses default
-        finally:
-            config_path.unlink()
-
-
-class TestConfigurationUtilities:
-    """Test configuration utility methods."""
-
-    def test_get_default_config_path(self):
-        """Test getting default configuration path."""
-        path = AuthConfigLoader.get_default_config_path()
-        assert path == Path.cwd() / "serv.config.yaml"
-
-    def test_validate_config_exists_valid_path(self):
-        """Test validating existing configuration file."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("test: data")
-            config_path = Path(f.name)
-
-        try:
-            validated_path = AuthConfigLoader.validate_config_exists(config_path)
-            assert validated_path == config_path
-        finally:
-            config_path.unlink()
-
-    def test_validate_config_exists_missing_file(self):
-        """Test validating non-existent configuration file."""
-        non_existent_path = Path("/non/existent/config.yaml")
-
-        with pytest.raises(ConfigurationError, match="Configuration file not found"):
-            AuthConfigLoader.validate_config_exists(non_existent_path)
-
-    def test_validate_config_exists_directory_not_file(self):
-        """Test validating configuration path that is a directory."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            dir_path = Path(temp_dir)
-
-            with pytest.raises(
-                ConfigurationError, match="Configuration path is not a file"
-            ):
-                AuthConfigLoader.validate_config_exists(dir_path)
+        )
+        
+        extension_config = ExtensionAuthConfig(
+            permissions=[
+                {
+                    "permission": "blog.create",
+                    "description": "Create blog posts",
+                    "resource": "blog",
+                    "actions": ["create"]
+                }
+            ]
+        )
+        
+        merged = merge_extension_configs(base_config, [extension_config])
+        # Currently just returns base config - will be enhanced later
+        assert merged == base_config

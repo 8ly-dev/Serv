@@ -18,8 +18,9 @@ from .schema import (
 )
 
 from .loader import (
-    AuthConfigLoader,
-    ConfigurationError,
+    parse_auth_config,
+    parse_extension_auth_config,
+    merge_extension_configs,
 )
 
 from .validation import (
@@ -42,8 +43,10 @@ __all__ = [
     "PermissionDef",
     "RoleDef",
     "AuditConfig",
-    # Loading and validation
-    "AuthConfigLoader",
-    "ConfigurationError",
+    # Loading functions
+    "parse_auth_config", 
+    "parse_extension_auth_config",
+    "merge_extension_configs",
+    # Validation
     "AuthConfigValidator",
 ]

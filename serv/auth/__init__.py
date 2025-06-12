@@ -2,13 +2,14 @@
 
 from .config import (
     AuthConfig,
-    AuthConfigLoader,
-    ConfigurationError,
     ExtensionAuthConfig,
     ProvidersConfig,
     ProviderConfig,
+    parse_auth_config,
+    parse_extension_auth_config,
 )
 from .exceptions import (
+    ConfigurationError,
     AuditError,
     AuthenticationError,
     AuthError,
@@ -41,11 +42,12 @@ __all__ = [
     "PolicyResult",
     # Configuration
     "AuthConfig",
-    "AuthConfigLoader",
-    "ConfigurationError",
     "ExtensionAuthConfig",
-    "ProvidersConfig",
+    "ProvidersConfig", 
     "ProviderConfig",
+    "parse_auth_config",
+    "parse_extension_auth_config",
+    "ConfigurationError",
     # Exceptions
     "AuthError",
     "AuthenticationError",
