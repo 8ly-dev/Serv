@@ -235,6 +235,187 @@ databases:
       connection_string: "${CREDENTIALS_DB_URL}"
 
 # =============================================================================
+# COMPLETE AUTHENTICATION SYSTEM
+# =============================================================================
+# Full configuration with all auth services including new implementations
+complete_auth_system:
+  auth:
+    providers:
+      - type: jwt
+        config:
+          secret_key: "${JWT_SECRET}"
+          algorithm: "HS256"
+          token_expiry_minutes: 30
+          issuer: "${APP_NAME}"
+          audience: "${APP_DOMAIN}"
+    
+    storage:
+      backend: "serv.bundled.auth.storage.ommi_storage:OmmiSessionStorage"
+      database_qualifier: "auth"
+      session_timeout_hours: 8
+      strict_fingerprint_validation: true
+    
+    credential_vault:
+      backend: "serv.bundled.auth.vaults.bcrypt_vault:BcryptCredentialVault"
+      database_qualifier: "auth"
+      bcrypt_rounds: 12
+      min_password_length: 8
+    
+    rate_limiting:
+      backend: "serv.bundled.auth.limiters.memory_limiter:MemoryRateLimiter"
+      default_limits:
+        login: "5/min"
+        api_request: "100/min"
+        password_reset: "3/hour"
+    
+    # NEW: JWT Token Service for token management
+    token_service:
+      backend: "serv.bundled.auth.tokens.jwt_token_service:JwtTokenService"
+      secret_key: "${JWT_SECRET}"
+      algorithm: "HS256"
+      access_token_expiry: 3600  # 1 hour
+      refresh_token_expiry: 86400  # 24 hours
+      issuer: "${APP_NAME}"
+      audience: "${APP_DOMAIN}"
+    
+    # NEW: Audit Logger for compliance and security monitoring
+    audit_logger:
+      backend: "serv.bundled.auth.auditing.ommi_audit_logger:OmmiAuditLogger"
+      database_qualifier: "audit"
+      retention_days: 365  # Keep audit logs for 1 year
+      max_event_size: 65536  # 64KB max event size
+    
+    # NEW: Policy Engine for fine-grained authorization
+    policy_engine:
+      backend: "serv.bundled.auth.policies.simple_policy_engine:SimplePolicyEngine"
+      default_decision: "deny"  # Secure by default
+      case_sensitive_permissions: false
+      policies:
+        # Admin access policy
+        - effect: "allow"
+          description: "Allow admins full access"
+          roles: ["admin"]
+          resources: ["*"]
+          actions: ["*"]
+        
+        # User self-management policy
+        - effect: "allow"
+          description: "Allow users to manage their own data"
+          permissions: ["user:self"]
+          resources: ["/api/user/profile", "/api/user/settings"]
+          actions: ["GET", "PUT"]
+        
+        # Public read access
+        - effect: "allow"
+          description: "Allow public read access to documentation"
+          resources: ["/docs/*", "/api/docs/*"]
+          actions: ["GET"]
+    
+    # NEW: Role Registry for role and permission management
+    role_registry:
+      backend: "serv.bundled.auth.roles.ommi_role_registry:OmmiRoleRegistry"
+      database_qualifier: "auth"
+      cache_expiry: 300  # 5 minutes
+      case_sensitive: false
+
+# =============================================================================
+# COMPLIANCE-FOCUSED CONFIGURATION
+# =============================================================================
+# Configuration optimized for regulatory compliance (GDPR, SOX, etc.)
+compliance_focused:
+  auth:
+    providers:
+      - type: jwt
+        config:
+          secret_key: "${JWT_SECRET}"
+          algorithm: "HS512"
+          token_expiry_minutes: 15  # Short-lived tokens
+    
+    storage:
+      backend: "serv.bundled.auth.storage.ommi_storage:OmmiSessionStorage"
+      database_qualifier: "compliance_auth"
+      session_timeout_hours: 4
+      strict_fingerprint_validation: true
+    
+    credential_vault:
+      backend: "serv.bundled.auth.vaults.bcrypt_vault:BcryptCredentialVault"
+      database_qualifier: "compliance_auth"
+      bcrypt_rounds: 14
+      min_password_length: 12
+    
+    rate_limiting:
+      backend: "serv.bundled.auth.limiters.memory_limiter:MemoryRateLimiter"
+      default_limits:
+        login: "3/min"
+        failed_login: "1/10min"
+        admin_action: "5/hour"
+    
+    token_service:
+      backend: "serv.bundled.auth.tokens.jwt_token_service:JwtTokenService"
+      secret_key: "${JWT_SECRET}"
+      algorithm: "HS512"
+      access_token_expiry: 900   # 15 minutes
+      refresh_token_expiry: 3600  # 1 hour
+    
+    # Comprehensive audit logging for compliance
+    audit_logger:
+      backend: "serv.bundled.auth.auditing.ommi_audit_logger:OmmiAuditLogger"
+      database_qualifier: "compliance_audit"
+      retention_days: 2555  # 7 years for regulatory compliance
+      max_event_size: 32768  # Smaller events for performance
+    
+    # Strict policy engine
+    policy_engine:
+      backend: "serv.bundled.auth.policies.simple_policy_engine:SimplePolicyEngine"
+      default_decision: "deny"
+      case_sensitive_permissions: true
+      policies:
+        # Principle of least privilege
+        - effect: "allow"
+          description: "Data protection officer access"
+          roles: ["dpo"]
+          resources: ["/admin/privacy/*", "/admin/audit/*"]
+          actions: ["GET", "POST"]
+        
+        - effect: "allow"
+          description: "Auditor read-only access"
+          roles: ["auditor"]
+          resources: ["/admin/audit/*", "/admin/logs/*"]
+          actions: ["GET"]
+    
+    role_registry:
+      backend: "serv.bundled.auth.roles.ommi_role_registry:OmmiRoleRegistry"
+      database_qualifier: "compliance_auth"
+      cache_expiry: 60  # Short cache for compliance
+      case_sensitive: true
+
+# =============================================================================
+# MINIMAL CONFIGURATION
+# =============================================================================
+# Lightweight configuration for simple applications
+minimal:
+  auth:
+    providers:
+      - type: jwt
+        config:
+          secret_key: "${JWT_SECRET}"
+          algorithm: "HS256"
+    
+    # Only essential services configured
+    token_service:
+      backend: "serv.bundled.auth.tokens.jwt_token_service:JwtTokenService"
+      secret_key: "${JWT_SECRET}"
+    
+    policy_engine:
+      backend: "serv.bundled.auth.policies.simple_policy_engine:SimplePolicyEngine"
+      default_decision: "allow"  # Permissive for simple apps
+      policies:
+        - effect: "deny"
+          description: "Block admin access for non-admins"
+          resources: ["/admin/*"]
+          # Will deny unless user has admin role
+
+# =============================================================================
 # ENVIRONMENT VARIABLES
 # =============================================================================
 # Required environment variables for secure configuration:

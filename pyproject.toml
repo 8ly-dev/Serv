@@ -64,6 +64,7 @@ auth = [
     "bcrypt>=4.0.0",
     "PyJWT>=2.8.0",
     "itsdangerous>=2.1.0",
+    "bleach>=6.0.0",
 ]
 
 [dependency-groups]

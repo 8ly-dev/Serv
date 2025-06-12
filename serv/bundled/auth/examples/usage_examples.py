@@ -52,7 +52,7 @@ class AuthenticationExample:
         """Register a new user with secure password storage."""
         try:
             # Store password credential using bcrypt
-            credential = await self.credential_vault.store_credential(
+            await self.credential_vault.store_credential(
                 user_id=username,
                 credential_type="password",
                 credential_data={"password": password},
@@ -114,7 +114,7 @@ requirements rather than decorators. Here's how you would configure routes:
 extension.yaml:
 ```yaml
 name: "my_api"
-version: "1.0.0" 
+version: "1.0.0"
 routers:
   - path: "/api"
     router_class: "ProtectedRoutes"
@@ -343,7 +343,7 @@ async def setup_auth_middleware(app: App) -> None:
         algorithm="HS256",
     )
 
-    rate_limiter = MemoryRateLimiter(
+    MemoryRateLimiter(
         default_limits={"api_request": "100/min", "login": "5/min"}
     )
 
@@ -447,7 +447,7 @@ To use these examples in your Serv application:
        is_active BOOLEAN NOT NULL DEFAULT 1,
        metadata TEXT NOT NULL DEFAULT '{}'
    );
-   
+
    CREATE TABLE sessions (
        session_id TEXT PRIMARY KEY,
        user_id TEXT NOT NULL,

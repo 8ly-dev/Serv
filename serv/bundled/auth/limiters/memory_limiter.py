@@ -89,9 +89,9 @@ class MemoryRateLimiter(RateLimiter):
             current_time = time.time()
             window_start = current_time - limit_config["window_seconds"]
 
-            # Get or create lock for this identifier
+            # Get or create lock for this identifier (thread-safe)
             if identifier not in self._locks:
-                self._locks[identifier] = asyncio.Lock()
+                self._locks.setdefault(identifier, asyncio.Lock())
 
             async with self._locks[identifier]:
                 # Perform periodic cleanup
