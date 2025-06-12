@@ -220,7 +220,7 @@ class MockCredentialProvider(CredentialProvider):
         return credentials.id in self.credentials
 
     async def create_credentials(
-        self, user_id: str, credentials: Credentials, audit_emitter: AuditEmitter
+        self, user_id: str, credentials: Credentials, audit_journal: AuditJournal
     ) -> None:
         self.credentials[credentials.id] = credentials
 
@@ -229,14 +229,14 @@ class MockCredentialProvider(CredentialProvider):
         user_id: str,
         old_credentials: Credentials,
         new_credentials: Credentials,
-        audit_emitter: AuditEmitter,
+        audit_journal: AuditJournal,
     ) -> None:
         if old_credentials.id in self.credentials:
             del self.credentials[old_credentials.id]
         self.credentials[new_credentials.id] = new_credentials
 
     async def delete_credentials(
-        self, user_id: str, credential_type: CredentialType, audit_emitter: AuditEmitter
+        self, user_id: str, credential_type: CredentialType, audit_journal: AuditJournal
     ) -> None:
         to_delete = [
             cred_id
@@ -278,13 +278,13 @@ class TestMockImplementation:
         )
 
         # Initially should not verify
-        assert not await provider.verify_credentials(credentials, audit_emitter)
+        assert not await provider.verify_credentials(credentials, audit_journal)
 
         # Create credentials
-        await provider.create_credentials("user123", credentials, audit_emitter)
+        await provider.create_credentials("user123", credentials, audit_journal)
 
         # Now should verify
-        assert await provider.verify_credentials(credentials, audit_emitter)
+        assert await provider.verify_credentials(credentials, audit_journal)
 
         # Check credential types
         types = await provider.get_credential_types("user123")
