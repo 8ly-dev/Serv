@@ -50,34 +50,37 @@ class AuditEventType(Enum):
         """Create OR group - one of these events must occur."""
         from .pipeline import AuditEventGroup
 
-        if isinstance(other, AuditEventGroup):
-            return AuditEventGroup(self, *other.events)
-        elif isinstance(other, AuditEventType):
-            return AuditEventGroup(self, other)
-        else:
-            raise ValueError(f"Cannot OR {type(other)} with AuditEventType")
+        match other:
+            case AuditEventGroup():
+                return AuditEventGroup(self, *other.events)
+            case AuditEventType():
+                return AuditEventGroup(self, other)
+            case _:
+                raise ValueError(f"Cannot OR {type(other)} with AuditEventType")
 
     def __ror__(self, other):
         """Reverse OR operation."""
         from .pipeline import AuditEventGroup
 
-        if isinstance(other, AuditEventGroup):
-            return AuditEventGroup(*other.events, self)
-        elif isinstance(other, AuditEventType):
-            return AuditEventGroup(other, self)
-        else:
-            raise ValueError(f"Cannot OR {type(other)} with AuditEventType")
+        match other:
+            case AuditEventGroup():
+                return AuditEventGroup(*other.events, self)
+            case AuditEventType():
+                return AuditEventGroup(other, self)
+            case _:
+                raise ValueError(f"Cannot OR {type(other)} with AuditEventType")
 
     def __rshift__(self, other):
         """Create pipeline - this event then that event/group/pipeline."""
         from .pipeline import AuditEventGroup, AuditPipeline
 
-        if isinstance(other, AuditEventType | AuditEventGroup):
-            return AuditPipeline([self, other])
-        elif isinstance(other, AuditPipeline):
-            return AuditPipeline([self] + other.steps)
-        else:
-            raise ValueError(f"Cannot create pipeline with {type(other)}")
+        match other:
+            case AuditEventType() | AuditEventGroup():
+                return AuditPipeline([self, other])
+            case AuditPipeline():
+                return AuditPipeline([self] + other.steps)
+            case _:
+                raise ValueError(f"Cannot create pipeline with {type(other)}")
 
     def __repr__(self):
         return f"AuditEventType.{self.name}"

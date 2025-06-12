@@ -145,40 +145,41 @@ def _validate_audit_pipeline(requirement: AuditEventType | AuditEventGroup | Aud
                            events: list[AuditEventType]):
     """Validate that events satisfy the audit requirement."""
 
-    if isinstance(requirement, AuditEventType):
-        # Simple requirement - just check if the event occurred
-        if requirement not in events:
-            raise AuditError(f"Audit pipeline requirement not satisfied: {requirement} not found in events")
+    match requirement:
+        case AuditEventType():
+            # Simple requirement - just check if the event occurred
+            if requirement not in events:
+                raise AuditError(f"Audit pipeline requirement not satisfied: {requirement} not found in events")
 
-    elif isinstance(requirement, AuditEventGroup):
-        # OR requirement - at least one event from the group must have occurred
-        if not requirement.matches(events):
-            raise AuditError(f"Audit pipeline requirement not satisfied: none of {requirement} found in events")
+        case AuditEventGroup():
+            # OR requirement - at least one event from the group must have occurred
+            if not requirement.matches(events):
+                raise AuditError(f"Audit pipeline requirement not satisfied: none of {requirement} found in events")
 
-    elif isinstance(requirement, AuditPipeline):
-        # Sequence requirement - events must follow the pipeline
-        if not requirement.validates(events):
-            raise AuditError(f"Audit pipeline requirement not satisfied: events {[e.value for e in events]} do not match pipeline {requirement}")
+        case AuditPipeline():
+            # Sequence requirement - events must follow the pipeline
+            if not requirement.validates(events):
+                raise AuditError(f"Audit pipeline requirement not satisfied: events {[e.value for e in events]} do not match pipeline {requirement}")
 
-    elif isinstance(requirement, AuditPipelineSet):
-        # Multiple pipeline requirement - events must satisfy at least one pipeline
-        if not requirement.validates(events):
-            raise AuditError(f"Audit pipeline requirement not satisfied: events {[e.value for e in events]} do not match any pipeline in {requirement}")
+        case AuditPipelineSet():
+            # Multiple pipeline requirement - events must satisfy at least one pipeline
+            if not requirement.validates(events):
+                raise AuditError(f"Audit pipeline requirement not satisfied: events {[e.value for e in events]} do not match any pipeline in {requirement}")
 
-    else:
-        raise AuditError(f"Unknown audit requirement type: {type(requirement)}")
+        case _:
+            raise AuditError(f"Unknown audit requirement type: {type(requirement)}")
 
 
 def _get_or_inject_audit_emitter(signature: inspect.Signature, emitter_param: str | None,
                                 args: tuple, kwargs: dict) -> AuditEmitter:
     """Get existing audit emitter from args/kwargs or inject a new one.
-    
+
     Args:
         signature: Function signature
         emitter_param: Name of the audit emitter parameter (if found)
         args: Positional arguments
         kwargs: Keyword arguments
-        
+
     Returns:
         AuditEmitter instance to use for validation
     """
@@ -211,10 +212,10 @@ def _get_or_inject_audit_emitter(signature: inspect.Signature, emitter_param: st
 
 def _find_audit_emitter_parameter(signature: inspect.Signature) -> str | None:
     """Find parameter annotated with AuditEmitter type.
-    
+
     Args:
         signature: Function signature to inspect
-        
+
     Returns:
         Parameter name if found, None otherwise
     """

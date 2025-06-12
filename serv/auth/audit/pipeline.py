@@ -1,6 +1,9 @@
 """Pipeline system for audit event validation."""
 
-from typing import Union
+from typing import TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    from .events import AuditEventType
 
 
 class AuditEventGroup:
@@ -18,34 +21,37 @@ class AuditEventGroup:
         """OR this group with another event or group."""
         from .events import AuditEventType
 
-        if isinstance(other, AuditEventGroup):
-            return AuditEventGroup(*self.events, *other.events)
-        elif isinstance(other, AuditEventType):
-            return AuditEventGroup(*self.events, other)
-        else:
-            raise ValueError(f"Cannot OR {type(other)} with AuditEventGroup")
+        match other:
+            case AuditEventGroup():
+                return AuditEventGroup(*self.events, *other.events)
+            case AuditEventType():
+                return AuditEventGroup(*self.events, other)
+            case _:
+                raise ValueError(f"Cannot OR {type(other)} with AuditEventGroup")
 
     def __ror__(self, other):
         """Reverse OR operation."""
         from .events import AuditEventType
 
-        if isinstance(other, AuditEventGroup):
-            return AuditEventGroup(*other.events, *self.events)
-        elif isinstance(other, AuditEventType):
-            return AuditEventGroup(other, *self.events)
-        else:
-            raise ValueError(f"Cannot OR {type(other)} with AuditEventGroup")
+        match other:
+            case AuditEventGroup():
+                return AuditEventGroup(*other.events, *self.events)
+            case AuditEventType():
+                return AuditEventGroup(other, *self.events)
+            case _:
+                raise ValueError(f"Cannot OR {type(other)} with AuditEventGroup")
 
     def __rshift__(self, other):
         """Create pipeline starting with this group."""
         from .events import AuditEventType
 
-        if isinstance(other, AuditEventType | AuditEventGroup):
-            return AuditPipeline([self, other])
-        elif isinstance(other, AuditPipeline):
-            return AuditPipeline([self] + other.steps)
-        else:
-            raise ValueError(f"Cannot create pipeline with {type(other)}")
+        match other:
+            case AuditEventType() | AuditEventGroup():
+                return AuditPipeline([self, other])
+            case AuditPipeline():
+                return AuditPipeline([self] + other.steps)
+            case _:
+                raise ValueError(f"Cannot create pipeline with {type(other)}")
 
     def matches(self, events: list) -> bool:
         """Check if any of the events in this group occurred."""
@@ -78,30 +84,33 @@ class AuditPipeline:
         """Extend pipeline with another step."""
         from .events import AuditEventType
 
-        if isinstance(other, AuditEventType | AuditEventGroup):
-            return AuditPipeline(self.steps + [other])
-        elif isinstance(other, AuditPipeline):
-            return AuditPipeline(self.steps + other.steps)
-        else:
-            raise ValueError(f"Cannot extend pipeline with {type(other)}")
+        match other:
+            case AuditEventType() | AuditEventGroup():
+                return AuditPipeline(self.steps + [other])
+            case AuditPipeline():
+                return AuditPipeline(self.steps + other.steps)
+            case _:
+                raise ValueError(f"Cannot extend pipeline with {type(other)}")
 
     def __or__(self, other):
         """Create alternative pipeline - this pipeline OR that pipeline."""
-        if isinstance(other, AuditPipeline):
-            return AuditPipelineSet([self, other])
-        elif isinstance(other, AuditPipelineSet):
-            return AuditPipelineSet([self] + other.pipelines)
-        else:
-            raise ValueError(f"Cannot OR pipeline with {type(other)}")
+        match other:
+            case AuditPipeline():
+                return AuditPipelineSet([self, other])
+            case AuditPipelineSet():
+                return AuditPipelineSet([self] + other.pipelines)
+            case _:
+                raise ValueError(f"Cannot OR pipeline with {type(other)}")
 
     def __ror__(self, other):
         """Reverse OR operation."""
-        if isinstance(other, AuditPipeline):
-            return AuditPipelineSet([other, self])
-        elif isinstance(other, AuditPipelineSet):
-            return AuditPipelineSet(other.pipelines + [self])
-        else:
-            raise ValueError(f"Cannot OR {type(other)} with pipeline")
+        match other:
+            case AuditPipeline():
+                return AuditPipelineSet([other, self])
+            case AuditPipelineSet():
+                return AuditPipelineSet(other.pipelines + [self])
+            case _:
+                raise ValueError(f"Cannot OR {type(other)} with pipeline")
 
     def validates(self, events: list) -> bool:
         """Check if the events match this pipeline sequence."""
@@ -110,28 +119,29 @@ class AuditPipeline:
         event_index = 0
 
         for step in self.steps:
-            if isinstance(step, AuditEventType):
-                # Must find this exact event
-                while event_index < len(events):
-                    if events[event_index] == step:
+            match step:
+                case AuditEventType():
+                    # Must find this exact event
+                    while event_index < len(events):
+                        if events[event_index] == step:
+                            event_index += 1
+                            break
                         event_index += 1
-                        break
-                    event_index += 1
-                else:
-                    return False  # Event not found
+                    else:
+                        return False  # Event not found
 
-            elif isinstance(step, AuditEventGroup):
-                # Must find one of the events in the group
-                step_found = False
-                while event_index < len(events):
-                    if events[event_index] in step.events:
+                case AuditEventGroup():
+                    # Must find one of the events in the group
+                    step_found = False
+                    while event_index < len(events):
+                        if events[event_index] in step.events:
+                            event_index += 1
+                            step_found = True
+                            break
                         event_index += 1
-                        step_found = True
-                        break
-                    event_index += 1
 
-                if not step_found:
-                    return False
+                    if not step_found:
+                        return False
 
         return True
 
@@ -158,12 +168,13 @@ class AuditPipelineSet:
 
     def __or__(self, other):
         """Add another pipeline to this set."""
-        if isinstance(other, AuditPipeline):
-            return AuditPipelineSet(self.pipelines + [other])
-        elif isinstance(other, AuditPipelineSet):
-            return AuditPipelineSet(self.pipelines + other.pipelines)
-        else:
-            raise ValueError(f"Cannot OR pipeline set with {type(other)}")
+        match other:
+            case AuditPipeline():
+                return AuditPipelineSet(self.pipelines + [other])
+            case AuditPipelineSet():
+                return AuditPipelineSet(self.pipelines + other.pipelines)
+            case _:
+                raise ValueError(f"Cannot OR pipeline set with {type(other)}")
 
     def validates(self, events: list) -> bool:
         """Check if events satisfy any of the pipelines."""
