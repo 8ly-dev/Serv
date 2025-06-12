@@ -1,5 +1,13 @@
 """Authentication and authorization system for Serv framework."""
 
+from .config import (
+    AuthConfig,
+    AuthConfigLoader,
+    ConfigurationError,
+    ExtensionAuthConfig,
+    ProvidersConfig,
+    ProviderConfig,
+)
 from .exceptions import (
     AuditError,
     AuthenticationError,
@@ -31,6 +39,13 @@ __all__ = [
     "CredentialType",
     "AuditEventType",
     "PolicyResult",
+    # Configuration
+    "AuthConfig",
+    "AuthConfigLoader",
+    "ConfigurationError",
+    "ExtensionAuthConfig",
+    "ProvidersConfig",
+    "ProviderConfig",
     # Exceptions
     "AuthError",
     "AuthenticationError",
