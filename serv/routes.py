@@ -28,220 +28,43 @@ from serv.protocols import (
     EventEmitterProtocol,
 )
 from serv.requests import Request
-from serv.responses import ResponseBuilder
+from serv.http.requests import (
+    GetRequest,
+    PostRequest,
+    PutRequest,
+    DeleteRequest,
+    PatchRequest,
+    OptionsRequest,
+    HeadRequest,
+    MethodMapping,
+)
+from serv.http.responses import (
+    ResponseBuilder,
+    Response,
+    JsonResponse,
+    TextResponse,
+    HtmlResponse,
+    FileResponse,
+    StreamingResponse,
+    ServerSentEventsResponse,
+    RedirectResponse,
+    Jinja2Response,
+)
+from serv.http.forms import (
+    Form,
+    is_optional,
+    normalized_origin,
+    string_value_type_validators,
+    _is_valid_type,
+    _datetime_validator,
+    _date_validator,
+)
 
 
-class Response:
-    def __init__(
-        self,
-        status_code: int,
-        body: str | bytes | None = None,
-        headers: dict[str, str] | None = None,
-    ):
-        self.status_code = status_code
-        self.body = body or b""
-        self.headers = headers or {}
-
-        # A reference to the handler that returned this response. This is only set after creation but
-        # before the response is rendered.
-        self.created_by = None
-
-    async def render(self) -> AsyncGenerator[bytes]:
-        yield self.body
-
-    def set_created_by(self, handler: Any) -> None:
-        self.created_by = handler
-
-    def __repr__(self):
-        body_preview = self.body[:20].decode("utf-8", errors="replace")
-        if len(self.body) > 20:
-            body_preview += "..."
-
-        return (
-            f"<{self.__class__.__name__} "
-            f"status={self.status_code} "
-            f"headers={self.headers} "
-            f"body={body_preview!r}"
-            f">"
-        )
+# Response classes moved to serv.http.responses
 
 
-class JsonResponse(Response):
-    def __init__(self, data: Any, status_code: int = 200):
-        super().__init__(status_code)
-        self.body = json.dumps(data).encode("utf-8")
-        self.headers["Content-Type"] = "application/json"
-
-
-class TextResponse(Response):
-    def __init__(self, text: str, status_code: int = 200):
-        super().__init__(status_code)
-        self.body = text.encode("utf-8")
-        self.headers["Content-Type"] = "text/plain"
-
-
-class HtmlResponse(Response):
-    def __init__(self, html: str, status_code: int = 200):
-        super().__init__(status_code)
-        self.body = html.encode("utf-8")
-        self.headers["Content-Type"] = "text/html"
-
-
-class FileResponse(Response):
-    def __init__(
-        self,
-        file: bytes,
-        filename: str,
-        status_code: int = 200,
-        content_type: str = "application/octet-stream",
-    ):
-        super().__init__(status_code)
-        self.body = file
-        self.headers["Content-Type"] = content_type
-        self.headers["Content-Disposition"] = f"attachment; filename={filename}"
-
-
-class StreamingResponse(Response):
-    def __init__(
-        self,
-        content: AsyncGenerator[str | bytes],
-        status_code: int = 200,
-        media_type: str = "text/plain",
-        headers: dict[str, str] | None = None,
-    ):
-        super().__init__(status_code, headers=headers)
-        self.content = content
-        self.headers["Content-Type"] = media_type
-
-        self._running_renderer = None
-
-    @injectable
-    async def render(
-        self, app_context: Inject[AppContextProtocol]
-    ) -> AsyncGenerator[bytes]:
-        self._running_renderer = self._render()
-        app_context.on_shutdown(self._shutdown)
-        return self._running_renderer
-
-    async def _shutdown(self):
-        if self._running_renderer:
-            await self._running_renderer.athrow(StopAsyncIteration())
-
-    async def _render(self):
-        try:
-            async for chunk in self.content:
-                if isinstance(chunk, str):
-                    yield chunk.encode("utf-8")
-                elif isinstance(chunk, bytes):
-                    yield chunk
-                else:
-                    yield str(chunk).encode("utf-8")
-        except Exception as e:
-            e.add_note(f" - Rendering {self}")
-            raise
-        finally:
-            self._running_renderer = None
-
-    def __repr__(self):
-        return (
-            f"<{self.__class__.__name__}"
-            f" status={self.status_code}"
-            f" headers={self.headers}"
-            f" content={self.content!r}"
-            f">"
-        )
-
-
-class ServerSentEventsResponse(StreamingResponse):
-    def __init__(
-        self,
-        content: AsyncGenerator[str | bytes],
-        status_code: int = 200,
-        headers: dict[str, str] | None = None,
-    ):
-        sse_headers = {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-        if headers:
-            sse_headers.update(headers)
-
-        super().__init__(content, status_code, "text/event-stream", sse_headers)
-
-
-class RedirectResponse(Response):
-    def __init__(self, url: str, status_code: int = 302):
-        super().__init__(status_code)
-        self.headers["Location"] = url
-        self.body = f"Redirecting to {url}"
-
-
-class Jinja2Response(Response):
-    def __init__(self, template: str, context: dict[str, Any], status_code: int = 200):
-        super().__init__(status_code)
-        self.template = template
-        self.context = context
-        self.headers["Content-Type"] = "text/html"
-
-    def render(self) -> AsyncGenerator[str, object]:
-        from jinja2 import Environment, FileSystemLoader
-
-        template_locations = self._get_template_locations(self.created_by)
-
-        env = Environment(
-            loader=FileSystemLoader(template_locations), enable_async=True
-        )
-        template = env.get_template(self.template)
-        return template.generate_async(**self.context)
-
-    @staticmethod
-    def _get_template_locations(extension: "pl.ExtensionSpec"):
-        if not extension:
-            raise RuntimeError("Jinja2Response cannot be used outside of a extension.")
-
-        return [
-            Path.cwd() / "templates" / extension.name,
-            extension.path / "templates",
-        ]
-
-    def __repr__(self):
-        return (
-            f"<{self.__class__.__name__}"
-            f" status={self.status_code}"
-            f" headers={self.headers}"
-            f" template={self.template!r}"
-            f" context={self.context!r}"
-            f">"
-        )
-
-
-class GetRequest(Request):
-    pass
-
-
-class PostRequest(Request):
-    pass
-
-
-class PutRequest(Request):
-    pass
-
-
-class DeleteRequest(Request):
-    pass
-
-
-class PatchRequest(Request):
-    pass
-
-
-class OptionsRequest(Request):
-    pass
-
-
-class HeadRequest(Request):
-    pass
+# Request classes moved to serv.http.requests
 
 
 class _HandleDecorator:
@@ -285,113 +108,10 @@ class _HandleRegistry:
 handle = _HandleRegistry()
 
 
-MethodMapping = {
-    GetRequest: "GET",
-    PostRequest: "POST",
-    PutRequest: "PUT",
-    DeleteRequest: "DELETE",
-    PatchRequest: "PATCH",
-    OptionsRequest: "OPTIONS",
-    HeadRequest: "HEAD",
-}
+# MethodMapping moved to serv.http.requests
 
 
-def normalized_origin(annotation: Any) -> Any:
-    origin = get_origin(annotation)
-    if origin is UnionType:
-        return Union
-
-    return origin
-
-
-def is_optional(annotation: Any) -> bool:
-    origin = normalized_origin(annotation)
-    if origin is list:
-        return True
-
-    if origin is Union and NoneType in get_args(annotation):
-        return True
-
-    return False
-
-
-def _datetime_validator(x: str) -> bool:
-    try:
-        datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
-        return True
-    except ValueError:
-        return False
-
-
-def _date_validator(x: str) -> bool:
-    try:
-        datetime.strptime(x, "%Y-%m-%d")
-        return True
-    except ValueError:
-        return False
-
-
-string_value_type_validators = {
-    int: str.isdigit,
-    float: lambda x: x.replace(".", "").isdigit(),
-    bool: lambda x: x.lower() in {"true", "false", "yes", "no", "1", "0"},
-    datetime: _datetime_validator,
-    date: _date_validator,
-}
-
-
-def _is_valid_type(value: Any, allowed_types: list[type]) -> bool:
-    for allowed_type in allowed_types:
-        if allowed_type is type(None):
-            continue
-
-        if allowed_type not in string_value_type_validators:
-            return True
-
-        if string_value_type_validators[allowed_type](value):
-            return True
-
-    return False
-
-
-class Form:
-    __form_method__ = "POST"
-
-    @classmethod
-    def matches_form_data(cls, form_data: dict[str, Any]) -> bool:
-        annotations = get_annotations(cls)
-
-        allowed_keys = set(annotations.keys())
-        required_keys = {
-            key for key, value in annotations.items() if not is_optional(value)
-        }
-
-        form_data_keys = set(form_data.keys())
-        has_missing_required_keys = required_keys - form_data_keys
-        has_extra_keys = form_data_keys > allowed_keys
-        if has_missing_required_keys or has_extra_keys:
-            return False  # Form data keys do not match the expected keys
-
-        for key, value in annotations.items():
-            optional = key not in required_keys
-            if key not in form_data and not optional:
-                return False
-
-            allowed_types = get_args(value)
-            if not allowed_types:
-                allowed_types = [value]
-
-            if get_origin(value) is list and not all(
-                _is_valid_type(item, allowed_types) for item in form_data[key]
-            ):
-                return False
-
-            if key in form_data and not _is_valid_type(
-                form_data[key][0], allowed_types
-            ):
-                return False
-
-        return True  # All fields match
+# Form processing utilities moved to serv.http.forms
 
 
 class Route:
