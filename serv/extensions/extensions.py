@@ -357,13 +357,13 @@ class Listener:
             for arg_name, arg_value in kwargs.items():
                 if arg_value is not None:
                     execution_container.add(type(arg_value), arg_value)
-                    
+
             # Ensure Router is available in the execution container
             from serv._routing import Router
             from serv.requests import Request
             from serv.responses import ResponseBuilder
             from bevy.containers import Container
-            
+
             parent_container = get_container(container)
             # Copy essential dependencies from parent to child if missing
             essential_types = [Router, Request, ResponseBuilder, Container]
@@ -379,12 +379,14 @@ class Listener:
                 except:
                     # Parent doesn't have it, skip
                     pass
-                    
+
             # Also copy any custom types that were added to the parent container
             # This handles test-specific dependencies like _TestUser
-            if hasattr(parent_container, 'instances'):
+            if hasattr(parent_container, "instances"):
                 for instance_key, instance_value in parent_container.instances.items():
-                    if instance_key not in essential_types:  # Don't duplicate essential types
+                    if (
+                        instance_key not in essential_types
+                    ):  # Don't duplicate essential types
                         try:
                             # Check if it's already in execution container
                             execution_container.get(instance_key)

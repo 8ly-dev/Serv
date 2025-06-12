@@ -13,13 +13,14 @@ from typing import Any, Union, get_args, get_origin
 @dataclass
 class FileUpload:
     """Represents an uploaded file from a multipart form.
-    
+
     Attributes:
         filename: Original filename from the client, if provided
         content_type: MIME type of the uploaded file
         headers: Additional headers from the multipart section
         file: File-like object containing the uploaded data
     """
+
     filename: str | None
     content_type: str | None
     headers: dict[str, str]
@@ -40,10 +41,10 @@ class FileUpload:
 
 def normalized_origin(annotation: Any) -> Any:
     """Normalize type annotation origin for consistent handling.
-    
+
     Args:
         annotation: Type annotation to normalize
-        
+
     Returns:
         Normalized type origin
     """
@@ -55,20 +56,20 @@ def normalized_origin(annotation: Any) -> Any:
 
 def is_optional(annotation: Any) -> bool:
     """Check if a type annotation represents an optional field.
-    
+
     Args:
         annotation: Type annotation to check
-        
+
     Returns:
         True if the annotation is optional (Union with None or list)
     """
     origin = normalized_origin(annotation)
     if origin is list:
         return True
-    
+
     if origin is Union and NoneType in get_args(annotation):
         return True
-    
+
     return False
 
 
@@ -102,69 +103,69 @@ string_value_type_validators = {
 
 def _is_valid_type(value: Any, allowed_types: list[type]) -> bool:
     """Check if a value matches one of the allowed types.
-    
+
     Args:
         value: Value to validate
         allowed_types: List of allowed types
-        
+
     Returns:
         True if the value matches one of the allowed types
     """
     for allowed_type in allowed_types:
         if allowed_type is type(None):
             continue
-        
+
         if allowed_type not in string_value_type_validators:
             return True
-        
+
         if string_value_type_validators[allowed_type](value):
             return True
-    
+
     return False
 
 
 class Form:
     """Base class for defining form models with automatic validation.
-    
+
     Form classes define the expected structure and types of form data.
     They provide validation and type checking capabilities for HTTP form submissions.
-    
+
     Attributes:
         __form_method__: HTTP method this form accepts (defaults to "POST")
-    
+
     Examples:
         Basic form definition:
-        
+
         ```python
         from serv.http.forms import Form
-        
+
         class ContactForm(Form):
             name: str
             email: str
             message: str
             newsletter: bool = False  # Optional field
         ```
-        
+
         Form with custom method:
-        
+
         ```python
         class SearchForm(Form):
             __form_method__ = "GET"
-            
+
             query: str
             category: str | None = None
         ```
     """
-    
+
     __form_method__ = "POST"
 
     @classmethod
     def matches_form_data(cls, form_data: dict[str, Any]) -> bool:
         """Check if form data matches this form's structure and types.
-        
+
         Args:
             form_data: Dictionary of form field names to values
-            
+
         Returns:
             True if the form data is valid for this form class
         """
@@ -205,7 +206,7 @@ class Form:
 
 __all__ = [
     "FileUpload",
-    "Form", 
+    "Form",
     "normalized_origin",
     "is_optional",
     "string_value_type_validators",

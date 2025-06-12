@@ -982,7 +982,7 @@ class App(EventEmitterProtocol, AppContextProtocol):
                     from serv._routing import RouteSettings
 
                     route_container.add(RouteSettings, RouteSettings(**route_settings))
-                    
+
                     # Ensure essential dependencies are available in route container
                     # Copy from parent container if missing
                     for dep_type in [Request, ResponseBuilder, Container, Router]:
