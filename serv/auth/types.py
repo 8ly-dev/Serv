@@ -45,7 +45,7 @@ class Permission:
     description: str | None = None
     resource: str | None = None
     action: str | None = None
-    
+
     def __post_init__(self):
         """Validate permission after creation."""
         if not self.name or not self.name.strip():
@@ -61,13 +61,13 @@ class Role:
     permissions: list[Permission] = field(default_factory=list)
     is_active: bool = True
     created_at: datetime = field(default_factory=datetime.now)
-    
+
     def __post_init__(self):
         """Validate role after creation."""
         if not self.name or not self.name.strip():
             from .exceptions import AuthValidationError
             raise AuthValidationError("Role name cannot be empty")
-    
+
     def has_permission(self, permission_name: str) -> bool:
         """Check if this role has a specific permission."""
         return any(perm.name == permission_name for perm in self.permissions)
@@ -85,7 +85,7 @@ class User:
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime | None = None
     last_login: datetime | None = None
-    
+
     def __post_init__(self):
         """Validate user after creation."""
         if not self.id or not self.id.strip():
@@ -106,7 +106,7 @@ class Session:
     is_active: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
     last_accessed: datetime | None = None
-    
+
     def __post_init__(self):
         """Validate session after creation."""
         if not self.id or not self.id.strip():
@@ -115,13 +115,13 @@ class Session:
         if not self.user_id or not self.user_id.strip():
             from .exceptions import AuthValidationError
             raise AuthValidationError("User ID cannot be empty")
-    
+
     def is_expired(self) -> bool:
         """Check if the session has expired."""
         if not self.expires_at:
             return False
         return datetime.now() > self.expires_at
-    
+
     def is_valid(self) -> bool:
         """Check if the session is valid (active and not expired)."""
         return self.is_active and not self.is_expired()
@@ -138,7 +138,7 @@ class Credentials:
     expires_at: datetime | None = None
     is_active: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         """Validate credentials after creation."""
         if not self.id or not self.id.strip():
@@ -150,13 +150,13 @@ class Credentials:
         if not self.data:
             from .exceptions import AuthValidationError
             raise AuthValidationError("Credential data cannot be empty")
-    
+
     def is_expired(self) -> bool:
         """Check if the credentials have expired."""
         if not self.expires_at:
             return False
         return datetime.now() > self.expires_at
-    
+
     def is_valid(self) -> bool:
         """Check if the credentials are valid (active and not expired)."""
         return self.is_active and not self.is_expired()
@@ -176,7 +176,7 @@ class AuditEvent:
     timestamp: datetime = field(default_factory=datetime.now)
     ip_address: str | None = None
     user_agent: str | None = None
-    
+
     def __post_init__(self):
         """Validate audit event after creation."""
         if not self.id or not self.id.strip():

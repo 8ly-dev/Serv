@@ -3,7 +3,7 @@
 
 class AuthError(Exception):
     """Base exception for all authentication-related errors."""
-    
+
     def __init__(self, message: str, details: dict | None = None):
         super().__init__(message)
         self.message = message
@@ -37,16 +37,16 @@ class InvalidCredentialsError(AuthenticationError):
 
 class PermissionDeniedError(AuthorizationError):
     """Raised when a user lacks required permissions for an action."""
-    
+
     def __init__(self, permission: str, resource: str | None = None, details: dict | None = None):
         self.permission = permission
         self.resource = resource
-        
+
         if resource:
             message = f"Permission denied: '{permission}' for resource '{resource}'"
         else:
             message = f"Permission denied: '{permission}'"
-        
+
         super().__init__(message, details)
 
 
