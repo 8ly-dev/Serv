@@ -3,7 +3,7 @@
 # Re-export from existing modules for backward compatibility
 try:
     from serv._app import App
-    
+
     __all__ = [
         "App",
     ]

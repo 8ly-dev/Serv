@@ -545,7 +545,7 @@ class Jinja2Response(Response):
     @staticmethod
     def _get_template_locations(extension: "pl.ExtensionSpec"):
         from pathlib import Path
-        
+
         if not extension:
             raise RuntimeError("Jinja2Response cannot be used outside of a extension.")
 
@@ -574,7 +574,7 @@ __all__ = [
     # Response classes
     "Response",
     "JsonResponse",
-    "TextResponse", 
+    "TextResponse",
     "HtmlResponse",
     "FileResponse",
     "StreamingResponse",

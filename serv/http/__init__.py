@@ -2,7 +2,13 @@
 
 # Re-export from existing modules for backward compatibility
 try:
-    from .requests import GetRequest, PostRequest, PutRequest, DeleteRequest, PatchRequest
+    from .requests import (
+        GetRequest,
+        PostRequest,
+        PutRequest,
+        DeleteRequest,
+        PatchRequest,
+    )
     from .responses import (
         JsonResponse as JSONResponse,  # Alias for backward compatibility
         HtmlResponse as HTMLResponse,  # Alias for backward compatibility
@@ -12,10 +18,10 @@ try:
         ResponseBuilder,
     )
     from .forms import FileUpload, Form
-    
+
     __all__ = [
         "GetRequest",
-        "PostRequest", 
+        "PostRequest",
         "PutRequest",
         "DeleteRequest",
         "PatchRequest",

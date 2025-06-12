@@ -4,10 +4,10 @@
 try:
     from serv._routing import Router
     from serv.routes import Route, handles
-    
+
     __all__ = [
         "Router",
-        "Route", 
+        "Route",
         "handles",
     ]
 except ImportError:

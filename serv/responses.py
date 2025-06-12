@@ -8,6 +8,6 @@ from serv.http.responses import (
 # Re-export for backward compatibility
 __all__ = [
     "AsyncIterable",
-    "Iterable", 
+    "Iterable",
     "ResponseBuilder",
 ]
