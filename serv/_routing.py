@@ -325,114 +325,17 @@ class Router(RouterProtocol):
             HTTPMethodNotAllowedException: If one or more routes match the path but not the method,
                                            and no route matches both path and method.
         """
-        collected_allowed_methods: set[str] = set()
-        found_path_match_but_not_method = False
-
-        # 1. Check mounted routers first
-        for mount_path, mounted_router in self._mounted_routers:
-            if request_path.startswith(mount_path):
-                # Strip the mount path prefix for the mounted router
-                sub_path = request_path[len(mount_path) :]
-                if not sub_path:
-                    sub_path = "/"
-                elif not sub_path.startswith("/"):
-                    sub_path = "/" + sub_path
-
-                try:
-                    resolved_in_mounted = mounted_router.resolve_route(
-                        sub_path, request_method
-                    )
-                    if resolved_in_mounted:
-                        handler, params, settings = resolved_in_mounted
-                        # Merge router settings with any more specific settings
-                        merged_settings = {
-                            **self._settings,
-                            **mounted_router._settings,
-                            **settings,
-                        }
-                        return handler, params, merged_settings
-                except HTTPMethodNotAllowedException as e:
-                    # Mounted router matched the path but not the method
-                    collected_allowed_methods.update(e.allowed_methods)
-                    found_path_match_but_not_method = True
-                except HTTPNotFoundException:
-                    # Mounted router did not find the path. Continue search.
-                    pass
-
-        # 2. Check sub-routers in reverse order of addition (LIFO for matching)
-        for sub_router in reversed(self._sub_routers):
-            try:
-                resolved_in_sub = sub_router.resolve_route(request_path, request_method)
-                if resolved_in_sub:
-                    handler, params, settings = resolved_in_sub
-                    # Merge router settings with any more specific settings
-                    merged_settings = {
-                        **self._settings,
-                        **sub_router._settings,
-                        **settings,
-                    }
-                    return handler, params, merged_settings
-            except HTTPMethodNotAllowedException as e:
-                # Sub-router matched the path but not the method.
-                # Collect its allowed methods and mark that a path match occurred.
-                collected_allowed_methods.update(e.allowed_methods)
-                found_path_match_but_not_method = True
-                # Continue searching other sub-routers or parent's direct routes.
-            except HTTPNotFoundException:
-                # Sub-router did not find the path at all. Continue search.
-                pass
-
-        # 3. Check own routes
-        for (
-            path_pattern,
-            route_specific_methods,
-            handler_callable,
-            route_settings,
-        ) in self._routes:
-            match_info = self._match_path(request_path, path_pattern)
-            if match_info is not None:  # Path matches
-                found_path_match_but_not_method = (
-                    True  # Mark that we at least matched the path
-                )
-                if (
-                    route_specific_methods is None
-                    or request_method.upper() in route_specific_methods
-                ):
-                    # Path and method match
-                    # Merge router settings with route settings
-                    merged_settings = {**self._settings, **route_settings}
-                    return handler_callable, match_info, merged_settings
-                else:
-                    # Path matches, but method is not allowed for this specific route.
-                    # Collect allowed methods.
-                    if route_specific_methods:
-                        collected_allowed_methods.update(route_specific_methods)
-
-        # 4. After checking all mounted routers, sub-routers and own routes:
-        if found_path_match_but_not_method and collected_allowed_methods:
-            # We found one or more path matches, but no method matches for that path.
-            # And we have a list of methods that *would* have been allowed.
-            raise HTTPMethodNotAllowedException(
-                f"Method {request_method} not allowed for {request_path}",
-                allowed_methods=list(collected_allowed_methods),
-            )
-
-        # If no path match was found at all, or if path matched but no methods were ever defined for it
-        # (e.g. route_specific_methods was None and it wasn't a match, which is unlikely with current logic
-        # but covering bases if collected_allowed_methods is empty despite found_path_match_but_not_method)
-        if found_path_match_but_not_method and not collected_allowed_methods:
-            # This case implies a path was matched by a route that allows ALL methods (None),
-            # but the request_method somehow didn't trigger the "return handler_callable, match_info"
-            # This shouldn't happen if request_method.upper() is in route_specific_methods when it's None.
-            # For safety, if we matched a path but have no specific allowed methods to suggest,
-            # it's still a method not allowed situation, but without specific 'Allow' header.
-            # However, current logic means if route_specific_methods is None, it's an immediate match.
-            # This path should ideally not be hit frequently.
-            # To be safe, we will treat it as a 404 if no specific methods were collected.
-            pass
-
-        # No route matched the path at all, or a path was matched but it didn't lead to a 405 (e.g. ill-defined route).
-        return None
+        from serv.routing.resolvers import resolve_http_route
+        
+        return resolve_http_route(
+            request_path,
+            request_method,
+            self._mounted_routers,
+            self._sub_routers,
+            self._routes,
+            self._settings,
+            self._match_path
+        )
 
     def _match_path(
         self, request_path: str, path_pattern: str
@@ -464,30 +367,16 @@ class Router(RouterProtocol):
             ...     # Handle WebSocket connection
             ...     await handler(websocket, **params)
         """
-        # First check sub-routers (they take precedence)
-        for sub_router in reversed(self._sub_routers):
-            result = sub_router.resolve_websocket(request_path)
-            if result:
-                return result
-
-        # Check mounted routers
-        for mount_path, mounted_router in self._mounted_routers:
-            if request_path.startswith(mount_path):
-                # Remove the mount path prefix before checking the mounted router
-                relative_path = request_path[len(mount_path) :] or "/"
-                result = mounted_router.resolve_websocket(relative_path)
-                if result:
-                    return result
-
-        # Check our own WebSocket routes
-        for path_pattern, handler, settings in self._websocket_routes:
-            path_params = self._match_path(request_path, path_pattern)
-            if path_params is not None:
-                # Merge router-level settings with route-specific settings
-                merged_settings = {**self._settings, **settings}
-                return handler, path_params, merged_settings
-
-        return None
+        from serv.routing.resolvers import resolve_websocket_route
+        
+        return resolve_websocket_route(
+            request_path,
+            self._mounted_routers,
+            self._sub_routers,
+            self._websocket_routes,
+            self._settings,
+            self._match_path
+        )
 
 
 @injectable
