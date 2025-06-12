@@ -264,7 +264,7 @@ class TestAuditRequired:
         """Test AuditRequired decorator with simple requirement."""
         
         @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-        async def simple_function(audit_emitter):
+        async def simple_function(audit_emitter: AuditEmitter):
             audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
             return "success"
         
@@ -279,7 +279,7 @@ class TestAuditRequired:
         pipeline = AuditEventType.AUTH_ATTEMPT >> AuditEventType.AUTH_SUCCESS
         
         @AuditRequired(pipeline)
-        async def auth_function(audit_emitter):
+        async def auth_function(audit_emitter: AuditEmitter):
             audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
             audit_emitter.emit(AuditEventType.AUTH_SUCCESS)
             return "authenticated"
@@ -296,7 +296,7 @@ class TestAuditRequired:
         pipeline = AuditEventType.AUTH_ATTEMPT >> AuditEventType.AUTH_SUCCESS
         
         @AuditRequired(pipeline)
-        async def bad_auth_function(audit_emitter):
+        async def bad_auth_function(audit_emitter: AuditEmitter):
             audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
             # Missing AUTH_SUCCESS event
             return "should fail"
@@ -315,7 +315,7 @@ class TestAuditEnforcedInitSubclass:
         
         class TestProvider(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-            async def authenticate(self, audit_emitter):
+            async def authenticate(self, audit_emitter: AuditEmitter):
                 audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
                 return True
         
@@ -327,7 +327,7 @@ class TestAuditEnforcedInitSubclass:
         
         class BaseProvider(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-            async def authenticate(self, audit_emitter):
+            async def authenticate(self, audit_emitter: AuditEmitter):
                 audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
                 return True
         
@@ -338,3 +338,68 @@ class TestAuditEnforcedInitSubclass:
         provider = ConcreteProvider()
         assert hasattr(provider.authenticate, '_audit_pipeline')
         assert not hasattr(provider.additional_method, '_audit_pipeline')
+
+
+class TestTypeBasedAuditInjection:
+    """Test audit emitter injection based on type annotations."""
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_audit_emitter_injection_by_type(self, mock_store):
+        """Test that audit emitter is injected based on type annotation."""
+        
+        @AuditRequired(AuditEventType.AUTH_ATTEMPT)
+        async def authenticate(credentials: str, emitter: AuditEmitter) -> bool:
+            emitter.emit(AuditEventType.AUTH_ATTEMPT)
+            return True
+        
+        # Function should work when pipeline is satisfied
+        import asyncio
+        result = asyncio.run(authenticate("test_creds"))
+        assert result is True
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_audit_emitter_injection_different_param_name(self, mock_store):
+        """Test that audit emitter works with any parameter name, based on type."""
+        
+        @AuditRequired(AuditEventType.USER_CREATE)
+        async def create_user(username: str, audit_tracker: AuditEmitter) -> str:
+            audit_tracker.emit(AuditEventType.USER_CREATE)
+            return f"user_{username}"
+        
+        import asyncio
+        result = asyncio.run(create_user("alice"))
+        assert result == "user_alice"
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_audit_emitter_injection_with_custom_emitter(self, mock_store):
+        """Test that explicitly passed AuditEmitter is used instead of injected one."""
+        
+        @AuditRequired(AuditEventType.SESSION_REFRESH)
+        async def refresh_session(session_id: str, emitter: AuditEmitter) -> str:
+            emitter.emit(AuditEventType.SESSION_REFRESH)
+            return f"refreshed_{session_id}"
+        
+        # Create a custom emitter
+        custom_emitter = AuditEmitter()
+        
+        import asyncio
+        result = asyncio.run(refresh_session("session123", custom_emitter))
+        assert result == "refreshed_session123"
+        
+        # Should have used the custom emitter
+        assert len(custom_emitter.events) == 1
+        assert custom_emitter.events[0] == AuditEventType.SESSION_REFRESH
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_audit_emitter_injection_optional_type(self, mock_store):
+        """Test audit emitter injection with optional type annotation."""
+        
+        @AuditRequired(AuditEventType.AUTH_LOGOUT)
+        async def logout(session_id: str, logger: AuditEmitter | None = None) -> bool:
+            if logger:
+                logger.emit(AuditEventType.AUTH_LOGOUT)
+            return True
+        
+        import asyncio
+        result = asyncio.run(logout("session123"))
+        assert result is True

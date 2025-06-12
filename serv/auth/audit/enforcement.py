@@ -4,7 +4,7 @@ import inspect
 import uuid
 from datetime import datetime
 from functools import wraps
-from typing import Any
+from typing import Any, get_args, get_origin
 
 from ..exceptions import AuditError
 from ..types import AuditEvent
@@ -88,13 +88,12 @@ def AuditRequired(pipeline_requirement: AuditEventType | AuditEventGroup | Audit
 
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # Create audit emitter for this operation
-            audit_emitter = AuditEmitter()
-
-            # Inject audit_emitter into kwargs if function expects it
+            # Find the audit emitter parameter
             sig = inspect.signature(func)
-            if 'audit_emitter' in sig.parameters:
-                kwargs['audit_emitter'] = audit_emitter
+            emitter_param = _find_audit_emitter_parameter(sig)
+
+            # Get or create the audit emitter for validation
+            audit_emitter = _get_or_inject_audit_emitter(sig, emitter_param, args, kwargs)
 
             try:
                 # Execute the function
@@ -118,11 +117,12 @@ def AuditRequired(pipeline_requirement: AuditEventType | AuditEventGroup | Audit
         if not inspect.iscoroutinefunction(func):
             @wraps(func)
             def sync_wrapper(*args, **kwargs):
-                audit_emitter = AuditEmitter()
-
+                # Find the audit emitter parameter
                 sig = inspect.signature(func)
-                if 'audit_emitter' in sig.parameters:
-                    kwargs['audit_emitter'] = audit_emitter
+                emitter_param = _find_audit_emitter_parameter(sig)
+
+                # Get or create the audit emitter for validation
+                audit_emitter = _get_or_inject_audit_emitter(sig, emitter_param, args, kwargs)
 
                 try:
                     result = func(*args, **kwargs)
@@ -167,3 +167,74 @@ def _validate_audit_pipeline(requirement: AuditEventType | AuditEventGroup | Aud
 
     else:
         raise AuditError(f"Unknown audit requirement type: {type(requirement)}")
+
+
+def _get_or_inject_audit_emitter(signature: inspect.Signature, emitter_param: str | None,
+                                args: tuple, kwargs: dict) -> AuditEmitter:
+    """Get existing audit emitter from args/kwargs or inject a new one.
+    
+    Args:
+        signature: Function signature
+        emitter_param: Name of the audit emitter parameter (if found)
+        args: Positional arguments
+        kwargs: Keyword arguments
+        
+    Returns:
+        AuditEmitter instance to use for validation
+    """
+    if not emitter_param:
+        # No audit emitter parameter, create one for validation only
+        return AuditEmitter()
+
+    # Check if emitter was passed in kwargs
+    if emitter_param in kwargs:
+        emitter = kwargs[emitter_param]
+        if isinstance(emitter, AuditEmitter):
+            return emitter
+
+    # Check if emitter was passed positionally
+    param_names = list(signature.parameters.keys())
+    if emitter_param in param_names:
+        param_index = param_names.index(emitter_param)
+        if param_index < len(args):
+            emitter = args[param_index]
+            if isinstance(emitter, AuditEmitter):
+                return emitter
+
+    # No emitter provided, create and inject one
+    audit_emitter = AuditEmitter()
+    if emitter_param not in kwargs:
+        kwargs[emitter_param] = audit_emitter
+
+    return audit_emitter
+
+
+def _find_audit_emitter_parameter(signature: inspect.Signature) -> str | None:
+    """Find parameter annotated with AuditEmitter type.
+    
+    Args:
+        signature: Function signature to inspect
+        
+    Returns:
+        Parameter name if found, None otherwise
+    """
+    for param_name, param in signature.parameters.items():
+        if param.annotation == inspect.Parameter.empty:
+            continue
+
+        # Check if parameter is annotated with AuditEmitter
+        if param.annotation is AuditEmitter:
+            return param_name
+
+        # Check for union types like AuditEmitter | None
+        origin = get_origin(param.annotation)
+        if origin is not None:  # This is a generic type
+            args = get_args(param.annotation)
+            if AuditEmitter in args:
+                return param_name
+
+        # Check string annotations (forward references)
+        if isinstance(param.annotation, str) and param.annotation == 'AuditEmitter':
+            return param_name
+
+    return None
