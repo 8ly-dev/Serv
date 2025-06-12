@@ -1,7 +1,7 @@
 import pytest
 
 from serv.exceptions import HTTPMethodNotAllowedException
-from serv.routing import Router
+from serv._routing import Router
 
 
 # Mock handlers for testing

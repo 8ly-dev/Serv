@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from serv.app import App
+from serv._app import App
 from tests.e2e.helpers import create_test_client
 
 
@@ -117,7 +117,7 @@ class TestCliHttpBehavior:
 from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
 from bevy import injectable, Inject
-from serv.routing import Router
+from serv._routing import Router
 from serv.responses import ResponseBuilder
 
 class {plugin_name.replace("_", " ").title().replace(" ", "")}Extension(Extension):
@@ -184,7 +184,7 @@ async def {middleware_name}_middleware(handler):
 
         from serv.extensions import Extension, on
         from serv.responses import ResponseBuilder
-        from serv.routing import Router
+        from serv._routing import Router
         from tests.helpers import create_test_extension_spec
 
         # Create a mock plugin that mimics the test plugin behavior

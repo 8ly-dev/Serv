@@ -13,7 +13,7 @@ from bevy.registries import Registry
 
 from serv.extensions.loader import ExtensionSpec
 from serv.extensions.router_extension import RouterExtension
-from serv.routing import Router
+from serv._routing import Router
 from tests.helpers import create_mock_importer
 
 

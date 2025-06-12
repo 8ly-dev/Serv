@@ -188,7 +188,7 @@ class Listener:
 
         ```python
         from serv.extensions import Listener
-        from serv.routing import Router
+        from serv._routing import Router
         from bevy import injectable, Inject
 
         class MyListener(Listener):

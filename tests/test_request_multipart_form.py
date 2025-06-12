@@ -9,11 +9,11 @@ import pytest
 from bevy import Inject, injectable
 from httpx import AsyncClient
 
-from serv.app import App
+from serv._app import App
 from serv.extensions import Extension, on
 from serv.requests import FileUpload
 from serv.routes import Form, Response, Route, TextResponse
-from serv.routing import Router
+from serv._routing import Router
 
 # --- Helper types for tests ---
 

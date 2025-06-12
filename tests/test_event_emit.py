@@ -4,7 +4,7 @@ import pytest
 from bevy import get_registry
 from bevy.containers import Container, get_container
 
-from serv.app import EventEmitter
+from serv._app import EventEmitter
 from serv.extensions import Listener, on
 from serv.routes import Route
 

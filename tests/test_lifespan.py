@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from serv.app import App
+from serv._app import App
 from tests.helpers import EventWatcherExtension
 
 

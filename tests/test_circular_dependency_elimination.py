@@ -18,7 +18,7 @@ def test_protocols_exist():
 
 def test_app_implements_protocols():
     """Test that App class implements required protocols."""
-    from serv.app import App
+    from serv._app import App
     from serv.protocols import AppContextProtocol, EventEmitterProtocol
 
     app = App(dev_mode=True)
@@ -36,7 +36,7 @@ def test_app_implements_protocols():
 def test_router_implements_protocol():
     """Test that Router class implements RouterProtocol."""
     from serv.protocols import RouterProtocol
-    from serv.routing import Router
+    from serv._routing import Router
 
     router = Router()
 
@@ -88,7 +88,7 @@ def test_no_direct_app_import_in_routes():
 
 def test_framework_functionality_preserved():
     """Test that basic framework functionality still works after refactoring."""
-    from serv.app import App
+    from serv._app import App
     from serv.routes import Route, handle
 
     # Test creating an app

@@ -16,7 +16,7 @@ from serv.extensions.importer import Importer
 from serv.extensions.loader import ExtensionSpec
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from serv.routing import Router
+from serv._routing import Router
 
 
 def patch_extension_spec_on_module(extension: Listener):
