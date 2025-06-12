@@ -350,7 +350,15 @@ class Listener:
                 callback, event_name, kwargs, container
             )
 
-            result = get_container(container).call(callback, **handler_kwargs)
+            # Create a branched container with event arguments for injection
+            execution_container = get_container(container).branch()
+            
+            # Add event arguments to the container so they can be injected
+            for arg_name, arg_value in kwargs.items():
+                if arg_value is not None:
+                    execution_container.add(type(arg_value), arg_value)
+
+            result = execution_container.call(callback, **handler_kwargs)
             if isawaitable(result):
                 await result
 
