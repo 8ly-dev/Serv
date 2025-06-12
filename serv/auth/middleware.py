@@ -11,7 +11,8 @@ Security considerations:
 - Rate limiting must be enforced reliably
 """
 
-from datetime import UTC
+import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from bevy import Inject
@@ -20,7 +21,9 @@ from serv.extensions.middleware import ServMiddleware
 from serv.http import Request, ResponseBuilder
 
 from .types import AuthResult, AuthStatus, PolicyDecision, RateLimitResult
-from .utils import generate_device_fingerprint
+from .utils import generate_device_fingerprint, get_client_ip, mask_sensitive_data
+
+logger = logging.getLogger(__name__)
 
 
 class AuthenticationMiddleware(ServMiddleware):
@@ -186,12 +189,18 @@ class AuthorizationMiddleware(ServMiddleware):
             request: The request being denied
         """
         # Log authorization failure (with sanitized data)
-        # TODO: Implement audit logging with proper logger injection
-        # request_info = mask_sensitive_data({
-        #     "method": request.method,
-        #     "path": str(request.url.path),
-        #     "user_id": getattr(request.auth, "user_id", None),
-        # })
+        request_info = mask_sensitive_data({
+            "method": request.method,
+            "path": str(request.url.path),
+            "user_id": getattr(request.auth, "user_id", None),
+            "client_ip": get_client_ip(request),
+            "user_agent": request.headers.get("user-agent", ""),
+        })
+        logger.warning(
+            "Authorization denied: %s",
+            request_info,
+            extra={"security_event": "authorization_denied", "request_info": request_info}
+        )
 
         # Return 403 Forbidden
         error_data = {
@@ -220,6 +229,7 @@ class RateLimitMiddleware(ServMiddleware):
     def __init__(self, container, config: dict[str, Any] | None = None):
         super().__init__(container, config)
         self.rate_limits = config.get("rate_limits", {}) if config else {}
+        self.trusted_proxies = config.get("trusted_proxies", []) if config else []
 
     async def enter(
         self, request: Request = Inject, response: ResponseBuilder = Inject
@@ -250,7 +260,7 @@ class RateLimitMiddleware(ServMiddleware):
         """
         Get identifier for rate limiting.
 
-        Default implementation uses IP address.
+        Default implementation uses real client IP address with proxy support.
         Subclasses can override for user-based or other strategies.
 
         Args:
@@ -259,10 +269,8 @@ class RateLimitMiddleware(ServMiddleware):
         Returns:
             Rate limit identifier string
         """
-        # Use IP address as default identifier
-        client_ip = (
-            getattr(request.client, "host", "unknown") if request.client else "unknown"
-        )
+        # Use real client IP address (handles X-Forwarded-For securely)
+        client_ip = get_client_ip(request, self.trusted_proxies)
         return f"ip:{client_ip}"
 
     async def _get_rate_limit_action(self, request: Request) -> str:
@@ -294,8 +302,6 @@ class RateLimitMiddleware(ServMiddleware):
         Returns:
             RateLimitResult with limit status
         """
-        from datetime import datetime
-
         return RateLimitResult(
             allowed=True, limit=1000, remaining=999, reset_time=datetime.now(UTC)
         )
