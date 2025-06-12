@@ -1,13 +1,17 @@
 """Parameter analysis and injection utilities for route handlers."""
 
-from contextlib import suppress
+import inspect
+import logging
 from typing import Any
 
 from bevy.containers import Container
+from bevy import DependencyResolutionError
 
 from ..http.requests import Request
 from ..injectors import Cookie, Header, Query
 from ..utils.type_utils import extract_annotated_info
+
+logger = logging.getLogger(__name__)
 
 
 class ParameterAnalysis:
@@ -26,6 +30,24 @@ class ParameterAnalysis:
         self.default = default
         self.has_default = has_default
         self.injection_marker = injection_marker
+        
+        # Validate injection marker if present
+        if injection_marker is not None:
+            self._validate_injection_marker(injection_marker)
+    
+    def _validate_injection_marker(self, marker: Header | Cookie | Query) -> None:
+        """Validate an injection marker has valid configuration."""
+        if not marker.name or not isinstance(marker.name, str):
+            raise ValueError(f"Injection marker name must be a non-empty string, got: {marker.name}")
+        
+        if marker.name.strip() != marker.name:
+            raise ValueError(f"Injection marker name cannot have leading/trailing whitespace: '{marker.name}'")
+        
+        # Additional validation for specific marker types
+        if isinstance(marker, Header):
+            # HTTP header names should be printable ASCII
+            if not marker.name.isascii() or not marker.name.isprintable():
+                raise ValueError(f"Header name must be printable ASCII: '{marker.name}'")
 
 
 class ParameterAnalyzer:
@@ -80,6 +102,9 @@ class ParameterAnalyzer:
 
 class ParameterExtractor:
     """Extracts parameter values from requests and containers."""
+    
+    # Cache for Request type checking to improve performance
+    _request_type_cache: dict[type, bool] = {}
 
     @staticmethod
     def extract_from_marker(marker: Header | Cookie | Query, request: Request) -> Any:
@@ -108,26 +133,42 @@ class ParameterExtractor:
             injection_type = base_type
 
         # Handle request types
-        if injection_type is not type(None):
-            if hasattr(injection_type, "__mro__") and any(
-                base.__name__ == "Request" for base in injection_type.__mro__
-            ):
-                if injection_type.__name__ in [
-                    "GetRequest",
-                    "PostRequest",
-                    "PutRequest",
-                    "DeleteRequest",
-                    "PatchRequest",
-                    "OptionsRequest",
-                    "HeadRequest",
-                ]:
-                    return injection_type(request.scope, request._receive)
+        if injection_type is not type(None) and ParameterExtractor._is_request_type(injection_type):
+            try:
+                return injection_type(request.scope, request._receive)
+            except Exception as e:
+                # Log but don't raise - this allows fallback to container injection
+                logger.debug(f"Failed to create request type {injection_type.__name__}: {e}")
 
-        # Try container injection
-        with suppress(Exception):
+        # Try container injection with specific error handling
+        try:
             return container.get(injection_type)
+        except (DependencyResolutionError, KeyError, TypeError, AttributeError) as e:
+            # These are expected errors when type is not available in container
+            logger.debug(f"Container injection failed for {injection_type}: {e}")
+            return None
+        except Exception as e:
+            # Log unexpected errors but don't crash
+            logger.warning(f"Unexpected error during container injection for {injection_type}: {e}")
+            return None
 
-        return None
+    @staticmethod
+    def _is_request_type(injection_type: type) -> bool:
+        """Check if a type is a Request subclass with caching for performance."""
+        # Check cache first
+        if injection_type in ParameterExtractor._request_type_cache:
+            return ParameterExtractor._request_type_cache[injection_type]
+        
+        # Perform the check
+        is_request = (
+            inspect.isclass(injection_type) and 
+            issubclass(injection_type, Request) and
+            injection_type is not Request  # Don't allow base Request class
+        )
+        
+        # Cache the result
+        ParameterExtractor._request_type_cache[injection_type] = is_request
+        return is_request
 
     @staticmethod
     def parameter_has_fallback(param, type_hints: dict) -> bool:
