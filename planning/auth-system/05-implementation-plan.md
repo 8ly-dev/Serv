@@ -120,6 +120,7 @@ This document provides a detailed implementation plan for the authentication sys
 - [ ] Database audit provider with encryption and retention
 - [ ] Database factory function for auth-specific Ommi setup
 - [ ] **Database Setup**: Providers handle database table creation and schema setup during startup initialization (fail-fast approach)
+- [ ] **TODO**: Complete `_setup_database_models()` in bootstrap.py (currently placeholder)
 
 **Tests**:
 - [ ] Database provider tests with real DB
@@ -162,6 +163,7 @@ This document provides a detailed implementation plan for the authentication sys
 - [ ] RBAC policy provider implementation
 - [ ] Permission evaluation logic
 - [ ] Policy compilation and optimization
+- [ ] **TODO**: Create proper `PolicyProvider` base class (currently using `BaseProvider` in factories.py)
 
 **Tests**:
 - [ ] Policy evaluation tests
