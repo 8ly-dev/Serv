@@ -69,7 +69,109 @@ async def timing_protection(seconds: float) -> AsyncGenerator[None]:
         yield
 
 
-def generate_device_fingerprint(request: "Request") -> str:
+def get_client_ip(request: "Request", trusted_proxies: list[str] | None = None) -> str:
+    """
+    Extract real client IP address with X-Forwarded-For support.
+
+    Security considerations:
+    - Validates trusted proxy sources to prevent IP spoofing
+    - Handles multiple proxy scenarios (CDN, load balancer, etc.)
+    - Falls back to direct connection IP if headers are untrusted
+    - Prevents header injection attacks
+
+    Args:
+        request: The incoming HTTP request
+        trusted_proxies: List of trusted proxy IPs/networks (CIDR notation supported)
+
+    Returns:
+        Real client IP address as string
+    """
+    import ipaddress
+
+    # Get direct connection IP
+    direct_ip = getattr(request.client, "host", "") if request.client else ""
+
+    # If no trusted proxies configured, return direct IP
+    if not trusted_proxies:
+        return direct_ip
+
+    # Check if request is coming from a trusted proxy
+    def is_trusted_proxy(ip: str) -> bool:
+        if not ip:
+            return False
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+            for trusted in trusted_proxies:
+                try:
+                    # Handle CIDR notation (e.g., "10.0.0.0/8")
+                    if "/" in trusted:
+                        network = ipaddress.ip_network(trusted, strict=False)
+                        if ip_obj in network:
+                            return True
+                    else:
+                        # Handle single IP
+                        if ip_obj == ipaddress.ip_address(trusted):
+                            return True
+                except (ipaddress.AddressValueError, ValueError):
+                    continue
+            return False
+        except (ipaddress.AddressValueError, ValueError):
+            return False
+
+    # Only trust proxy headers if request comes from trusted proxy
+    if not is_trusted_proxy(direct_ip):
+        return direct_ip
+
+    # Check X-Forwarded-For header (most common)
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        # X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
+        # The leftmost is typically the original client
+        ips = [ip.strip() for ip in forwarded_for.split(",")]
+        for ip in ips:
+            if ip and not is_trusted_proxy(ip):
+                # First non-proxy IP is likely the real client
+                try:
+                    ipaddress.ip_address(ip)  # Validate IP format
+                    return ip
+                except (ipaddress.AddressValueError, ValueError):
+                    continue
+
+    # Check X-Real-IP header (Nginx style)
+    real_ip = request.headers.get("x-real-ip", "")
+    if real_ip:
+        try:
+            ipaddress.ip_address(real_ip)  # Validate IP format
+            return real_ip
+        except (ipaddress.AddressValueError, ValueError):
+            pass
+
+    # Check X-Forwarded header (RFC 7239 style)
+    forwarded = request.headers.get("forwarded", "")
+    if forwarded:
+        # Parse Forwarded header: for=192.0.2.60;proto=http;by=203.0.113.43
+        for part in forwarded.split(";"):
+            if part.strip().startswith("for="):
+                ip = part.split("=", 1)[1].strip().strip('"')
+                # Remove port if present (IPv4:port or [IPv6]:port)
+                if ":" in ip and not ip.startswith("["):
+                    ip = ip.split(":", 1)[0]
+                elif ip.startswith("[") and "]:" in ip:
+                    ip = ip[1 : ip.index("]:")]
+                try:
+                    ipaddress.ip_address(ip)  # Validate IP format
+                    if not is_trusted_proxy(ip):
+                        return ip
+                except (ipaddress.AddressValueError, ValueError):
+                    continue
+
+    # If all proxy headers are invalid or missing, return direct connection IP
+    return direct_ip
+
+
+def generate_device_fingerprint(
+    request: "Request", trusted_proxies: list[str] | None = None
+) -> str:
     """
     Generate a device fingerprint from request headers.
 
@@ -77,9 +179,11 @@ def generate_device_fingerprint(request: "Request") -> str:
     - Balances security (session binding) with privacy
     - Uses only standard headers to avoid fingerprinting concerns
     - Hash ensures consistent format and prevents header injection
+    - Properly handles real client IP through proxy headers
 
     Args:
         request: The incoming HTTP request
+        trusted_proxies: List of trusted proxy IPs for X-Forwarded-For handling
 
     Returns:
         Hex string fingerprint of the device
@@ -92,9 +196,8 @@ def generate_device_fingerprint(request: "Request") -> str:
         "accept": request.headers.get("accept", ""),
     }
 
-    # Include client IP for additional security
-    # Note: In production, consider X-Forwarded-For handling
-    client_ip = getattr(request.client, "host", "") if request.client else ""
+    # Include real client IP for additional security (with proxy support)
+    client_ip = get_client_ip(request, trusted_proxies)
     fingerprint_data["client_ip"] = client_ip
 
     # Create deterministic string representation
@@ -108,12 +211,13 @@ def generate_device_fingerprint(request: "Request") -> str:
 
 def sanitize_user_input(value: str, max_length: int = 1000) -> str:
     """
-    Sanitize user input for logging and storage.
+    Sanitize user input for logging and storage using bleach.
 
     Security considerations:
+    - Uses battle-tested bleach library for sanitization
     - Prevents injection attacks in logs
     - Limits input length to prevent DoS
-    - Removes potentially dangerous characters
+    - Removes dangerous characters and sequences
 
     Args:
         value: The input string to sanitize
@@ -127,17 +231,40 @@ def sanitize_user_input(value: str, max_length: int = 1000) -> str:
 
     # Truncate to prevent DoS
     if len(value) > max_length:
-        value = value[:max_length]
+        value = value[:max_length] + "...[TRUNCATED]"
 
-    # Remove null bytes and control characters except newlines/tabs
-    # Handle escaped sequences by converting them first
-    value = value.encode().decode("unicode_escape")
+    try:
+        import bleach
 
-    sanitized = "".join(
-        char for char in value if char.isprintable() or char in ("\n", "\t")
-    )
+        # Use bleach to clean the input for safe logging/storage
+        # Strip all HTML tags and attributes, but keep text content
+        sanitized = bleach.clean(
+            value,
+            tags=[],  # No tags allowed
+            attributes={},  # No attributes allowed
+            strip=True,  # Strip tags rather than escape them
+            strip_comments=True,  # Remove HTML comments
+        )
 
-    return sanitized
+        # Additional log injection prevention: make CRLF visible
+        sanitized = sanitized.replace("\r", "\\r").replace("\n", "\\n")
+
+        return sanitized
+
+    except ImportError:
+        # Fallback if bleach is not available (basic sanitization)
+        # This should not happen in production with proper dependencies
+        sanitized = ""
+        for char in value:
+            if char == "\0":  # Remove null bytes
+                continue
+            elif char in "\r\n":  # Make CRLF visible to prevent log injection
+                sanitized += "\\n"
+            elif char == "\t" or char.isprintable():  # Keep tabs and printable chars
+                sanitized += char
+            # Skip other control characters
+
+        return sanitized
 
 
 def validate_session_fingerprint(
@@ -257,3 +384,106 @@ def mask_sensitive_data(data: dict[str, Any]) -> dict[str, Any]:
             masked[key] = value
 
     return masked
+
+
+def get_common_trusted_proxies() -> dict[str, list[str]]:
+    """
+    Get commonly used trusted proxy configurations.
+
+    Returns:
+        Dictionary of common proxy configurations for easy setup
+    """
+    return {
+        # Common cloud provider load balancers
+        "aws_alb": [
+            "10.0.0.0/8",  # AWS VPC private ranges
+            "172.16.0.0/12",  # AWS VPC private ranges
+            "192.168.0.0/16",  # AWS VPC private ranges
+        ],
+        "cloudflare": [
+            # Cloudflare IP ranges (these change, check Cloudflare docs)
+            "173.245.48.0/20",
+            "103.21.244.0/22",
+            "103.22.200.0/22",
+            "103.31.4.0/22",
+            "141.101.64.0/18",
+            "108.162.192.0/18",
+            "190.93.240.0/20",
+            "188.114.96.0/20",
+            "197.234.240.0/22",
+            "198.41.128.0/17",
+            "162.158.0.0/15",
+            "104.16.0.0/13",
+            "104.24.0.0/14",
+            "172.64.0.0/13",
+            "131.0.72.0/22",
+        ],
+        "google_cloud": [
+            "10.0.0.0/8",  # GCP private ranges
+            "172.16.0.0/12",  # GCP private ranges
+            "192.168.0.0/16",  # GCP private ranges
+        ],
+        "azure": [
+            "10.0.0.0/8",  # Azure private ranges
+            "172.16.0.0/12",  # Azure private ranges
+            "192.168.0.0/16",  # Azure private ranges
+        ],
+        # Common reverse proxy setups
+        "nginx_local": ["127.0.0.1", "::1"],
+        "docker_bridge": ["172.17.0.0/16"],
+        "kubernetes": ["10.0.0.0/8"],
+        # Common private networks
+        "rfc1918": [
+            "10.0.0.0/8",  # Class A private
+            "172.16.0.0/12",  # Class B private
+            "192.168.0.0/16",  # Class C private
+        ],
+    }
+
+
+def configure_trusted_proxies(
+    proxy_config: str | list[str] | None = None,
+    additional_proxies: list[str] | None = None,
+) -> list[str]:
+    """
+    Configure trusted proxies with common presets and custom additions.
+
+    Args:
+        proxy_config: Either a preset name, list of IPs/CIDRs, or None
+        additional_proxies: Additional proxy IPs to trust
+
+    Returns:
+        List of trusted proxy IPs/CIDRs
+
+    Examples:
+        # Use common preset
+        configure_trusted_proxies("cloudflare")
+
+        # Use custom list
+        configure_trusted_proxies(["10.0.0.1", "192.168.1.0/24"])
+
+        # Combine preset with additional
+        configure_trusted_proxies("aws_alb", ["203.0.113.1"])
+    """
+    trusted_proxies = []
+
+    if proxy_config:
+        if isinstance(proxy_config, str):
+            # Use preset configuration
+            presets = get_common_trusted_proxies()
+            if proxy_config in presets:
+                trusted_proxies.extend(presets[proxy_config])
+            else:
+                raise ValueError(
+                    f"Unknown proxy preset: {proxy_config}. Available: {list(presets.keys())}"
+                )
+        elif isinstance(proxy_config, list):
+            # Use custom list
+            trusted_proxies.extend(proxy_config)
+        else:
+            raise ValueError("proxy_config must be a string preset name or list of IPs")
+
+    if additional_proxies:
+        trusted_proxies.extend(additional_proxies)
+
+    return trusted_proxies
