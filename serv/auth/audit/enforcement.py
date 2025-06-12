@@ -4,7 +4,7 @@ import inspect
 import uuid
 from datetime import datetime
 from functools import wraps
-from typing import Any, get_args, get_origin
+from typing import Any, get_args, get_origin, get_type_hints
 
 from ..exceptions import AuditError
 from ..types import AuditEvent
@@ -90,7 +90,7 @@ def AuditRequired(pipeline_requirement: AuditEventType | AuditEventGroup | Audit
         async def wrapper(*args, **kwargs):
             # Find the audit emitter parameter
             sig = inspect.signature(func)
-            emitter_param = _find_audit_emitter_parameter(sig)
+            emitter_param = _find_audit_emitter_parameter(sig, func)
 
             # Get or create the audit emitter for validation
             audit_emitter = _get_or_inject_audit_emitter(sig, emitter_param, args, kwargs)
@@ -119,7 +119,7 @@ def AuditRequired(pipeline_requirement: AuditEventType | AuditEventGroup | Audit
             def sync_wrapper(*args, **kwargs):
                 # Find the audit emitter parameter
                 sig = inspect.signature(func)
-                emitter_param = _find_audit_emitter_parameter(sig)
+                emitter_param = _find_audit_emitter_parameter(sig, func)
 
                 # Get or create the audit emitter for validation
                 audit_emitter = _get_or_inject_audit_emitter(sig, emitter_param, args, kwargs)
@@ -210,32 +210,104 @@ def _get_or_inject_audit_emitter(signature: inspect.Signature, emitter_param: st
     return audit_emitter
 
 
-def _find_audit_emitter_parameter(signature: inspect.Signature) -> str | None:
+def _find_audit_emitter_parameter(signature: inspect.Signature, func: callable = None) -> str | None:
     """Find parameter annotated with AuditEmitter type.
 
     Args:
         signature: Function signature to inspect
+        func: Optional function to use for type hint resolution
 
     Returns:
         Parameter name if found, None otherwise
     """
+    # First try to resolve type hints if function is available
+    if func is not None:
+        try:
+            # Use get_type_hints to resolve string annotations properly
+            type_hints = get_type_hints(func)
+            for param_name, _param in signature.parameters.items():
+                if param_name in type_hints:
+                    resolved_type = type_hints[param_name]
+                    if _is_audit_emitter_type(resolved_type):
+                        return param_name
+        except (NameError, TypeError, AttributeError):
+            # If get_type_hints fails, fall back to manual inspection
+            pass
+
+    # Fallback: manual annotation inspection
     for param_name, param in signature.parameters.items():
         if param.annotation == inspect.Parameter.empty:
             continue
 
-        # Check if parameter is annotated with AuditEmitter
-        if param.annotation is AuditEmitter:
-            return param_name
-
-        # Check for union types like AuditEmitter | None
-        origin = get_origin(param.annotation)
-        if origin is not None:  # This is a generic type
-            args = get_args(param.annotation)
-            if AuditEmitter in args:
-                return param_name
-
-        # Check string annotations (forward references)
-        if isinstance(param.annotation, str) and param.annotation == 'AuditEmitter':
+        if _is_audit_emitter_type(param.annotation) or _is_audit_emitter_string(param.annotation):
             return param_name
 
     return None
+
+
+def _is_audit_emitter_type(annotation: Any) -> bool:
+    """Check if annotation is the AuditEmitter type or contains it.
+
+    Args:
+        annotation: The type annotation to check
+
+    Returns:
+        True if annotation represents AuditEmitter type
+    """
+    # Direct type check
+    if annotation is AuditEmitter:
+        return True
+
+    # Check for union types like AuditEmitter | None
+    origin = get_origin(annotation)
+    if origin is not None:  # This is a generic type
+        args = get_args(annotation)
+        if AuditEmitter in args:
+            return True
+
+    return False
+
+
+def _is_audit_emitter_string(annotation: Any) -> bool:
+    """Check if string annotation likely represents AuditEmitter.
+
+    Args:
+        annotation: The annotation to check
+
+    Returns:
+        True if string annotation likely represents AuditEmitter
+    """
+    if not isinstance(annotation, str):
+        return False
+
+    # Clean up the string
+    annotation_str = annotation.strip()
+
+    # Check for simple AuditEmitter reference
+    if annotation_str == 'AuditEmitter':
+        return True
+
+    # Check for qualified names ending with AuditEmitter
+    if annotation_str.endswith('.AuditEmitter'):
+        return True
+
+    # Check for union patterns containing AuditEmitter
+    union_patterns = [
+        'AuditEmitter | None',
+        'AuditEmitter|None',
+        'None | AuditEmitter',
+        'None|AuditEmitter',
+        'Union[AuditEmitter, None]',
+        'Union[None, AuditEmitter]'
+    ]
+
+    for pattern in union_patterns:
+        if annotation_str == pattern:
+            return True
+
+    # Check if AuditEmitter appears in a union with other types
+    if ('AuditEmitter' in annotation_str and
+        ('|' in annotation_str or 'Union[' in annotation_str)):
+        return True
+
+    return False

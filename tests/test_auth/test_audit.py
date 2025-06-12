@@ -1,5 +1,6 @@
 """Test cases for audit enforcement system."""
 
+import inspect
 import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch
@@ -403,6 +404,111 @@ class TestTypeBasedAuditInjection:
         import asyncio
         result = asyncio.run(logout("session123"))
         assert result is True
+
+
+class TestAdvancedAnnotationHandling:
+    """Test advanced type annotation patterns for audit emitter detection."""
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_qualified_string_annotation(self, mock_store):
+        """Test qualified name in string annotation."""
+        
+        @AuditRequired(AuditEventType.USER_CREATE)
+        async def create_user(username: str, emitter: "serv.auth.audit.enforcement.AuditEmitter") -> str:
+            emitter.emit(AuditEventType.USER_CREATE)
+            return f"user_{username}"
+        
+        import asyncio
+        result = asyncio.run(create_user("alice"))
+        assert result == "user_alice"
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_union_string_annotation(self, mock_store):
+        """Test union type in string annotation."""
+        
+        @AuditRequired(AuditEventType.SESSION_CREATE)
+        async def create_session(user_id: str, audit: "AuditEmitter | None" = None) -> str:
+            if audit:
+                audit.emit(AuditEventType.SESSION_CREATE)
+            return f"session_{user_id}"
+        
+        import asyncio
+        result = asyncio.run(create_session("user123"))
+        assert result == "session_user123"
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_typing_union_string_annotation(self, mock_store):
+        """Test typing.Union in string annotation."""
+        
+        @AuditRequired(AuditEventType.AUTH_ATTEMPT)
+        async def authenticate(creds: str, emitter: "Union[AuditEmitter, None]" = None) -> bool:
+            if emitter:
+                emitter.emit(AuditEventType.AUTH_ATTEMPT)
+            return True
+        
+        import asyncio
+        result = asyncio.run(authenticate("test_creds"))
+        assert result is True
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')  
+    def test_reverse_union_string_annotation(self, mock_store):
+        """Test reversed union in string annotation."""
+        
+        @AuditRequired(AuditEventType.USER_DELETE)
+        async def delete_user(user_id: str, tracker: "None | AuditEmitter" = None) -> bool:
+            if tracker:
+                tracker.emit(AuditEventType.USER_DELETE)
+            return True
+        
+        import asyncio
+        result = asyncio.run(delete_user("user123"))
+        assert result is True
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_complex_union_string_annotation(self, mock_store):
+        """Test complex union with multiple types in string."""
+        
+        @AuditRequired(AuditEventType.CREDENTIAL_UPDATE)
+        async def update_creds(user_id: str, logger: "AuditEmitter | str | None" = None) -> bool:
+            if logger and hasattr(logger, 'emit'):
+                logger.emit(AuditEventType.CREDENTIAL_UPDATE)
+            return True
+        
+        import asyncio
+        result = asyncio.run(update_creds("user123"))
+        assert result is True
+    
+    @patch('serv.auth.audit.enforcement.AuditEmitter._store_audit_event')
+    def test_passed_custom_emitter_with_string_annotation(self, mock_store):
+        """Test explicitly passed emitter with string annotation."""
+        
+        @AuditRequired(AuditEventType.SESSION_REFRESH)
+        async def refresh_session(session_id: str, emitter: "AuditEmitter") -> str:
+            emitter.emit(AuditEventType.SESSION_REFRESH)
+            return f"refreshed_{session_id}"
+        
+        # Create and pass custom emitter
+        custom_emitter = AuditEmitter()
+        
+        import asyncio
+        result = asyncio.run(refresh_session("session123", custom_emitter))
+        assert result == "refreshed_session123"
+        
+        # Should have used the custom emitter
+        assert len(custom_emitter.events) == 1
+        assert custom_emitter.events[0] == AuditEventType.SESSION_REFRESH
+    
+    def test_annotation_detection_without_decorator(self):
+        """Test that annotation detection works without decorator context."""
+        from serv.auth.audit.enforcement import _find_audit_emitter_parameter
+        
+        def test_func(param1: str, emitter: "AuditEmitter | None" = None) -> bool:
+            return True
+        
+        sig = inspect.signature(test_func)
+        param_name = _find_audit_emitter_parameter(sig, test_func)
+        
+        assert param_name == "emitter"
 
 
 class TestAuditOverrideValidation:
