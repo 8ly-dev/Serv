@@ -1,11 +1,10 @@
 """Database models for the microblog."""
 
-from typing import Annotated
 from dataclasses import dataclass
+from typing import Annotated
 
-from ommi import ommi_model, Key
+from ommi import Key, ommi_model
 from ommi.models.collections import ModelCollection
-
 
 microblog_collection = ModelCollection()
 

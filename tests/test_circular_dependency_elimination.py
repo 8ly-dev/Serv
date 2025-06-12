@@ -35,8 +35,8 @@ def test_app_implements_protocols():
 
 def test_router_implements_protocol():
     """Test that Router class implements RouterProtocol."""
-    from serv.protocols import RouterProtocol
     from serv._routing import Router
+    from serv.protocols import RouterProtocol
 
     router = Router()
 

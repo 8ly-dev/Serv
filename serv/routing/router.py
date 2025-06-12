@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any, dataclass_transform, overload
 from bevy import Inject, injectable
 from bevy.containers import Container
 
-from serv.exceptions import HTTPMethodNotAllowedException, HTTPNotFoundException
 from serv.protocols import RouterProtocol
 
 if TYPE_CHECKING:
@@ -264,10 +263,12 @@ class Router(RouterProtocol):
                        parameters are missing from kwargs.
         """
         # Import generation functions to avoid circular dependency
-        from serv.routing.generation import url_for_route_class, url_for_function_handler
-        
         # Import routes at runtime to avoid circular dependency
         import serv.routes as routes
+        from serv.routing.generation import (
+            url_for_function_handler,
+            url_for_route_class,
+        )
 
         # First check if handler is a Route class
         if isinstance(handler, type) and issubclass(handler, routes.Route):
@@ -276,7 +277,7 @@ class Router(RouterProtocol):
                 self._mounted_routers,
                 self._sub_routers,
                 handler,
-                **kwargs
+                **kwargs,
             )
 
         # Handle methods on Route instances (less common case)
@@ -289,8 +290,9 @@ class Router(RouterProtocol):
                     raise ValueError(
                         f"Route instance method {handler.__name__} not found in any router"
                     )
-                
+
                 from serv.routing.generation import build_url_from_path
+
                 return build_url_from_path(path, kwargs)
 
         # For function handlers
@@ -300,12 +302,13 @@ class Router(RouterProtocol):
                 self._mounted_routers,
                 self._sub_routers,
                 handler,
-                **kwargs
+                **kwargs,
             )
 
     def _find_handler_path(self, handler: Callable) -> str | None:
         """Finds the first path pattern for a given handler in this router."""
         from serv.routing.generation import find_handler_path
+
         return find_handler_path(self._routes, handler)
 
     def resolve_route(
@@ -326,7 +329,7 @@ class Router(RouterProtocol):
                                            and no route matches both path and method.
         """
         from serv.routing.resolvers import resolve_http_route
-        
+
         return resolve_http_route(
             request_path,
             request_method,
@@ -334,7 +337,7 @@ class Router(RouterProtocol):
             self._sub_routers,
             self._routes,
             self._settings,
-            self._match_path
+            self._match_path,
         )
 
     def _match_path(
@@ -346,8 +349,8 @@ class Router(RouterProtocol):
         Returns a dict of path parameters if matched, else None.
         """
         from serv.routing.patterns import match_path
-        return match_path(request_path, path_pattern)
 
+        return match_path(request_path, path_pattern)
 
     def resolve_websocket(
         self, request_path: str
@@ -368,14 +371,14 @@ class Router(RouterProtocol):
             ...     await handler(websocket, **params)
         """
         from serv.routing.resolvers import resolve_websocket_route
-        
+
         return resolve_websocket_route(
             request_path,
             self._mounted_routers,
             self._sub_routers,
             self._websocket_routes,
             self._settings,
-            self._match_path
+            self._match_path,
         )
 
 

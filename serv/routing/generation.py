@@ -13,24 +13,24 @@ if TYPE_CHECKING:
 
 def build_url_from_path(path: str, kwargs: dict[str, Any]) -> str:
     """Build a URL by substituting path parameters from kwargs.
-    
+
     Args:
         path: The path pattern with parameter placeholders (e.g., "/users/{user_id}")
         kwargs: Dictionary containing parameter values
-        
+
     Returns:
         A URL string with path parameters filled in
-        
+
     Raises:
         ValueError: If required path parameters are missing from kwargs
-        
+
     Examples:
         >>> build_url_from_path("/users/{user_id}", {"user_id": 123})
         "/users/123"
-        
+
         >>> build_url_from_path("/api/v{version}/users/{user_id}", {"version": 1, "user_id": 123})
         "/api/v1/users/123"
-        
+
         >>> build_url_from_path("/files/{path:path}", {"path": "docs/readme.txt"})
         "/files/docs/readme.txt"
     """
@@ -54,23 +54,21 @@ def build_url_from_path(path: str, kwargs: dict[str, Any]) -> str:
 
 def find_all_handler_paths(routes_list: list[tuple], handler: Callable) -> list[str]:
     """Find all path patterns for a given handler in a routes list.
-    
+
     Args:
         routes_list: List of route tuples (path, methods, handler, settings)
         handler: The handler function to find paths for
-        
+
     Returns:
         List of path patterns that map to the given handler
-        
+
     Examples:
         >>> routes = [("/users", ["GET"], my_handler, {}), ("/people", ["GET"], my_handler, {})]
         >>> find_all_handler_paths(routes, my_handler)
         ["/users", "/people"]
     """
     return [
-        path
-        for path, _, route_handler, _ in routes_list
-        if route_handler == handler
+        path for path, _, route_handler, _ in routes_list if route_handler == handler
     ]
 
 
@@ -83,19 +81,19 @@ def find_best_matching_path(paths: list[str], kwargs: dict[str, Any]) -> str | N
     2. The most recently added path (last in the list)
 
     If no path can be fully satisfied, it returns None.
-    
+
     Args:
         paths: List of path patterns to choose from
         kwargs: Dictionary of available parameters
-        
+
     Returns:
         Best matching path pattern or None if no match
-        
+
     Examples:
         >>> paths = ["/users/{id}", "/users/{id}/profile/{type}"]
         >>> find_best_matching_path(paths, {"id": 123, "type": "public"})
         "/users/{id}/profile/{type}"  # Uses more parameters
-        
+
         >>> find_best_matching_path(paths, {"id": 123})
         "/users/{id}"  # Only one with all required parameters
     """
@@ -128,14 +126,14 @@ def find_best_matching_path(paths: list[str], kwargs: dict[str, Any]) -> str | N
 
 def find_handler_path(routes_list: list[tuple], handler: Callable) -> str | None:
     """Find the first path pattern for a given handler in a routes list.
-    
+
     Args:
         routes_list: List of route tuples (path, methods, handler, settings)
         handler: The handler function to find a path for
-        
+
     Returns:
         First path pattern that maps to the given handler, or None if not found
-        
+
     Examples:
         >>> routes = [("/users", ["GET"], my_handler, {}), ("/people", ["GET"], other_handler, {})]
         >>> find_handler_path(routes, my_handler)
@@ -152,20 +150,20 @@ def url_for_route_class(
     mounted_routers: list[tuple],
     sub_routers: list,
     handler: type["routes.Route"],
-    **kwargs
+    **kwargs,
 ) -> str:
     """Build URL for a Route class.
-    
+
     Args:
         route_class_paths: Dictionary mapping Route classes to their path patterns
         mounted_routers: List of (mount_path, router) tuples for mounted routers
         sub_routers: List of sub-routers to search
         handler: Route class to build URL for
         **kwargs: Path parameters
-        
+
     Returns:
         URL string for the Route class
-        
+
     Raises:
         ValueError: If route class not found or required parameters missing
     """
@@ -185,7 +183,7 @@ def url_for_route_class(
             # If no path can be fully satisfied with the provided kwargs,
             # use the most recently added path (last in the list)
             path = path_list[-1]
-        
+
         # Try to build the URL with the selected path
         # If the required parameters aren't in kwargs, we'll need to try other paths
         try:
@@ -224,20 +222,20 @@ def url_for_function_handler(
     mounted_routers: list[tuple],
     sub_routers: list,
     handler: Callable,
-    **kwargs
+    **kwargs,
 ) -> str:
     """Build URL for a function handler.
-    
+
     Args:
         routes_list: List of route tuples (path, methods, handler, settings)
         mounted_routers: List of (mount_path, router) tuples for mounted routers
         sub_routers: List of sub-routers to search
         handler: Function handler to build URL for
         **kwargs: Path parameters
-        
+
     Returns:
         URL string for the function handler
-        
+
     Raises:
         ValueError: If handler not found or required parameters missing
     """
@@ -279,6 +277,6 @@ def url_for_function_handler(
                         return build_url_from_path(alt_path, kwargs)
                     except ValueError:
                         continue
-        
+
         # If we get here, no path could be satisfied with the provided kwargs
         raise e

@@ -5,19 +5,13 @@ HTTP route handlers with automatic method discovery, parameter injection,
 response type inference, and error handling.
 """
 
-import json
 import sys
 from collections import defaultdict
-from collections.abc import AsyncGenerator
-from datetime import date, datetime
-from functools import wraps
-from inspect import get_annotations, signature
+from inspect import signature
 from pathlib import Path
-from types import NoneType, UnionType
 from typing import (
     Annotated,
     Any,
-    Union,
     get_args,
     get_origin,
     get_type_hints,
@@ -29,44 +23,18 @@ from bevy.containers import Container
 import serv.extensions.loader as pl
 from serv.exceptions import HTTPMethodNotAllowedException
 from serv.extensions import Listener
+from serv.http.forms import (
+    Form,
+)
+from serv.http.responses import (
+    Response,
+    ResponseBuilder,
+)
 from serv.injectors import Cookie, Header, Query
 from serv.protocols import (
-    AppContextProtocol,
     EventEmitterProtocol,
 )
 from serv.requests import Request
-from serv.http.requests import (
-    GetRequest,
-    PostRequest,
-    PutRequest,
-    DeleteRequest,
-    PatchRequest,
-    OptionsRequest,
-    HeadRequest,
-    MethodMapping,
-)
-from serv.http.responses import (
-    ResponseBuilder,
-    Response,
-    JsonResponse,
-    TextResponse,
-    HtmlResponse,
-    FileResponse,
-    StreamingResponse,
-    ServerSentEventsResponse,
-    RedirectResponse,
-    Jinja2Response,
-)
-from serv.http.forms import (
-    Form,
-    is_optional,
-    normalized_origin,
-    string_value_type_validators,
-    _is_valid_type,
-    _datetime_validator,
-    _date_validator,
-)
-from serv.routing.decorators import handle
 
 
 class Route:

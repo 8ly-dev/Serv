@@ -8,10 +8,10 @@ import yaml
 from bevy import Inject, injectable
 from bevy.registries import Registry
 
+from serv._routing import Router
 from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
 from serv.responses import ResponseBuilder
-from serv._routing import Router
 
 
 def create_plugin_with_config(extension_config):

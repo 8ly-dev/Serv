@@ -359,10 +359,11 @@ class Listener:
                     execution_container.add(type(arg_value), arg_value)
 
             # Ensure Router is available in the execution container
+            from bevy.containers import Container
+
             from serv._routing import Router
             from serv.requests import Request
             from serv.responses import ResponseBuilder
-            from bevy.containers import Container
 
             parent_container = get_container(container)
             # Copy essential dependencies from parent to child if missing

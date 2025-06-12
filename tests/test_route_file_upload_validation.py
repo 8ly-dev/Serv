@@ -10,9 +10,9 @@ from bevy import Inject, injectable
 from httpx import AsyncClient
 
 from serv._app import App
+from serv._routing import Router
 from serv.extensions import Extension, on
 from serv.routes import PostRequest, Route, TextResponse, handle
-from serv._routing import Router
 from tests.helpers import create_test_extension_spec
 
 

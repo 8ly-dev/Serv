@@ -14,16 +14,16 @@ def resolve_http_route(
     request_path: str,
     request_method: str,
     mounted_routers: list[tuple[str, "Router"]],
-    sub_routers: list["Router"], 
+    sub_routers: list["Router"],
     routes: list[tuple[str, list[str] | None, Callable, dict[str, Any]]],
     router_settings: dict[str, Any],
-    match_path_func: Callable[[str, str], dict[str, Any] | None]
+    match_path_func: Callable[[str, str], dict[str, Any] | None],
 ) -> tuple[Callable, dict[str, Any], dict[str, Any]] | None:
     """Resolve an HTTP route for the given path and method.
-    
+
     This function implements the complete route resolution algorithm, checking
     mounted routers, sub-routers, and direct routes in the correct order.
-    
+
     Args:
         request_path: The path of the incoming request
         request_method: The HTTP method of the incoming request
@@ -32,17 +32,17 @@ def resolve_http_route(
         routes: List of route tuples (path, methods, handler, settings)
         router_settings: Router-level settings to merge
         match_path_func: Function to perform path pattern matching
-        
+
     Returns:
         A tuple of (handler_callable, path_parameters_dict, settings_dict) if a match is found.
         None if no route matches the path (results in a 404).
-        
+
     Raises:
         HTTPMethodNotAllowedException: If one or more routes match the path but not the method.
-        
+
     Examples:
         >>> handler, params, settings = resolve_http_route(
-        ...     "/users/123", "GET", [], [], 
+        ...     "/users/123", "GET", [], [],
         ...     [("/users/{id}", ["GET"], my_handler, {})],
         ...     {}, match_path
         ... )
@@ -166,10 +166,10 @@ def resolve_websocket_route(
     sub_routers: list["Router"],
     websocket_routes: list[tuple[str, Callable, dict[str, Any]]],
     router_settings: dict[str, Any],
-    match_path_func: Callable[[str, str], dict[str, Any] | None]
+    match_path_func: Callable[[str, str], dict[str, Any] | None],
 ) -> tuple[Callable, dict[str, Any], dict[str, Any]] | None:
     """Resolve a WebSocket route for the given path.
-    
+
     Args:
         request_path: The WebSocket request path to match against registered routes
         mounted_routers: List of (mount_path, router) tuples
@@ -177,11 +177,11 @@ def resolve_websocket_route(
         websocket_routes: List of WebSocket route tuples (path, handler, settings)
         router_settings: Router-level settings to merge
         match_path_func: Function to perform path pattern matching
-        
+
     Returns:
         A tuple of (handler_callable, path_params, route_settings) if a matching
         WebSocket route is found, None otherwise.
-        
+
     Examples:
         >>> handler, params, settings = resolve_websocket_route(
         ...     "/ws/user/123", [], [],
@@ -219,27 +219,25 @@ def resolve_websocket_route(
 
 
 def check_method_allowed(
-    path_pattern: str,
-    route_methods: list[str] | None,
-    request_method: str
+    path_pattern: str, route_methods: list[str] | None, request_method: str
 ) -> bool:
     """Check if a request method is allowed for a route.
-    
+
     Args:
         path_pattern: The route path pattern
         route_methods: List of allowed methods for the route, or None for all methods
         request_method: The request method to check
-        
+
     Returns:
         True if the method is allowed, False otherwise
-        
+
     Examples:
         >>> check_method_allowed("/users", ["GET", "POST"], "GET")
         True
-        
+
         >>> check_method_allowed("/users", ["GET", "POST"], "DELETE")
         False
-        
+
         >>> check_method_allowed("/users", None, "ANY_METHOD")
         True  # None means all methods allowed
     """
@@ -251,18 +249,18 @@ def check_method_allowed(
 def collect_allowed_methods(
     routes: list[tuple[str, list[str] | None, Callable, dict[str, Any]]],
     request_path: str,
-    match_path_func: Callable[[str, str], dict[str, Any] | None]
+    match_path_func: Callable[[str, str], dict[str, Any] | None],
 ) -> set[str]:
     """Collect all allowed methods for routes that match the given path.
-    
+
     Args:
         routes: List of route tuples (path, methods, handler, settings)
         request_path: The request path to check
         match_path_func: Function to perform path pattern matching
-        
+
     Returns:
         Set of allowed HTTP methods for the path
-        
+
     Examples:
         >>> routes = [
         ...     ("/users", ["GET", "POST"], handler1, {}),
@@ -272,10 +270,10 @@ def collect_allowed_methods(
         {"GET", "POST", "PUT"}
     """
     allowed_methods = set()
-    
+
     for path_pattern, route_methods, _, _ in routes:
         if match_path_func(request_path, path_pattern) is not None:
             if route_methods is not None:
                 allowed_methods.update(route_methods)
-                
+
     return allowed_methods

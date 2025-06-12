@@ -182,9 +182,9 @@ async def {middleware_name}_middleware(handler):
 
         from bevy import Inject, injectable
 
+        from serv._routing import Router
         from serv.extensions import Extension, on
         from serv.responses import ResponseBuilder
-        from serv._routing import Router
         from tests.helpers import create_test_extension_spec
 
         # Create a mock plugin that mimics the test plugin behavior
@@ -225,8 +225,10 @@ async def {middleware_name}_middleware(handler):
                 def side_effect(plugin):
                     # If it's our mock plugin, actually add it to the app
                     if isinstance(plugin, MockTestExtension):
-                        # Store the plugin in the app's _plugins dict
-                        app._extensions[plugin.__extension_spec__.path] = [plugin]
+                        # Store the plugin in the app's extension manager
+                        app._extension_manager._extensions[
+                            plugin.__extension_spec__.path
+                        ] = [plugin]
 
                 mock_add_extension.side_effect = side_effect
 
@@ -239,9 +241,7 @@ async def {middleware_name}_middleware(handler):
 
                 # Manually add our mock plugin to test the functionality
                 mock_extension = MockTestExtension()
-                app._extensions[mock_extension.__extension_spec__.path] = [
-                    mock_extension
-                ]
+                app.add_extension(mock_extension)
 
                 # Test with the extension enabled
                 async with create_test_client(app_factory=lambda: app) as client:

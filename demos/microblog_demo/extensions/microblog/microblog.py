@@ -3,12 +3,12 @@
 import logging
 from datetime import datetime
 
-from bevy import Inject
+from bevy import Inject, Options
 from ommi import Ommi
-from bevy import Options
 
 from serv.extensions import Listener, on
-from .models import microblog_collection, Post
+
+from .models import Post, microblog_collection
 
 logger = logging.getLogger("microblog")
 

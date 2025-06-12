@@ -10,7 +10,6 @@ import contextlib
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 from httpx import ASGITransport, AsyncClient
 
@@ -41,7 +40,7 @@ class LifespanManager:
     async def startup(self):
         """Send startup event and wait for completion."""
         self.lifespan_task = asyncio.create_task(
-            self.app.handle_lifespan({"type": "lifespan"}, self.receive, self.send)
+            self.app._lifecycle_manager.handle_lifespan({"type": "lifespan"}, self.receive, self.send)
         )
         await self.receive_queue.put({"type": "lifespan.startup"})
         startup_complete = await self.send_queue.get()

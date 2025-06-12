@@ -1,6 +1,5 @@
 """Tests for the create_test_app_client function."""
 
-import asyncio
 import tempfile
 from pathlib import Path
 

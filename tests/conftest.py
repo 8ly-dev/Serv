@@ -188,6 +188,6 @@ def mock_find_extension_spec():
     """Mock find_extension_spec to prevent hanging during Route tests."""
     with (
         patch("serv.extensions.loader.find_extension_spec", return_value=None),
-        patch("serv._app.App._enable_welcome_extension"),
+        patch("serv.app.extensions.ExtensionManager.load_welcome_extension_if_needed"),
     ):
         yield

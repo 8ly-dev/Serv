@@ -11,12 +11,12 @@ from unittest.mock import MagicMock
 from bevy import Inject, injectable
 from bevy.containers import Container
 
+from serv._routing import Router
 from serv.extensions import Listener, on
 from serv.extensions.importer import Importer
 from serv.extensions.loader import ExtensionSpec
 from serv.requests import Request
 from serv.responses import ResponseBuilder
-from serv._routing import Router
 
 
 def patch_extension_spec_on_module(extension: Listener):

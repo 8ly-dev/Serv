@@ -1,11 +1,7 @@
-import asyncio
 import contextlib
 import logging
-import sys
-from asyncio import Task, get_running_loop
-from collections import defaultdict
+from asyncio import Task
 from collections.abc import AsyncIterator, Awaitable, Callable
-from itertools import chain
 from pathlib import Path
 from typing import Any
 
@@ -16,14 +12,13 @@ from asgiref.typing import (
     ASGISendCallable as Send,
 )
 from asgiref.typing import (
-    LifespanShutdownCompleteEvent,
-    LifespanStartupCompleteEvent,
     Scope,
 )
 from bevy import Inject, get_registry, injectable
 from bevy.containers import Container
 
-from serv._routing import Router
+from serv.app.extensions import ExtensionManager
+from serv.app.lifecycle import EventEmitter, LifecycleManager
 from serv.app.middleware import MiddlewareManager
 from serv.config import load_raw_config
 from serv.database import DatabaseManager
@@ -31,65 +26,11 @@ from serv.extensions import Listener
 from serv.extensions.importer import Importer
 from serv.extensions.loader import ExtensionLoader
 from serv.injectors import inject_request_object, inject_websocket_object
-from serv.protocols import AppContextProtocol, EventEmitterProtocol, RouterProtocol
-from serv.requests import Request
-from serv.responses import ResponseBuilder
+from serv.protocols import AppContextProtocol, EventEmitterProtocol
 
 logger = logging.getLogger(__name__)
 
 # Test comment for pre-commit hooks
-
-
-class EventEmitter:
-    """Event emission system for extension communication.
-
-    The EventEmitter manages the broadcasting of events to all registered listeners
-    in the application. It provides both synchronous and asynchronous event emission
-    capabilities, allowing listeners to respond to application lifecycle events and
-    custom events.
-
-    Examples:
-        Basic event emission:
-
-        ```python
-        # Emit an event to all listeners
-        await app.emit("user_created", user_id=123, email="user@example.com")
-
-        # Emit from within a route handler
-        task = app.emit("order_processed", order_id=456)
-        ```
-
-        Listener responding to events:
-
-        ```python
-        class NotificationListener(Listener):
-            async def on_user_created(self, user_id: int, email: str):
-                await self.send_welcome_email(email)
-
-            async def on_order_processed(self, order_id: int):
-                await self.update_inventory(order_id)
-        ```
-
-    Args:
-        extensions: Dictionary mapping extension paths to lists of listener instances.
-    """
-
-    def __init__(self, extensions: dict[Path, list[Listener]]):
-        self.extensions = extensions
-
-    @injectable
-    def emit_sync(self, event: str, *, container: Inject[Container], **kwargs) -> Task:
-        return get_running_loop().create_task(
-            self.emit(event, container=container, **kwargs)
-        )
-
-    @injectable
-    async def emit(self, event: str, *, container: Inject[Container], **kwargs):
-        async with asyncio.TaskGroup() as tg:
-            for extension in chain(*self.extensions.values()):
-                tg.create_task(
-                    container.call(extension.on, event, container=container, **kwargs)
-                )
 
 
 class App(EventEmitterProtocol, AppContextProtocol):
@@ -244,15 +185,24 @@ class App(EventEmitterProtocol, AppContextProtocol):
         # Handle backward compatibility for extension_dir parameter
         actual_extension_dir = extension_dir if extension_dir is None else extension_dir
         self._extension_loader = Importer(actual_extension_dir)
-        self._extensions: dict[Path, list[Listener]] = defaultdict(list)
+
+        # Initialize extension manager
+        self._extension_manager = ExtensionManager()
 
         # Initialize the extension loader
         self._extension_loader_instance = ExtensionLoader(self, self._extension_loader)
 
-        self._emit = EventEmitter(self._extensions)
-
         # Initialize database manager
         self._database_manager = DatabaseManager(self._config, self._container)
+
+        # Initialize lifecycle manager
+        self._lifecycle_manager = LifecycleManager(
+            extension_manager=self._extension_manager,
+            middleware_manager=self._middleware_manager,
+            database_manager=self._database_manager,
+            container=self._container,
+            async_exit_stack=self._async_exit_stack,
+        )
 
         self._init_container()
         self._init_extensions(
@@ -266,8 +216,10 @@ class App(EventEmitterProtocol, AppContextProtocol):
         loaded_extensions, loaded_middleware = (
             self._extension_loader_instance.load_extensions(extensions_config)
         )
-        if not loaded_extensions and not loaded_middleware:
-            self._enable_welcome_extension()
+        # Use extension manager to handle welcome extension loading
+        self._extension_manager.load_welcome_extension_if_needed(
+            self._extension_loader_instance, loaded_extensions, loaded_middleware
+        )
 
     def _init_container(self):
         # Note: We intentionally do NOT register the type_factory hook
@@ -281,10 +233,10 @@ class App(EventEmitterProtocol, AppContextProtocol):
 
         # Set up container instances
         self._container.add(App, self)
-        self._container.add(EventEmitter, self._emit)
+        self._container.add(EventEmitter, self._lifecycle_manager.event_emitter)
 
         # Register protocol implementations using instances dict for protocols
-        self._container.instances[EventEmitterProtocol] = self._emit
+        self._container.instances[EventEmitterProtocol] = self._lifecycle_manager.event_emitter
         self._container.instances[AppContextProtocol] = self
 
     @property
@@ -475,36 +427,30 @@ class App(EventEmitterProtocol, AppContextProtocol):
         self._middleware_manager.add_middleware(middleware)
 
     def add_extension(self, extension: Listener):
-        if hasattr(extension, "__extension_spec__") and extension.__extension_spec__:
-            spec = extension.__extension_spec__
-        elif hasattr(extension, "_stand_alone") and extension._stand_alone:
-            # For stand-alone listeners, use a default path
-            spec = type("MockSpec", (), {"path": Path("__stand_alone__")})()
-        else:
-            module = sys.modules[extension.__module__]
-            spec = module.__extension_spec__
+        """Register an extension with the application.
 
-        self._extensions[spec.path].append(extension)
-        self._container.add(extension)
+        This method delegates to the ExtensionManager for consistent
+        extension handling and registration with the DI container.
+        """
+        self._extension_manager.add_extension(extension, self._container)
 
     def get_extension(self, path: Path) -> Listener | None:
-        return self._extensions.get(path, [None])[0]
+        """Retrieve an extension by its filesystem path.
+
+        This method delegates to the ExtensionManager for consistent
+        extension retrieval.
+        """
+        return self._extension_manager.get_extension(path)
 
     def _load_extensions(self, extensions_config: list[dict[str, Any]]):
         """Legacy method, delegates to _init_extensions."""
         return self._init_extensions(extensions_config)
 
     def _enable_welcome_extension(self):
-        """Enable the bundled welcome extension if no other extensions are registered."""
-        extension_spec, exceptions = self._extension_loader_instance.load_extension(
-            "serv.bundled.extensions.welcome"
+        """Legacy method - now handled by ExtensionManager."""
+        return self._extension_manager.load_welcome_extension_if_needed(
+            self._extension_loader_instance, [], []
         )
-        if exceptions:
-            raise ExceptionGroup(
-                "Exceptions raised while loading welcome extension", exceptions
-            )
-
-        return True
 
     # Backward compatibility methods removed - use ExtensionLoader directly
 
@@ -513,202 +459,23 @@ class App(EventEmitterProtocol, AppContextProtocol):
 
     @injectable
     def emit_sync(self, event: str, *, container: Inject[Container], **kwargs) -> Task:
-        return self._emit.emit_sync(event, container=container, **kwargs)
+        """Emit an event synchronously, returning a task.
+        
+        Delegates to the LifecycleManager's event emission system.
+        """
+        return self._lifecycle_manager.emit_sync(event, container=container, **kwargs)
 
     @injectable
     async def emit(self, event: str, *, container: Inject[Container], **kwargs) -> None:
-        """Async emit method for EventEmitterProtocol compliance."""
-        await self._emit.emit(event, container=container, **kwargs)
-
-    async def handle_lifespan(self, scope: Scope, receive: Receive, send: Send):
-        async for event in self._lifespan_iterator(receive):
-            match event:
-                case {"type": "lifespan.startup"}:
-                    logger.debug("Lifespan startup event")
-                    # Initialize databases before emitting startup event
-                    await self._database_manager.initialize_databases()
-                    await self.emit(
-                        "app.startup", scope=scope, container=self._container
-                    )
-                    await send(
-                        LifespanStartupCompleteEvent(type="lifespan.startup.complete")
-                    )
-
-                case {"type": "lifespan.shutdown"}:
-                    logger.debug("Lifespan shutdown event")
-                    await send(
-                        LifespanShutdownCompleteEvent(type="lifespan.shutdown.complete")
-                    )
-                    await self.emit(
-                        "app.shutdown", scope=scope, container=self._container
-                    )
-                    # Shutdown databases before exit stack cleanup
-                    await self._database_manager.shutdown_databases()
-                    await self._async_exit_stack.aclose()
-
-    async def _lifespan_iterator(self, receive: Receive):
-        event = {}
-        while event.get("type") != "lifespan.shutdown":
-            event = await receive()
-            yield event
+        """Emit an event asynchronously, waiting for all listeners.
+        
+        Delegates to the LifecycleManager's event emission system.
+        """
+        await self._lifecycle_manager.emit(event, container=container, **kwargs)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        match scope["type"]:
-            case "lifespan":
-                await self.handle_lifespan(scope, receive, send)
-            case "http":
-                await self._handle_request(scope, receive, send)
-            case "websocket":
-                await self._handle_websocket(scope, receive, send)
-            case _:
-                logger.warning(f"Unsupported ASGI scope type: {scope['type']}")
-
-    async def _handle_request(self, scope: Scope, receive: Receive, send: Send):
-        with self._container.branch() as container:
-            request = Request(scope, receive)
-            response_builder = ResponseBuilder(send)
-            router_instance_for_request = Router()
-
-            container.add(Request, request)
-            container.add(ResponseBuilder, response_builder)
-            container.add(Container, container)
-            container.add(Router, router_instance_for_request)
-            # Register router for protocol-based access
-            container.instances[RouterProtocol] = router_instance_for_request
-
-            error_to_propagate = None
-            try:
-                # Pass the newly created router_instance to the event
-                await self.emit("app.request.begin", container=container)
-
-                # Run middleware stack
-                try:
-                    await self._middleware_manager.run_middleware_stack(
-                        container=container,
-                        request_instance=request,
-                        emit_callback=self.emit,
-                    )
-                except Exception as e:
-                    error_to_propagate = e
-
-                # Handle any errors that occurred
-                if error_to_propagate:
-                    await self._middleware_manager.run_error_handler(
-                        error_to_propagate, container=container
-                    )
-
-                await self.emit(
-                    "app.request.end", error=error_to_propagate, container=container
-                )
-
-            except Exception as e:
-                logger.exception(
-                    "Unhandled exception during request processing", exc_info=e
-                )
-                await self._middleware_manager.run_error_handler(e, container=container)
-                await self.emit("app.request.end", error=e, container=container)
-
-            finally:
-                # Ensure response is sent. ResponseBuilder.send_response() should be robust
-                # enough to handle being called if headers were already sent by an error handler,
-                # or to send a default response if nothing was set.
-                # Ensure response is sent
-                try:
-                    await response_builder.send_response()
-                except Exception as final_send_exc:
-                    logger.error(
-                        "Exception during final send_response", exc_info=final_send_exc
-                    )
-
-    async def _handle_websocket(self, scope: Scope, receive: Receive, send: Send):
-        """Handle WebSocket connections."""
-        with self._container.branch() as container:
-            router_instance_for_request = Router()
-            container.add(Container, container)
-            container.add(Router, router_instance_for_request)
-            # Register router for protocol-based access
-            container.instances[RouterProtocol] = router_instance_for_request
-
-            try:
-                # Emit websocket connection begin event
-                await container.call(self._emit.emit, "app.websocket.begin")
-
-                # Find the WebSocket route handler
-                resolved_route_info = router_instance_for_request.resolve_websocket(
-                    scope.get("path", "/")
-                )
-
-                if not resolved_route_info:
-                    # No WebSocket route found, reject connection
-                    await send({"type": "websocket.close", "code": 4404})
-                    return
-
-                handler_callable, path_params, route_settings = resolved_route_info
-
-                # Extract WebSocket frame type from handler annotations if present
-                from typing import get_args, get_origin, get_type_hints
-
-                from serv.websocket import FrameType, WebSocket
-
-                frame_type = FrameType.TEXT  # Default frame type
-
-                try:
-                    # Get type hints for the handler
-                    type_hints = get_type_hints(handler_callable, include_extras=True)
-
-                    # Look for WebSocket parameter with frame type annotation
-                    for _param_name, param_type in type_hints.items():
-                        if get_origin(param_type) is not None:
-                            # Check if it's Annotated[WebSocket, FrameType.X]
-                            origin = get_origin(param_type)
-                            if origin is type(
-                                type_hints.get("__annotated__", type(None))
-                            ):  # Annotated type
-                                args = get_args(param_type)
-                                if len(args) >= 2 and args[0] is WebSocket:
-                                    # Found WebSocket parameter, check for FrameType in annotations
-                                    for annotation in args[1:]:
-                                        if isinstance(annotation, FrameType):
-                                            frame_type = annotation
-                                            break
-                            elif param_type is WebSocket:
-                                # Plain WebSocket parameter, use default frame type
-                                break
-                except Exception as e:
-                    # If annotation parsing fails, use default frame type
-                    logger.debug(f"Could not parse WebSocket annotations: {e}")
-
-                # Create WebSocket instance
-                websocket = WebSocket(scope, receive, send, frame_type)
-
-                # Create a branch of the container with route settings and WebSocket instance
-                with container.branch() as route_container:
-                    from serv._routing import RouteSettings
-
-                    route_container.add(RouteSettings, RouteSettings(**route_settings))
-                    route_container.add(WebSocket, websocket)
-
-                    try:
-                        # Call the WebSocket handler
-                        await route_container.call(handler_callable, **path_params)
-                    except Exception as e:
-                        logger.exception(f"WebSocket handler error: {e}")
-                        # Close connection with error code
-                        if websocket.is_connected:
-                            await websocket.close(
-                                code=1011, reason="Internal server error"
-                            )
-
-                await container.call(self._emit.emit, "app.websocket.end")
-
-            except Exception as e:
-                logger.exception(
-                    f"Unhandled exception during WebSocket processing: {e}"
-                )
-                # Attempt to close connection gracefully
-                try:
-                    await send({"type": "websocket.close", "code": 1011})
-                except Exception:
-                    pass  # Connection may already be closed
-
-                await container.call(self._emit.emit, "app.websocket.end", error=e)
+        """ASGI application entry point.
+        
+        Delegates to the LifecycleManager for request processing.
+        """
+        await self._lifecycle_manager(scope, receive, send)

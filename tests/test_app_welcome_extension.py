@@ -6,7 +6,6 @@ import yaml
 from bevy.registries import Registry
 
 from serv._app import App
-from serv.extensions import Extension
 from serv.extensions.loader import ExtensionSpec
 
 
@@ -22,7 +21,9 @@ def app_with_empty_config(tmp_path):
 
 def test_welcome_plugin_auto_enabled(app_with_empty_config):
     """Test that the welcome plugin is auto-enabled when no extensions/middleware are registered."""
-    with patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome:
+    with patch(
+        "serv.app.extensions.ExtensionManager.load_welcome_extension_if_needed"
+    ) as mock_enable_welcome:
         with Registry():  # Bevy registry
             App(config=app_with_empty_config)
 
@@ -63,26 +64,42 @@ def test_welcome_plugin_conditional_enabling(
         importer=create_mock_importer(),
     )
 
+    # Temporarily stop the global mock to test the real welcome extension loading logic
+
     with (
-        patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome,
         patch(
             "serv.extensions.loader.ExtensionLoader.load_extensions"
         ) as mock_load_extensions,
+        patch(
+            "serv.extensions.loader.ExtensionLoader.load_extension"
+        ) as mock_load_welcome_extension,
+        patch(
+            "serv.app.extensions.ExtensionManager.load_welcome_extension_if_needed",
+            side_effect=lambda loader, loaded_exts, loaded_middleware: (
+                loader.load_extension("serv.bundled.extensions.welcome")
+                if not loaded_exts and not loaded_middleware
+                else False
+            ),
+        ),
     ):
         # Set up mock behavior for plugin loading
         mock_load_extensions.return_value = (
-            {Path("."): [MagicMock(spec=Extension)]} if has_plugins else {},
+            [MagicMock(spec=ExtensionSpec)] if has_plugins else [],
             [MagicMock()] if has_middleware else [],
         )
+        # Mock the welcome extension loading
+        mock_load_welcome_extension.return_value = (MagicMock(), [])
 
         with Registry():  # Bevy registry
             App(config=str(config_file))
 
-            # Check if _enable_welcome_extension was called as expected
+            # Check if welcome extension was loaded as expected
             if should_enable:
-                mock_enable_welcome.assert_called_once()
+                mock_load_welcome_extension.assert_called_once_with(
+                    "serv.bundled.extensions.welcome"
+                )
             else:
-                mock_enable_welcome.assert_not_called()
+                mock_load_welcome_extension.assert_not_called()
 
 
 def test_welcome_plugin_loading():

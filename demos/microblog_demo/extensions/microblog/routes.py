@@ -1,18 +1,16 @@
 """Web routes for the microblog."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Annotated
 
 from bevy import Inject, Options, injectable
 from ommi import Ommi
-from ommi.query_ast import when
 
 from serv.routes import (
     GetRequest,
-    PostRequest,
     Jinja2Response,
-    RedirectResponse,
+    PostRequest,
     Route,
     handle,
 )
@@ -140,10 +138,9 @@ class ViewPostRoute(Route):
                 return "error.html", {"error_message": "Invalid post ID"}
 
             # Import the Post model
-            from .models import Post
-
             # Get the specific post from database using Ommi (global collection is used automatically)
-            from ommi.database.query_results import DBStatusNoResultException
+
+            from .models import Post
 
             post = await db.find(Post.id == post_id_int).one.or_use(None)
             if not post:

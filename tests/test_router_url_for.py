@@ -1,7 +1,7 @@
 import pytest
 
-from serv.routes import GetRequest, Route
 from serv._routing import Router
+from serv.routes import GetRequest, Route
 
 
 # Mock handlers for testing
