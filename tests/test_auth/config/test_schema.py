@@ -35,19 +35,15 @@ class TestProviderConfig:
 
     def test_invalid_import_path_multiple_colons(self):
         """Test invalid import path with multiple colons."""
-        with pytest.raises(ValidationError, match="exactly one ':' separator"):
+        with pytest.raises(ValidationError, match="Provider must be a simple name.*or import path"):
             ProviderConfig(provider="my.module:class:extra", config={})
 
     def test_invalid_import_path_empty_parts(self):
         """Test invalid import path with empty parts."""
-        with pytest.raises(
-            ValidationError, match="Both module path and class name must be specified"
-        ):
+        with pytest.raises(ValidationError, match="Provider must be a simple name.*or import path"):
             ProviderConfig(provider=":ClassName", config={})
 
-        with pytest.raises(
-            ValidationError, match="Both module path and class name must be specified"
-        ):
+        with pytest.raises(ValidationError, match="Provider must be a simple name.*or import path"):
             ProviderConfig(provider="module.path:", config={})
 
     def test_empty_provider_spec(self):

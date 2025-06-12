@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from enum import Enum
 from pathlib import Path
@@ -36,14 +37,12 @@ class ProviderConfig(BaseModel):
         if not v:
             raise ValueError("Provider specification cannot be empty")
 
-        # Check if it's a simple name (bundled) or import path (external)
-        if ":" in v:
-            # Import path format: module.path:ClassName
-            if v.count(":") != 1:
-                raise ValueError("Import path must have exactly one ':' separator")
-            module_path, class_name = v.split(":")
-            if not module_path or not class_name:
-                raise ValueError("Both module path and class name must be specified")
+        # Simple name (bundled): alphanumeric, underscores, hyphens
+        # Import path (external): module.path:ClassName
+        if not re.match(r'^([a-zA-Z_][a-zA-Z0-9_-]*|[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*:[a-zA-Z_][a-zA-Z0-9_]*)$', v):
+            raise ValueError(
+                "Provider must be a simple name (e.g., 'memory') or import path (e.g., 'module.path:ClassName')"
+            )
 
         return v
 
