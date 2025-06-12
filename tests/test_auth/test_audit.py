@@ -235,7 +235,7 @@ class TestAuditPipelineSet:
 
 
 class TestAuditJournal:
-    """Test AuditEmitter functionality."""
+    """Test AuditJournal functionality."""
 
     def test_audit_journal_creation(self):
         """Test creating an audit journal."""
@@ -282,12 +282,12 @@ class TestAuditJournal:
 class TestAuditRequired:
     """Test AuditRequired decorator."""
 
-    @patch("serv.auth.audit.enforcement.AuditEmitter._store_audit_event")
+    @patch("serv.auth.audit.enforcement.AuditJournal._store_audit_event")
     def test_audit_required_simple(self, mock_store):
         """Test AuditRequired decorator with simple requirement."""
 
         @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-        async def simple_function(audit_emitter: AuditEmitter):
+        async def simple_function(audit_journal: AuditJournal):
             audit_journal.record(AuditEventType.AUTH_ATTEMPT)
             return "success"
 
@@ -295,15 +295,15 @@ class TestAuditRequired:
         assert hasattr(simple_function, "_audit_pipeline")
         assert simple_function._audit_pipeline == AuditEventType.AUTH_ATTEMPT
 
-    @patch("serv.auth.audit.enforcement.AuditEmitter._store_audit_event")
+    @patch("serv.auth.audit.enforcement.AuditJournal._store_audit_event")
     def test_audit_required_pipeline_success(self, mock_store):
         """Test AuditRequired decorator with pipeline that succeeds."""
 
         pipeline = AuditEventType.AUTH_ATTEMPT >> AuditEventType.AUTH_SUCCESS
 
         @AuditRequired(pipeline)
-        async def auth_function(audit_emitter: AuditEmitter):
-            audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
+        async def auth_function(audit_journal: AuditJournal):
+            audit_journal.record(AuditEventType.AUTH_ATTEMPT)
             audit_journal.record(AuditEventType.AUTH_SUCCESS)
             return "authenticated"
 
@@ -313,15 +313,15 @@ class TestAuditRequired:
         result = asyncio.run(auth_function())
         assert result == "authenticated"
 
-    @patch("serv.auth.audit.enforcement.AuditEmitter._store_audit_event")
+    @patch("serv.auth.audit.enforcement.AuditJournal._store_audit_event")
     def test_audit_required_pipeline_failure(self, mock_store):
         """Test AuditRequired decorator with pipeline that fails."""
 
         pipeline = AuditEventType.AUTH_ATTEMPT >> AuditEventType.AUTH_SUCCESS
 
         @AuditRequired(pipeline)
-        async def bad_auth_function(audit_emitter: AuditEmitter):
-            audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
+        async def bad_auth_function(audit_journal: AuditJournal):
+            audit_journal.record(AuditEventType.AUTH_ATTEMPT)
             # Missing AUTH_SUCCESS event
             return "should fail"
 
@@ -342,8 +342,8 @@ class TestAuditEnforcedInitSubclass:
 
         class TestProvider(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-            async def authenticate(self, audit_emitter: AuditEmitter):
-                audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
+            async def authenticate(self, audit_journal: AuditJournal):
+                audit_journal.record(AuditEventType.AUTH_ATTEMPT)
                 return True
 
         provider = TestProvider()
@@ -354,8 +354,8 @@ class TestAuditEnforcedInitSubclass:
 
         class BaseProvider(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-            async def authenticate(self, audit_emitter: AuditEmitter):
-                audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
+            async def authenticate(self, audit_journal: AuditJournal):
+                audit_journal.record(AuditEventType.AUTH_ATTEMPT)
                 return True
 
         class ConcreteProvider(BaseProvider):
@@ -370,12 +370,12 @@ class TestAuditEnforcedInitSubclass:
 class TestTypeBasedAuditInjection:
     """Test audit emitter injection based on type annotations."""
 
-    @patch("serv.auth.audit.enforcement.AuditEmitter._store_audit_event")
+    @patch("serv.auth.audit.enforcement.AuditJournal._store_audit_event")
     def test_audit_emitter_injection_by_type(self, mock_store):
         """Test that audit emitter is injected based on type annotation."""
 
         @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-        async def authenticate(credentials: str, emitter: AuditEmitter) -> bool:
+        async def authenticate(credentials: str, emitter: AuditJournal) -> bool:
             emitter.record(AuditEventType.AUTH_ATTEMPT)
             return True
 
@@ -385,13 +385,13 @@ class TestTypeBasedAuditInjection:
         result = asyncio.run(authenticate("test_creds"))
         assert result is True
 
-    @patch("serv.auth.audit.enforcement.AuditEmitter._store_audit_event")
+    @patch("serv.auth.audit.enforcement.AuditJournal._store_audit_event")
     def test_audit_emitter_injection_different_param_name(self, mock_store):
         """Test that audit emitter works with any parameter name, based on type."""
 
         @AuditRequired(AuditEventType.USER_CREATE)
-        async def create_user(username: str, audit_tracker: AuditEmitter) -> str:
-            audit_tracker.emit(AuditEventType.USER_CREATE)
+        async def create_user(username: str, audit_tracker: AuditJournal) -> str:
+            audit_tracker.record(AuditEventType.USER_CREATE)
             return f"user_{username}"
 
         import asyncio
@@ -399,17 +399,17 @@ class TestTypeBasedAuditInjection:
         result = asyncio.run(create_user("alice"))
         assert result == "user_alice"
 
-    @patch("serv.auth.audit.enforcement.AuditEmitter._store_audit_event")
+    @patch("serv.auth.audit.enforcement.AuditJournal._store_audit_event")
     def test_audit_emitter_injection_with_custom_emitter(self, mock_store):
-        """Test that explicitly passed AuditEmitter is used instead of injected one."""
+        """Test that explicitly passed AuditJournal is used instead of injected one."""
 
         @AuditRequired(AuditEventType.SESSION_REFRESH)
-        async def refresh_session(session_id: str, emitter: AuditEmitter) -> str:
-            emitter.emit(AuditEventType.SESSION_REFRESH)
+        async def refresh_session(session_id: str, emitter: AuditJournal) -> str:
+            emitter.record(AuditEventType.SESSION_REFRESH)
             return f"refreshed_{session_id}"
 
         # Create a custom emitter
-        custom_emitter = AuditEmitter()
+        custom_emitter = AuditJournal()
 
         import asyncio
 
@@ -420,14 +420,14 @@ class TestTypeBasedAuditInjection:
         assert len(custom_emitter.events) == 1
         assert custom_emitter.events[0] == AuditEventType.SESSION_REFRESH
 
-    @patch("serv.auth.audit.enforcement.AuditEmitter._store_audit_event")
+    @patch("serv.auth.audit.enforcement.AuditJournal._store_audit_event")
     def test_audit_emitter_injection_optional_type(self, mock_store):
         """Test audit emitter injection with optional type annotation."""
 
         @AuditRequired(AuditEventType.AUTH_LOGOUT)
-        async def logout(session_id: str, logger: AuditEmitter | None = None) -> bool:
+        async def logout(session_id: str, logger: AuditJournal | None = None) -> bool:
             if logger:
-                logger.emit(AuditEventType.AUTH_LOGOUT)
+                logger.record(AuditEventType.AUTH_LOGOUT)
             return True
 
         import asyncio
@@ -486,7 +486,7 @@ class TestAuditOverrideValidation:
 
         class BaseProvider(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-            async def authenticate(self, audit_emitter: AuditEmitter):
+            async def authenticate(self, audit_emitter: AuditJournal):
                 return True
 
         # This should raise an AuditError
@@ -494,7 +494,7 @@ class TestAuditOverrideValidation:
 
             class BadProvider(BaseProvider):
                 @AuditRequired(AuditEventType.AUTH_SUCCESS)  # Different requirement!
-                async def authenticate(self, audit_emitter: AuditEmitter):
+                async def authenticate(self, audit_emitter: AuditJournal):
                     return True
 
     def test_audit_identical_requirements_allowed(self):
@@ -502,15 +502,15 @@ class TestAuditOverrideValidation:
 
         class BaseProvider(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-            async def authenticate(self, audit_emitter: AuditEmitter):
+            async def authenticate(self, audit_emitter: AuditJournal):
                 return True
 
         # This should work fine - same requirement
         class GoodProvider(BaseProvider):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)  # Same requirement
-            async def authenticate(self, audit_emitter: AuditEmitter):
+            async def authenticate(self, audit_emitter: AuditJournal):
                 # Different implementation, same audit requirement
-                audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
+                audit_journal.record(AuditEventType.AUTH_ATTEMPT)
                 return True
 
         # Should create successfully
@@ -525,7 +525,7 @@ class TestAuditOverrideValidation:
 
         class BaseProvider(AuditEnforced):
             @AuditRequired(complex_pipeline)
-            async def authenticate(self, audit_emitter: AuditEmitter):
+            async def authenticate(self, audit_emitter: AuditJournal):
                 return True
 
         # This should fail - different pipeline
@@ -533,7 +533,7 @@ class TestAuditOverrideValidation:
 
             class BadProvider(BaseProvider):
                 @AuditRequired(AuditEventType.AUTH_ATTEMPT)  # Simpler requirement
-                async def authenticate(self, audit_emitter: AuditEmitter):
+                async def authenticate(self, audit_emitter: AuditJournal):
                     return True
 
     def test_audit_no_parent_requirement_allowed(self):
@@ -546,7 +546,7 @@ class TestAuditOverrideValidation:
         # This should work - parent has no audit requirement
         class ChildProvider(BaseProvider):
             @AuditRequired(AuditEventType.USER_CREATE)
-            async def some_method(self, audit_emitter: AuditEmitter):
+            async def some_method(self, audit_emitter: AuditJournal):
                 audit_emitter.emit(AuditEventType.USER_CREATE)
                 return True
 
@@ -558,7 +558,7 @@ class TestAuditOverrideValidation:
 
         class MixinA(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-            async def authenticate(self, audit_emitter: AuditEmitter):
+            async def authenticate(self, audit_emitter: AuditJournal):
                 return True
 
         class MixinB(AuditEnforced):
@@ -568,7 +568,7 @@ class TestAuditOverrideValidation:
         # This should work - inheriting same requirement
         class Provider(MixinA, MixinB):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)  # Same as MixinA
-            async def authenticate(self, audit_emitter: AuditEmitter):
+            async def authenticate(self, audit_emitter: AuditJournal):
                 return True
 
         provider = Provider()
@@ -579,12 +579,12 @@ class TestAuditOverrideValidation:
 
         class BaseProvider(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
-            async def authenticate(self, audit_emitter: AuditEmitter):
+            async def authenticate(self, audit_emitter: AuditJournal):
                 return True
 
         class MiddleProvider(BaseProvider):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)  # Same requirement
-            async def authenticate(self, audit_emitter: AuditEmitter):
+            async def authenticate(self, audit_emitter: AuditJournal):
                 return True
 
         # This should fail - trying to override deep in the chain
@@ -592,5 +592,5 @@ class TestAuditOverrideValidation:
 
             class FinalProvider(MiddleProvider):
                 @AuditRequired(AuditEventType.AUTH_SUCCESS)  # Different requirement
-                async def authenticate(self, audit_emitter: AuditEmitter):
+                async def authenticate(self, audit_emitter: AuditJournal):
                     return True
