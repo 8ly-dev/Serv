@@ -101,10 +101,10 @@ class AuthConfigValidator:
         """
         try:
             module_path, class_name = import_path.split(":", 1)
-        except ValueError:
+        except ValueError as e:
             raise ConfigurationError(
                 f"Invalid import path for {provider_name} provider: {import_path}"
-            )
+            ) from e
 
         # Try to import the module and get the class
         try:
@@ -112,12 +112,12 @@ class AuthConfigValidator:
             provider_class = getattr(module, class_name)
         except ImportError as e:
             raise ConfigurationError(
-                f"Cannot import module for {provider_name} provider: {e}"
-            )
-        except AttributeError:
+                f"Cannot import module for {provider_name} provider"
+            ) from e
+        except AttributeError as e:
             raise ConfigurationError(
                 f"Class '{class_name}' not found in module '{module_path}' for {provider_name} provider"
-            )
+            ) from e
 
         # Validate that it's a provider class
         if not issubclass(provider_class, BaseProvider):

@@ -27,7 +27,7 @@ def parse_auth_config(auth_config: Dict[str, Any]) -> AuthConfig:
     try:
         return AuthConfig(**auth_config)
     except ValidationError as e:
-        raise ConfigurationError(f"Invalid auth configuration: {e}")
+        raise ConfigurationError("Invalid auth configuration") from e
 
 
 def parse_extension_auth_config(extension_config: Dict[str, Any]) -> Optional[ExtensionAuthConfig]:
@@ -54,7 +54,7 @@ def parse_extension_auth_config(extension_config: Dict[str, Any]) -> Optional[Ex
     try:
         return ExtensionAuthConfig(**auth_config)
     except ValidationError as e:
-        raise ConfigurationError(f"Invalid extension auth configuration: {e}")
+        raise ConfigurationError("Invalid extension auth configuration") from e
 
 
 def merge_extension_configs(

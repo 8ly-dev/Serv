@@ -260,8 +260,8 @@ class AuthSystemBootstrap:
 
         except Exception as e:
             raise ConfigurationError(
-                f"Failed to setup auth models for database '{qualifier}': {e}"
-            )
+                f"Failed to setup auth models for database '{qualifier}'"
+            ) from e
 
     def validate_configuration(self) -> None:
         """Validate the complete auth configuration.

@@ -70,18 +70,18 @@ class ProviderFactory(ABC):
         """
         try:
             module_path, class_name = import_string.split(":", 1)
-        except ValueError:
-            raise ConfigurationError(f"Invalid import string format: {import_string}")
+        except ValueError as e:
+            raise ConfigurationError(f"Invalid import string format: {import_string}") from e
 
         try:
             module = importlib.import_module(module_path)
             provider_class = getattr(module, class_name)
         except ImportError as e:
-            raise ConfigurationError(f"Cannot import module '{module_path}': {e}")
-        except AttributeError:
+            raise ConfigurationError(f"Cannot import module '{module_path}'") from e
+        except AttributeError as e:
             raise ConfigurationError(
                 f"Class '{class_name}' not found in module '{module_path}'"
-            )
+            ) from e
 
         # Validate that it's the correct provider type
         expected_type = self.get_provider_type()
