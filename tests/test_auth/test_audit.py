@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from serv.auth.audit.events import AuditEventType
 from serv.auth.audit.pipeline import AuditEventGroup, AuditPipeline, AuditPipelineSet
 from serv.auth.audit.enforcement import AuditEmitter, AuditRequired
-from serv.auth.audit.decorators import AuditEnforced, AuditEnforcedMeta
+from serv.auth.audit.decorators import AuditEnforced
 from serv.auth.types import AuditEvent
 from serv.auth.exceptions import AuditError
 
@@ -307,13 +307,13 @@ class TestAuditRequired:
             asyncio.run(bad_auth_function())
 
 
-class TestAuditEnforcedMeta:
-    """Test AuditEnforcedMeta metaclass."""
+class TestAuditEnforcedInitSubclass:
+    """Test AuditEnforced using __init_subclass__."""
     
-    def test_audit_enforced_metaclass(self):
-        """Test that AuditEnforcedMeta enforces audit requirements."""
+    def test_audit_enforced_subclass_creation(self):
+        """Test that AuditEnforced subclasses are created properly."""
         
-        class TestProvider(metaclass=AuditEnforcedMeta):
+        class TestProvider(AuditEnforced):
             @AuditRequired(AuditEventType.AUTH_ATTEMPT)
             async def authenticate(self, audit_emitter):
                 audit_emitter.emit(AuditEventType.AUTH_ATTEMPT)
