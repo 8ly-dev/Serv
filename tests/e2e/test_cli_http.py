@@ -220,7 +220,7 @@ async def {middleware_name}_middleware(handler):
             )
 
             # Mock the add_extension method to actually add our mock extension
-            with patch("serv.app.App.add_extension") as mock_add_extension:
+            with patch("serv._app.App.add_extension") as mock_add_extension:
 
                 def side_effect(plugin):
                     # If it's our mock plugin, actually add it to the app
