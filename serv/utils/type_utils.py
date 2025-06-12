@@ -94,10 +94,48 @@ def _date_validator(x: str) -> bool:
         return False
 
 
+def _float_validator(x: str) -> bool:
+    """Validate float string format with proper handling of edge cases."""
+    if not x or not isinstance(x, str):
+        return False
+    
+    # Remove leading/trailing whitespace
+    x = x.strip()
+    if not x:
+        return False
+    
+    # Check for obviously invalid patterns that float() might accept
+    # but we want to reject for user input validation
+    if x.count('.') > 1:  # Multiple decimal points
+        return False
+    
+    if '..' in x:  # Consecutive decimal points
+        return False
+    
+    # Don't allow trailing decimal with nothing after it (e.g., "1.2.")
+    if x.endswith('.') and len(x) > 1 and x[-2].isdigit():
+        return False
+    
+    # Don't allow just a decimal point
+    if x == '.':
+        return False
+    
+    try:
+        result = float(x)
+        # Reject special float values for user input validation
+        # (inf, -inf, nan might not be expected user input)
+        import math
+        if math.isinf(result) or math.isnan(result):
+            return False
+        return True
+    except (ValueError, OverflowError):
+        return False
+
+
 # Type validators for string values
 STRING_VALUE_TYPE_VALIDATORS = {
     int: str.isdigit,
-    float: lambda x: x.replace(".", "").isdigit(),
+    float: _float_validator,
     bool: lambda x: x.lower() in {"true", "false", "yes", "no", "1", "0"},
     datetime: _datetime_validator,
     date: _date_validator,
