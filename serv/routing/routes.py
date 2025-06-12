@@ -285,15 +285,18 @@ class Route:
         self, handler: Any, kwargs: dict, args: list, container: Container
     ) -> Any:
         """Call the handler with the appropriate parameters."""
-        match (bool(kwargs), bool(args)):
-            case (True, _):
-                return await container.call(handler, self, **kwargs)
-            case (False, True):
-                return await handler(*args)
-            case (False, False):
-                return await container.call(handler, self)
-            case _:
-                raise ValueError("Invalid handler call parameters")
+        has_kwargs = bool(kwargs)
+        has_args = bool(args)
+
+        if has_kwargs:
+            # Has kwargs - use container injection with keyword arguments
+            return await container.call(handler, self, **kwargs)
+        elif has_args:
+            # Has args but no kwargs - call directly with positional arguments
+            return await handler(*args)
+        else:
+            # No args or kwargs - use container injection with just self
+            return await container.call(handler, self)
 
     async def _handle_error(self, error: Exception, container: Container) -> Response:
         """Handle an error by calling the appropriate error handler."""
