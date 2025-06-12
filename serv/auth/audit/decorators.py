@@ -1,8 +1,6 @@
 """Audit enforcement decorators and base classes."""
 
 
-
-
 class AuditEnforced:
     """Base class for audit-enforced classes.
 
@@ -26,16 +24,18 @@ class AuditEnforced:
         """
         for attr_name in dir(cls):
             # Skip private/magic methods and non-callable attributes
-            if attr_name.startswith('_'):
+            if attr_name.startswith("_"):
                 continue
 
             attr = getattr(cls, attr_name)
-            if callable(attr) and hasattr(attr, '_audit_pipeline'):
+            if callable(attr) and hasattr(attr, "_audit_pipeline"):
                 # Method has audit requirements - validate against parent classes
                 cls._validate_audit_requirement_inheritance(attr_name, attr)
 
     @classmethod
-    def _validate_audit_requirement_inheritance(cls, method_name: str, method: callable):
+    def _validate_audit_requirement_inheritance(
+        cls, method_name: str, method: callable
+    ):
         """Validate that method doesn't override parent audit requirements.
 
         Args:
@@ -47,7 +47,7 @@ class AuditEnforced:
         """
         from ..exceptions import AuditError
 
-        current_requirement = getattr(method, '_audit_pipeline', None)
+        current_requirement = getattr(method, "_audit_pipeline", None)
         if not current_requirement:
             return
 
@@ -60,7 +60,7 @@ class AuditEnforced:
             if not callable(parent_method):
                 continue
 
-            parent_requirement = getattr(parent_method, '_audit_pipeline', None)
+            parent_requirement = getattr(parent_method, "_audit_pipeline", None)
             if not parent_requirement:
                 continue
 

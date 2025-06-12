@@ -27,7 +27,7 @@ class AuditProvider(BaseProvider):
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> list[AuditEvent]:
         """Get audit events within a time range.
 
@@ -49,7 +49,7 @@ class AuditProvider(BaseProvider):
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> list[AuditEvent]:
         """Get audit events for a specific user.
 
@@ -76,7 +76,7 @@ class AuditProvider(BaseProvider):
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> list[AuditEvent]:
         """Search audit events with various filters.
 

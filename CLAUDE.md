@@ -47,6 +47,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Use the `inject` decorator to inject dependencies into a function using the global container
 - `container.call` is used to call functions with dependency injection if you need a specific container
 - Request objects and services are injected into route handlers
+- Reference ai_docs/bevy-quickstart.md for DI usage
 
 **Request/Response Handling:**
 - Type-annotated route handlers with automatic response type inference
@@ -133,3 +134,4 @@ extensions/
 - When working with DI reference ai_docs/bevy-quickstart.md
 - When working with ommi reference ai_docs/ommi-quickstart.md
 - When working with websockets reference ai_docs/websockets.md
+- Always use a test driven approach

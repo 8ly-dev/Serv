@@ -11,10 +11,13 @@ class AuditEventGroup:
 
     def __init__(self, *events):
         from .events import AuditEventType
+
         # Validate all events are AuditEventType
         for event in events:
             if not isinstance(event, AuditEventType):
-                raise ValueError(f"All events must be AuditEventType, got {type(event)}")
+                raise ValueError(
+                    f"All events must be AuditEventType, got {type(event)}"
+                )
         self.events = tuple(events)
 
     def __or__(self, other):
@@ -72,12 +75,15 @@ class AuditEventGroup:
 class AuditPipeline:
     """Represents a sequence of events that must occur in order."""
 
-    def __init__(self, steps: list[Union['AuditEventType', 'AuditEventGroup']]):
+    def __init__(self, steps: list[Union["AuditEventType", "AuditEventGroup"]]):
         from .events import AuditEventType
+
         # Validate all steps
         for step in steps:
             if not isinstance(step, AuditEventType | AuditEventGroup):
-                raise ValueError(f"Pipeline steps must be AuditEventType or AuditEventGroup, got {type(step)}")
+                raise ValueError(
+                    f"Pipeline steps must be AuditEventType or AuditEventGroup, got {type(step)}"
+                )
         self.steps = list(steps)
 
     def __rshift__(self, other):
@@ -146,7 +152,7 @@ class AuditPipeline:
         return True
 
     def __repr__(self):
-        return ' >> '.join(str(step) for step in self.steps)
+        return " >> ".join(str(step) for step in self.steps)
 
     def __eq__(self, other):
         if not isinstance(other, AuditPipeline):
@@ -163,7 +169,9 @@ class AuditPipelineSet:
     def __init__(self, pipelines: list[AuditPipeline]):
         for pipeline in pipelines:
             if not isinstance(pipeline, AuditPipeline):
-                raise ValueError(f"All pipelines must be AuditPipeline, got {type(pipeline)}")
+                raise ValueError(
+                    f"All pipelines must be AuditPipeline, got {type(pipeline)}"
+                )
         self.pipelines = list(pipelines)
 
     def __or__(self, other):

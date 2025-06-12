@@ -13,5 +13,5 @@ __all__ = [
     "SessionProvider",
     "UserProvider",
     "AuthProvider",
-    "AuditProvider"
+    "AuditProvider",
 ]

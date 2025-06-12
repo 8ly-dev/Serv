@@ -8,6 +8,7 @@ from typing import Any
 
 class CredentialType(Enum):
     """Types of credentials supported by the auth system."""
+
     PASSWORD = "password"
     TOKEN = "token"
     API_KEY = "api_key"
@@ -15,6 +16,7 @@ class CredentialType(Enum):
 
 class AuditEventType(Enum):
     """Types of audit events that can be logged."""
+
     LOGIN_ATTEMPT = "login_attempt"
     LOGIN_SUCCESS = "login_success"
     LOGIN_FAILURE = "login_failure"
@@ -33,6 +35,7 @@ class AuditEventType(Enum):
 
 class PolicyResult(Enum):
     """Result of a policy evaluation."""
+
     ALLOW = "allow"
     DENY = "deny"
     ABSTAIN = "abstain"
@@ -41,6 +44,7 @@ class PolicyResult(Enum):
 @dataclass
 class Permission:
     """Represents a permission in the system."""
+
     name: str
     description: str | None = None
     resource: str | None = None
@@ -50,12 +54,14 @@ class Permission:
         """Validate permission after creation."""
         if not self.name or not self.name.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("Permission name cannot be empty")
 
 
 @dataclass
 class Role:
     """Represents a role with associated permissions."""
+
     name: str
     description: str | None = None
     permissions: list[Permission] = field(default_factory=list)
@@ -66,6 +72,7 @@ class Role:
         """Validate role after creation."""
         if not self.name or not self.name.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("Role name cannot be empty")
 
     def has_permission(self, permission_name: str) -> bool:
@@ -76,6 +83,7 @@ class Role:
 @dataclass
 class User:
     """Represents a user in the authentication system."""
+
     id: str
     username: str
     email: str | None = None
@@ -90,15 +98,18 @@ class User:
         """Validate user after creation."""
         if not self.id or not self.id.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("User ID cannot be empty")
         if not self.username or not self.username.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("Username cannot be empty")
 
 
 @dataclass
 class Session:
     """Represents a user session."""
+
     id: str
     user_id: str
     created_at: datetime = field(default_factory=datetime.now)
@@ -111,9 +122,11 @@ class Session:
         """Validate session after creation."""
         if not self.id or not self.id.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("Session ID cannot be empty")
         if not self.user_id or not self.user_id.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("User ID cannot be empty")
 
     def is_expired(self) -> bool:
@@ -130,6 +143,7 @@ class Session:
 @dataclass
 class Credentials:
     """Represents user credentials."""
+
     id: str
     user_id: str
     type: CredentialType
@@ -143,12 +157,15 @@ class Credentials:
         """Validate credentials after creation."""
         if not self.id or not self.id.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("Credential ID cannot be empty")
         if not self.user_id or not self.user_id.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("User ID cannot be empty")
         if not self.data:
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("Credential data cannot be empty")
 
     def is_expired(self) -> bool:
@@ -165,6 +182,7 @@ class Credentials:
 @dataclass
 class AuditEvent:
     """Represents an audit event."""
+
     id: str
     event_type: AuditEventType
     user_id: str | None = None
@@ -181,4 +199,5 @@ class AuditEvent:
         """Validate audit event after creation."""
         if not self.id or not self.id.strip():
             from .exceptions import AuthValidationError
+
             raise AuthValidationError("Audit event ID cannot be empty")

@@ -3,7 +3,7 @@
 from abc import abstractmethod
 from typing import Any
 
-from ..audit.enforcement import AuditEmitter, AuditRequired
+from ..audit.enforcement import AuditJournal, AuditRequired
 from ..audit.events import AuditEventType
 from ..types import Permission, Role, User
 from .base import BaseProvider
@@ -55,7 +55,7 @@ class UserProvider(BaseProvider):
         username: str,
         email: str | None = None,
         metadata: dict[str, Any] | None = None,
-        audit_emitter: AuditEmitter = None
+        audit_journal: AuditJournal = None,
     ) -> User:
         """Create a new user.
 
@@ -63,63 +63,53 @@ class UserProvider(BaseProvider):
             username: Username for the new user
             email: Email for the new user
             metadata: Additional user metadata
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
         Returns:
             Created user
 
-        Must Emit:
-            USER_CREATE: Emitted when user creation is performed
+        Must Record:
+            USER_CREATE: Recorded when user creation is performed
         """
         pass
 
     @abstractmethod
     @AuditRequired(AuditEventType.USER_UPDATE)
     async def update_user(
-        self,
-        user_id: str,
-        updates: dict[str, Any],
-        audit_emitter: AuditEmitter
+        self, user_id: str, updates: dict[str, Any], audit_journal: AuditJournal
     ) -> User:
         """Update user information.
 
         Args:
             user_id: ID of the user to update
             updates: Dictionary of fields to update
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
         Returns:
             Updated user
 
-        Must Emit:
-            USER_UPDATE: Emitted when user update is performed
+        Must Record:
+            USER_UPDATE: Recorded when user update is performed
         """
         pass
 
     @abstractmethod
     @AuditRequired(AuditEventType.USER_DELETE)
-    async def delete_user(
-        self,
-        user_id: str,
-        audit_emitter: AuditEmitter
-    ) -> None:
+    async def delete_user(self, user_id: str, audit_journal: AuditJournal) -> None:
         """Delete a user.
 
         Args:
             user_id: ID of the user to delete
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
-        Must Emit:
-            USER_DELETE: Emitted when user deletion is performed
+        Must Record:
+            USER_DELETE: Recorded when user deletion is performed
         """
         pass
 
     @abstractmethod
     async def list_users(
-        self,
-        limit: int = 100,
-        offset: int = 0,
-        filters: dict[str, Any] | None = None
+        self, limit: int = 100, offset: int = 0, filters: dict[str, Any] | None = None
     ) -> list[User]:
         """List users with pagination and filtering.
 

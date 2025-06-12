@@ -2,7 +2,7 @@
 
 from abc import abstractmethod
 
-from ..audit.enforcement import AuditEmitter, AuditRequired
+from ..audit.enforcement import AuditJournal, AuditRequired
 from ..audit.events import AuditEventType
 from ..types import Credentials, CredentialType
 from .base import BaseProvider
@@ -14,41 +14,36 @@ class CredentialProvider(BaseProvider):
     @abstractmethod
     @AuditRequired(AuditEventType.CREDENTIAL_VERIFY)
     async def verify_credentials(
-        self,
-        credentials: Credentials,
-        audit_emitter: AuditEmitter
+        self, credentials: Credentials, audit_journal: AuditJournal
     ) -> bool:
         """Verify if credentials are valid.
 
         Args:
             credentials: Credentials to verify
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
         Returns:
             True if credentials are valid, False otherwise
 
-        Must Emit:
-            CREDENTIAL_VERIFY: Emitted when credential verification is performed
+        Must Record:
+            CREDENTIAL_VERIFY: Recorded when credential verification is performed
         """
         pass
 
     @abstractmethod
     @AuditRequired(AuditEventType.CREDENTIAL_CREATE)
     async def create_credentials(
-        self,
-        user_id: str,
-        credentials: Credentials,
-        audit_emitter: AuditEmitter
+        self, user_id: str, credentials: Credentials, audit_journal: AuditJournal
     ) -> None:
         """Create new credentials for a user.
 
         Args:
             user_id: ID of the user
             credentials: Credentials to create
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
-        Must Emit:
-            CREDENTIAL_CREATE: Emitted when credential creation is performed
+        Must Record:
+            CREDENTIAL_CREATE: Recorded when credential creation is performed
         """
         pass
 
@@ -59,7 +54,7 @@ class CredentialProvider(BaseProvider):
         user_id: str,
         old_credentials: Credentials,
         new_credentials: Credentials,
-        audit_emitter: AuditEmitter
+        audit_journal: AuditJournal,
     ) -> None:
         """Update existing credentials.
 
@@ -67,30 +62,27 @@ class CredentialProvider(BaseProvider):
             user_id: ID of the user
             old_credentials: Current credentials
             new_credentials: New credentials
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
-        Must Emit:
-            CREDENTIAL_UPDATE: Emitted when credential update is performed
+        Must Record:
+            CREDENTIAL_UPDATE: Recorded when credential update is performed
         """
         pass
 
     @abstractmethod
     @AuditRequired(AuditEventType.CREDENTIAL_DELETE)
     async def delete_credentials(
-        self,
-        user_id: str,
-        credential_type: CredentialType,
-        audit_emitter: AuditEmitter
+        self, user_id: str, credential_type: CredentialType, audit_journal: AuditJournal
     ) -> None:
         """Delete credentials for a user.
 
         Args:
             user_id: ID of the user
             credential_type: Type of credentials to delete
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
-        Must Emit:
-            CREDENTIAL_DELETE: Emitted when credential deletion is performed
+        Must Record:
+            CREDENTIAL_DELETE: Recorded when credential deletion is performed
         """
         pass
 

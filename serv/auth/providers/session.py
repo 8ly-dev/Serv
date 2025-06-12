@@ -3,7 +3,7 @@
 from abc import abstractmethod
 from datetime import timedelta
 
-from ..audit.enforcement import AuditEmitter, AuditRequired
+from ..audit.enforcement import AuditJournal, AuditRequired
 from ..audit.events import AuditEventType
 from ..types import Session
 from .base import BaseProvider
@@ -20,7 +20,7 @@ class SessionProvider(BaseProvider):
         ip_address: str | None = None,
         user_agent: str | None = None,
         duration: timedelta | None = None,
-        audit_emitter: AuditEmitter = None
+        audit_journal: AuditJournal = None,
     ) -> Session:
         """Create a new session.
 
@@ -29,13 +29,13 @@ class SessionProvider(BaseProvider):
             ip_address: Client IP address
             user_agent: Client user agent
             duration: Session duration (uses default if None)
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
         Returns:
             Created session
 
-        Must Emit:
-            SESSION_CREATE: Emitted when session creation is performed
+        Must Record:
+            SESSION_CREATE: Recorded when session creation is performed
         """
         pass
 
@@ -54,39 +54,35 @@ class SessionProvider(BaseProvider):
     @abstractmethod
     @AuditRequired(AuditEventType.SESSION_REFRESH)
     async def refresh_session(
-        self,
-        session_id: str,
-        audit_emitter: AuditEmitter
+        self, session_id: str, audit_journal: AuditJournal
     ) -> Session | None:
         """Refresh an existing session.
 
         Args:
             session_id: ID of the session to refresh
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
         Returns:
             Refreshed session if successful, None otherwise
 
-        Must Emit:
-            SESSION_REFRESH: Emitted when session refresh is performed
+        Must Record:
+            SESSION_REFRESH: Recorded when session refresh is performed
         """
         pass
 
     @abstractmethod
     @AuditRequired(AuditEventType.SESSION_DESTROY)
     async def destroy_session(
-        self,
-        session_id: str,
-        audit_emitter: AuditEmitter
+        self, session_id: str, audit_journal: AuditJournal
     ) -> None:
         """Destroy a session.
 
         Args:
             session_id: ID of the session to destroy
-            audit_emitter: Audit emitter for tracking events
+            audit_journal: Audit journal for recording events
 
-        Must Emit:
-            SESSION_DESTROY: Emitted when session destruction is performed
+        Must Record:
+            SESSION_DESTROY: Recorded when session destruction is performed
         """
         pass
 
