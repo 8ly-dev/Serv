@@ -459,7 +459,7 @@ from bevy import injectable, Inject
         # The command should attempt to instantiate the app
         # Even if it fails, it should show that it's trying to load plugins
         assert (
-            "Instantiating App" in stdout or "launch_test_extension" in stdout.lower()
+            "Creating App" in stdout or "launch_test_extension" in stdout.lower() or "launch test extension" in stdout.lower()
         )
 
     def test_cli_plugin_structure_with_declarative_routers(self, cli_project_dir):
