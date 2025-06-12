@@ -22,7 +22,7 @@ def app_with_empty_config(tmp_path):
 
 def test_welcome_plugin_auto_enabled(app_with_empty_config):
     """Test that the welcome plugin is auto-enabled when no extensions/middleware are registered."""
-    with patch("serv.app.App._enable_welcome_extension") as mock_enable_welcome:
+    with patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome:
         with Registry():  # Bevy registry
             App(config=app_with_empty_config)
 
@@ -64,7 +64,7 @@ def test_welcome_plugin_conditional_enabling(
     )
 
     with (
-        patch("serv.app.App._enable_welcome_extension") as mock_enable_welcome,
+        patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome,
         patch(
             "serv.extensions.loader.ExtensionLoader.load_extensions"
         ) as mock_load_extensions,
