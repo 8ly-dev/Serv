@@ -199,6 +199,44 @@ def load_raw_config(config_path: str | Path) -> dict[str, Any]:
         ) from e
 
 
+def _validate_env_var_name(env_var: str) -> None:
+    """
+    Validate environment variable name for security.
+
+    Security considerations:
+    - Prevents injection attacks through malformed variable names
+    - Follows POSIX standards for environment variable naming
+    - Blocks access to critical system variables
+    - Prevents DoS through overly long variable names
+
+    Args:
+        env_var: Environment variable name to validate
+
+    Raises:
+        ServConfigError: If variable name is invalid or unsafe
+    """
+    if not env_var:
+        raise ServConfigError("Environment variable name cannot be empty")
+
+    if len(env_var) > 64:
+        raise ServConfigError(
+            f"Environment variable name too long (max 64 chars): {env_var[:20]}..."
+        )
+
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", env_var):
+        raise ServConfigError(
+            f"Invalid environment variable name '{env_var}'. "
+            "Must start with letter/underscore and contain only letters, numbers, underscores"
+        )
+
+    # Block access to critical system variables to prevent accidents
+    reserved_vars = {"PWD", "PATH", "HOME", "USER", "SHELL", "TERM", "LANG"}
+    if env_var.upper() in reserved_vars:
+        raise ServConfigError(
+            f"Cannot access reserved system environment variable: {env_var}"
+        )
+
+
 def _substitute_env_vars(config: dict[str, Any]) -> dict[str, Any]:
     """
     Substitute environment variables in configuration values.
@@ -210,7 +248,8 @@ def _substitute_env_vars(config: dict[str, Any]) -> dict[str, Any]:
     Security considerations:
     - Environment variables should be used for sensitive data
     - Missing required environment variables should cause startup failure
-    - Environment variable names should be validated
+    - Environment variable names are validated for security
+    - Prevents injection attacks through malformed variable names
 
     Args:
         config: Configuration dictionary with potential environment variables
@@ -219,7 +258,7 @@ def _substitute_env_vars(config: dict[str, Any]) -> dict[str, Any]:
         Configuration with environment variables substituted
 
     Raises:
-        ServConfigError: If required environment variable is missing
+        ServConfigError: If required environment variable is missing or name is invalid
     """
 
     def substitute_value(value: Any) -> Any:
@@ -229,6 +268,10 @@ def _substitute_env_vars(config: dict[str, Any]) -> dict[str, Any]:
 
             def replace_env_var(match):
                 env_var = match.group(1)
+
+                # Validate environment variable name for security
+                _validate_env_var_name(env_var)
+
                 env_value = os.getenv(env_var)
 
                 if env_value is None:
@@ -324,7 +367,7 @@ def validate_auth_config(auth_config: dict[str, Any]) -> None:
             try:
                 _parse_rate_limit_string(limit)
             except ValueError as e:
-                raise ServConfigError(f"Invalid rate limit for '{action}': {e}")
+                raise ServConfigError(f"Invalid rate limit for '{action}': {e}") from e
 
     # Validate security settings
     security = auth_config.get("security", {})
@@ -377,7 +420,7 @@ def _parse_rate_limit_string(limit_str: str) -> dict[str, Any]:
         }
 
     except (ValueError, AttributeError) as e:
-        raise ValueError(f"Invalid rate limit format '{limit_str}': {e}")
+        raise ValueError(f"Invalid rate limit format '{limit_str}': {e}") from e
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
