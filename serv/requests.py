@@ -8,23 +8,7 @@ from urllib.parse import parse_qs
 from python_multipart.multipart import parse_options_header
 
 from serv.multipart_parser import MultipartParser
-
-
-@dataclass
-class FileUpload:
-    filename: str | None
-    content_type: str | None
-    headers: dict[str, str]
-    file: io.IOBase
-
-    async def read(self) -> bytes:
-        return self.file.read()
-
-    async def seek(self, offset: int) -> int:
-        return self.file.seek(offset)
-
-    async def close(self) -> None:
-        return self.file.close()
+from serv.http.forms import FileUpload
 
 
 class Request:
