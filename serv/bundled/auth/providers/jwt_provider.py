@@ -129,29 +129,16 @@ class JWTAuthProvider(AuthProvider):
                     )
 
                 # Validate and decode JWT token
-                try:
-                    payload = jwt.decode(
-                        token,
-                        self.secret_key,
-                        algorithms=[self.algorithm],  # Explicit algorithm validation
-                        issuer=self.issuer,
-                        audience=self.audience,
-                        options={
-                            "require_exp": True,  # Require expiration
-                            "verify_signature": True,
-                            "verify_exp": True,
-                            "verify_iat": True,
-                        },
+                payload = self._decode_and_validate_token(token)
+                if payload is None:
+                    return AuthResult(
+                        status=AuthStatus.INVALID_TOKEN,
+                        error_message="Invalid JWT token",
                     )
-                except jwt.ExpiredSignatureError:
+                if payload == "EXPIRED":
                     return AuthResult(
                         status=AuthStatus.SESSION_EXPIRED,
                         error_message="JWT token has expired",
-                    )
-                except jwt.InvalidTokenError as e:
-                    return AuthResult(
-                        status=AuthStatus.INVALID_TOKEN,
-                        error_message=f"Invalid JWT token: {str(e)}",
                     )
 
                 # Extract user information from payload
@@ -346,27 +333,14 @@ class JWTAuthProvider(AuthProvider):
                     )
 
                 # Validate and decode JWT token
-                try:
-                    payload = jwt.decode(
-                        token,
-                        self.secret_key,
-                        algorithms=[self.algorithm],
-                        issuer=self.issuer,
-                        audience=self.audience,
-                        options={
-                            "require_exp": True,
-                            "verify_signature": True,
-                            "verify_exp": True,
-                            "verify_iat": True,
-                        },
-                    )
-                except jwt.ExpiredSignatureError:
-                    return ValidationResult(
-                        is_valid=False, error_message="Token has expired"
-                    )
-                except jwt.InvalidTokenError:
+                payload = self._decode_and_validate_token(token)
+                if payload is None:
                     return ValidationResult(
                         is_valid=False, error_message="Invalid token"
+                    )
+                if payload == "EXPIRED":
+                    return ValidationResult(
+                        is_valid=False, error_message="Token has expired"
                     )
 
                 # Extract user information
@@ -455,7 +429,7 @@ class JWTAuthProvider(AuthProvider):
                     success=True,
                     new_token=new_token,
                     expires_at=expires_at,
-                    user_context={
+                    metadata={
                         "user_id": user_id,
                         "token": new_token,
                         "expires_at": expires_at.isoformat(),
@@ -473,6 +447,35 @@ class JWTAuthProvider(AuthProvider):
         """Cleanup JWT provider resources."""
         # JWT provider is stateless, no cleanup needed
         logger.debug("JWT provider cleanup completed")
+
+    def _decode_and_validate_token(self, token: str) -> dict[str, Any] | str | None:
+        """
+        Decode and validate JWT token.
+
+        Args:
+            token: JWT token string to decode
+
+        Returns:
+            Decoded payload dict if valid, "EXPIRED" if expired, None if invalid
+        """
+        try:
+            return jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=[self.algorithm],  # Explicit algorithm validation
+                issuer=self.issuer,
+                audience=self.audience,
+                options={
+                    "require_exp": True,  # Require expiration
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_iat": True,
+                },
+            )
+        except jwt.ExpiredSignatureError:
+            return "EXPIRED"
+        except jwt.InvalidTokenError:
+            return None
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "JWTAuthProvider":
