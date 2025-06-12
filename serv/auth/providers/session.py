@@ -33,6 +33,9 @@ class SessionProvider(BaseProvider):
 
         Returns:
             Created session
+
+        Must Emit:
+            SESSION_CREATE: Emitted when session creation is performed
         """
         pass
 
@@ -63,6 +66,9 @@ class SessionProvider(BaseProvider):
 
         Returns:
             Refreshed session if successful, None otherwise
+
+        Must Emit:
+            SESSION_REFRESH: Emitted when session refresh is performed
         """
         pass
 
@@ -78,6 +84,9 @@ class SessionProvider(BaseProvider):
         Args:
             session_id: ID of the session to destroy
             audit_emitter: Audit emitter for tracking events
+
+        Must Emit:
+            SESSION_DESTROY: Emitted when session destruction is performed
         """
         pass
 

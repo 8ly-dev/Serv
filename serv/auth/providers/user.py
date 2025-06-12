@@ -67,6 +67,9 @@ class UserProvider(BaseProvider):
 
         Returns:
             Created user
+
+        Must Emit:
+            USER_CREATE: Emitted when user creation is performed
         """
         pass
 
@@ -87,6 +90,9 @@ class UserProvider(BaseProvider):
 
         Returns:
             Updated user
+
+        Must Emit:
+            USER_UPDATE: Emitted when user update is performed
         """
         pass
 
@@ -102,6 +108,9 @@ class UserProvider(BaseProvider):
         Args:
             user_id: ID of the user to delete
             audit_emitter: Audit emitter for tracking events
+
+        Must Emit:
+            USER_DELETE: Emitted when user deletion is performed
         """
         pass
 

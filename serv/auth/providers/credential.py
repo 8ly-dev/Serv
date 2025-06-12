@@ -26,6 +26,9 @@ class CredentialProvider(BaseProvider):
 
         Returns:
             True if credentials are valid, False otherwise
+
+        Must Emit:
+            CREDENTIAL_VERIFY: Emitted when credential verification is performed
         """
         pass
 
@@ -43,6 +46,9 @@ class CredentialProvider(BaseProvider):
             user_id: ID of the user
             credentials: Credentials to create
             audit_emitter: Audit emitter for tracking events
+
+        Must Emit:
+            CREDENTIAL_CREATE: Emitted when credential creation is performed
         """
         pass
 
@@ -62,6 +68,9 @@ class CredentialProvider(BaseProvider):
             old_credentials: Current credentials
             new_credentials: New credentials
             audit_emitter: Audit emitter for tracking events
+
+        Must Emit:
+            CREDENTIAL_UPDATE: Emitted when credential update is performed
         """
         pass
 
@@ -79,6 +88,9 @@ class CredentialProvider(BaseProvider):
             user_id: ID of the user
             credential_type: Type of credentials to delete
             audit_emitter: Audit emitter for tracking events
+
+        Must Emit:
+            CREDENTIAL_DELETE: Emitted when credential deletion is performed
         """
         pass
 

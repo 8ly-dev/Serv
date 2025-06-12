@@ -33,6 +33,13 @@ class AuthProvider(BaseProvider):
 
         Returns:
             Session if authentication successful, None otherwise
+
+        Must Emit:
+            AUTH_ATTEMPT: Always emitted at the start of authentication
+            AUTH_SUCCESS: Emitted when authentication succeeds
+            AUTH_FAILURE: Emitted when authentication fails
+
+            Required sequence: AUTH_ATTEMPT >> (AUTH_SUCCESS | AUTH_FAILURE)
         """
         pass
 
@@ -57,6 +64,13 @@ class AuthProvider(BaseProvider):
 
         Returns:
             True if authorized, False otherwise
+
+        Must Emit:
+            AUTHZ_CHECK: Always emitted at the start of authorization check
+            AUTHZ_GRANT: Emitted when permission is granted
+            AUTHZ_DENY: Emitted when permission is denied
+
+            Required sequence: AUTHZ_CHECK >> (AUTHZ_GRANT | AUTHZ_DENY)
         """
         pass
 
@@ -72,6 +86,9 @@ class AuthProvider(BaseProvider):
         Args:
             session_id: ID of the session to logout
             audit_emitter: Audit emitter for tracking events
+
+        Must Emit:
+            AUTH_LOGOUT: Emitted when user logout is performed
         """
         pass
 
