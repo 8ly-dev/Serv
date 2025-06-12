@@ -9,7 +9,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient  # Import ASGITransport
 
-from serv.app import App
+from serv._app import App
 from serv.extensions import Extension
 from tests.e2e.helpers import AppBuilder
 
@@ -188,6 +188,6 @@ def mock_find_extension_spec():
     """Mock find_extension_spec to prevent hanging during Route tests."""
     with (
         patch("serv.extensions.loader.find_extension_spec", return_value=None),
-        patch("serv.app.App._enable_welcome_extension"),
+        patch("serv._app.App._enable_welcome_extension"),
     ):
         yield

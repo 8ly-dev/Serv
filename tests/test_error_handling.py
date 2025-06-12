@@ -2,7 +2,7 @@ import pytest
 from bevy import Inject, injectable
 from httpx import AsyncClient
 
-from serv.app import App
+from serv._app import App
 from serv.exceptions import ServException
 from serv.requests import Request
 from serv.responses import ResponseBuilder

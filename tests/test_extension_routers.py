@@ -11,7 +11,7 @@ from bevy.registries import Registry
 from serv.extensions import Extension, on
 from serv.extensions.loader import ExtensionSpec
 from serv.responses import ResponseBuilder
-from serv.routing import Router
+from serv._routing import Router
 
 
 def create_plugin_with_config(extension_config):

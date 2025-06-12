@@ -17,7 +17,7 @@ import jinja2
 import uvicorn
 import yaml
 
-from serv.app import App
+from serv._app import App
 from serv.app_factory import create_app
 from serv.config import DEFAULT_CONFIG_FILE, import_from_string
 

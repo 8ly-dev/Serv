@@ -6,7 +6,7 @@ import pytest
 from bevy import Inject, injectable
 from httpx import AsyncClient
 
-from serv.app import App
+from serv._app import App
 from serv.extensions import Extension, on
 from serv.injectors import Cookie, Header, Query
 from serv.routes import (
@@ -18,7 +18,7 @@ from serv.routes import (
     TextResponse,
     handle,
 )
-from serv.routing import (
+from serv._routing import (
     Router,  # For type hinting if needed, actual router comes from event
 )
 from tests.helpers import create_test_extension_spec

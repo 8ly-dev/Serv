@@ -5,7 +5,7 @@ import pytest
 import yaml
 from bevy.registries import Registry
 
-from serv.app import App
+from serv._app import App
 from serv.extensions import Listener, on
 from serv.extensions.loader import ExtensionSpec
 from tests.helpers import create_mock_importer

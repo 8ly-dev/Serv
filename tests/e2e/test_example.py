@@ -14,7 +14,7 @@ from bevy import Inject, injectable
 
 from serv.extensions import Extension, on
 from serv.responses import ResponseBuilder
-from serv.routing import Router
+from serv._routing import Router
 from tests.e2e.helpers import AppBuilder, create_test_client
 from tests.helpers import create_test_extension_spec
 

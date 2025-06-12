@@ -37,7 +37,7 @@ class Router(RouterProtocol):
         Basic router setup:
 
         ```python
-        from serv.routing import Router
+        from serv._routing import Router
 
         router = Router()
 
