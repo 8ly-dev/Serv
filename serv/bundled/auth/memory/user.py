@@ -86,15 +86,15 @@ class MemoryUserProvider(UserProvider):
     
     async def create_user(
         self,
-        user_id: str,
-        email: str,
-        username: str | None = None,
-        display_name: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+        username: str,
+        email: str | None = None,
+        metadata: dict[str, Any] | None = None,
         audit_journal: AuditJournal = None,
     ) -> User:
         """Create a new user."""
         await self._ensure_cleanup_started()
+        
+        user_id = username  # Use username as user ID for simplicity
         
         # Check if user already exists
         if self.store.exists("users", user_id):
@@ -109,18 +109,17 @@ class MemoryUserProvider(UserProvider):
         # Create user
         current_time = time.time()
         user = User(
-            user_id=user_id,
+            id=user_id,
             email=email,
-            username=username or user_id,
-            display_name=display_name or username or user_id,
+            username=username,
             is_active=not self.require_email_verification,
-            is_verified=not self.require_email_verification,
-            roles=set(self.default_roles),
+            roles=list(self.default_roles),
             metadata={
                 "created_at": current_time,
                 "updated_at": current_time,
                 "last_login": None,
                 "login_count": 0,
+                "is_verified": not self.require_email_verification,
                 **(metadata or {}),
             }
         )
@@ -137,10 +136,14 @@ class MemoryUserProvider(UserProvider):
         
         return user
     
-    async def get_user(self, user_id: str) -> User | None:
+    async def get_user_by_id(self, user_id: str) -> User | None:
         """Get user by ID."""
         await self._ensure_cleanup_started()
         return self.store.get("users", user_id)
+    
+    async def get_user(self, user_id: str) -> User | None:
+        """Get user by ID (legacy method)."""
+        return await self.get_user_by_id(user_id)
     
     async def get_user_by_email(self, email: str) -> User | None:
         """Get user by email address."""
@@ -295,6 +298,10 @@ class MemoryUserProvider(UserProvider):
             return True
         
         return False
+    
+    async def remove_role(self, user_id: str, role_name: str) -> None:
+        """Remove a role from a user (interface method)."""
+        await self.revoke_role(user_id, role_name, None)
     
     async def get_user_roles(self, user_id: str) -> Set[str]:
         """Get roles assigned to user."""

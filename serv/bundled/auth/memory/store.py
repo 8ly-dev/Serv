@@ -74,6 +74,7 @@ class MemoryStore:
                 await self._cleanup_task
             except asyncio.CancelledError:
                 pass
+        self._cleanup_task = None
     
     async def _cleanup_loop(self) -> None:
         """Background cleanup loop to remove expired entries."""
@@ -87,8 +88,13 @@ class MemoryStore:
                 # Log error in production, continue cleanup
                 await asyncio.sleep(self._cleanup_interval)
     
-    def _cleanup_expired(self) -> None:
-        """Remove expired entries from all namespaces."""
+    def _cleanup_expired(self) -> int:
+        """Remove expired entries from all namespaces.
+        
+        Returns:
+            Number of entries cleaned up
+        """
+        cleaned_count = 0
         with self._lock:
             for namespace_data in self._data.values():
                 expired_keys = [
@@ -97,6 +103,8 @@ class MemoryStore:
                 ]
                 for key in expired_keys:
                     del namespace_data[key]
+                    cleaned_count += 1
+        return cleaned_count
     
     def set(
         self, 
@@ -254,17 +262,19 @@ class MemoryStore:
             for key in expired_keys:
                 del namespace_data[key]
     
-    def clear(self, namespace: Optional[str] = None) -> None:
-        """Clear all data from store or specific namespace.
+    def clear(self, namespace: str) -> None:
+        """Clear all data from a specific namespace.
         
         Args:
-            namespace: Namespace to clear, None to clear all namespaces
+            namespace: Namespace to clear
         """
         with self._lock:
-            if namespace is None:
-                self._data.clear()
-            else:
-                self._data[namespace].clear()
+            self._data[namespace].clear()
+    
+    def clear_all(self) -> None:
+        """Clear all data from all namespaces."""
+        with self._lock:
+            self._data.clear()
     
     def size(self, namespace: Optional[str] = None) -> int:
         """Get number of non-expired entries.
