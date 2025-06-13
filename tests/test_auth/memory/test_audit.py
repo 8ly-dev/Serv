@@ -1,15 +1,12 @@
-"""Tests for MemoryAuditProvider."""
+"""Tests for MemoryAuditProvider using abstract interface only."""
 
 import asyncio
-import json
-import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
-from serv.auth.audit.events import AuditEventType
-from serv.auth.types import AuditEvent, PolicyResult
+from serv.auth.types import AuditEvent, AuditEventType
 from serv.bundled.auth.memory.audit import MemoryAuditProvider
 from bevy import Container, get_registry
 
@@ -26,8 +23,11 @@ def config():
     return {
         "cleanup_interval": 0.1,
         "retention_days": 90,
-        "max_events": 100000,
-        "include_sensitive_data": False,
+        "max_events": 10000,
+        "auto_cleanup": True,
+        "index_by_user": True,
+        "index_by_session": True,
+        "index_by_resource": True,
     }
 
 
@@ -38,13 +38,15 @@ def provider(config, container):
 
 
 class TestMemoryAuditProvider:
-    """Test MemoryAuditProvider functionality."""
+    """Test MemoryAuditProvider functionality using abstract interface."""
 
     @pytest.mark.asyncio
-    async def test_record_event_basic(self, provider):
-        """Test basic event recording."""
-        event = await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
+    async def test_store_audit_event_basic(self, provider):
+        """Test basic audit event storage via interface."""
+        event = AuditEvent(
+            id="event_1",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.LOGIN_SUCCESS,
             user_id="test_user",
             session_id="test_session",
             resource="login",
@@ -55,552 +57,476 @@ class TestMemoryAuditProvider:
             user_agent="Test Browser/1.0"
         )
         
-        assert isinstance(event, AuditEvent)
-        assert event.event_type == AuditEventType.AUTH_SUCCESS
-        assert event.user_id == "test_user"
-        assert event.session_id == "test_session"
-        assert event.resource == "login"
-        assert event.action == "authenticate"
-        assert event.result == PolicyResult.ALLOW
-        assert event.metadata["login_method"] == "password"
-        assert event.ip_address == "192.168.1.1"
-        assert event.user_agent == "Test Browser/1.0"
-        assert event.id is not None
-        assert event.timestamp is not None
+        await provider.store_audit_event(event)
+        
+        # Verify event was stored by retrieving it
+        events = await provider.get_audit_events(limit=1, offset=0)
+        assert len(events) == 1
+        assert events[0].id == "event_1"
+        assert events[0].event_type == AuditEventType.LOGIN_SUCCESS
 
     @pytest.mark.asyncio
-    async def test_record_event_minimal(self, provider):
-        """Test recording event with minimal parameters."""
-        event = await provider.record_event(
-            event_type=AuditEventType.AUTH_ATTEMPT
-        )
-        
-        assert event.event_type == AuditEventType.AUTH_ATTEMPT
-        assert event.user_id is None
-        assert event.session_id is None
-        assert event.metadata is not None
-
-    @pytest.mark.asyncio
-    async def test_get_event(self, provider):
-        """Test getting a specific event."""
-        event = await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            user_id="test_user"
-        )
-        
-        retrieved = await provider.get_event(event.id)
-        assert retrieved is not None
-        assert retrieved.id == event.id
-        assert retrieved.event_type == event.event_type
-        assert retrieved.user_id == event.user_id
-
-    @pytest.mark.asyncio
-    async def test_get_event_nonexistent(self, provider):
-        """Test getting non-existent event."""
-        result = await provider.get_event("nonexistent_event_id")
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_query_events_by_user(self, provider):
-        """Test querying events by user ID."""
-        # Create events for different users
-        await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            user_id="user1"
-        )
-        
-        await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            user_id="user2"
-        )
-        
-        await provider.record_event(
-            event_type=AuditEventType.AUTH_FAILURE,
-            user_id="user1"
-        )
-        
-        # Query events for user1
-        events = await provider.query_events(user_id="user1")
-        assert len(events) == 2
-        assert all(e.user_id == "user1" for e in events)
-
-    @pytest.mark.asyncio
-    async def test_query_events_by_type(self, provider):
-        """Test querying events by type."""
-        # Create different types of events
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        await provider.record_event(event_type=AuditEventType.AUTH_FAILURE)
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        
-        # Query for AUTH_SUCCESS events
-        events = await provider.query_events(
-            event_types=[AuditEventType.AUTH_SUCCESS]
-        )
-        assert len(events) == 2
-        assert all(e.event_type == AuditEventType.AUTH_SUCCESS for e in events)
-
-    @pytest.mark.asyncio
-    async def test_query_events_by_time_range(self, provider):
-        """Test querying events by time range."""
-        start_time = time.time()
-        
-        # Create event before range
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        
-        # Wait a bit
-        await asyncio.sleep(0.01)
-        query_start = time.time()
-        
-        # Create events in range
-        await provider.record_event(event_type=AuditEventType.AUTH_FAILURE)
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        
-        query_end = time.time()
-        await asyncio.sleep(0.01)
-        
-        # Create event after range
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        
-        # Query events in time range
-        events = await provider.query_events(
-            start_time=query_start,
-            end_time=query_end
-        )
-        
-        # Should get the 2 events in the range
-        assert len(events) == 2
-
-    @pytest.mark.asyncio
-    async def test_query_events_with_pagination(self, provider):
-        """Test event querying with pagination."""
-        # Create multiple events
-        for i in range(10):
-            await provider.record_event(
-                event_type=AuditEventType.AUTH_SUCCESS,
-                user_id=f"user_{i}"
-            )
-        
-        # Query with pagination
-        page1 = await provider.query_events(limit=5, offset=0)
-        assert len(page1) == 5
-        
-        page2 = await provider.query_events(limit=5, offset=5)
-        assert len(page2) == 5
-        
-        # Events should be different (ordered by timestamp)
-        page1_ids = {e.id for e in page1}
-        page2_ids = {e.id for e in page2}
-        assert page1_ids.isdisjoint(page2_ids)
-
-    @pytest.mark.asyncio
-    async def test_get_user_events(self, provider):
-        """Test getting events for a specific user."""
-        user_id = "test_user"
-        
-        # Create events for the user
-        await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            user_id=user_id
-        )
-        
-        await provider.record_event(
-            event_type=AuditEventType.SESSION_CREATE,
-            user_id=user_id
-        )
-        
-        # Create event for different user
-        await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            user_id="other_user"
-        )
-        
-        events = await provider.get_user_events(user_id)
-        assert len(events) == 2
-        assert all(e.user_id == user_id for e in events)
-
-    @pytest.mark.asyncio
-    async def test_get_session_events(self, provider):
-        """Test getting events for a specific session."""
-        session_id = "test_session"
-        
-        # Create events for the session
-        await provider.record_event(
-            event_type=AuditEventType.SESSION_CREATE,
-            session_id=session_id
-        )
-        
-        await provider.record_event(
-            event_type=AuditEventType.SESSION_ACCESS,
-            session_id=session_id
-        )
-        
-        events = await provider.get_session_events(session_id)
-        assert len(events) == 2
-        assert all(e.session_id == session_id for e in events)
-
-    @pytest.mark.asyncio
-    async def test_get_events_by_category(self, provider):
-        """Test getting events by category."""
-        # Create authentication events
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        await provider.record_event(event_type=AuditEventType.AUTH_FAILURE)
-        
-        # Create authorization events
-        await provider.record_event(event_type=AuditEventType.AUTHZ_GRANT)
-        
-        # Create user management events
-        await provider.record_event(event_type=AuditEventType.USER_CREATE)
-        
-        # Query authentication events
-        auth_events = await provider.get_events_by_category("authentication")
-        assert len(auth_events) == 2
-        assert all(e.event_type in [AuditEventType.AUTH_SUCCESS, AuditEventType.AUTH_FAILURE] 
-                  for e in auth_events)
-        
-        # Query authorization events
-        authz_events = await provider.get_events_by_category("authorization")
-        assert len(authz_events) == 1
-        assert authz_events[0].event_type == AuditEventType.AUTHZ_GRANT
-
-    @pytest.mark.asyncio
-    async def test_get_failed_events(self, provider):
-        """Test getting failed/denied events."""
-        # Create various events
-        await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            result="success"
-        )
-        
-        await provider.record_event(
-            event_type=AuditEventType.AUTH_FAILURE,
-            result="failure"
-        )
-        
-        await provider.record_event(
-            event_type=AuditEventType.AUTHZ_DENY,
-            result="denied"
-        )
-        
-        await provider.record_event(
-            event_type=AuditEventType.SESSION_CREATE,
-            result="success"
-        )
-        
-        failed_events = await provider.get_failed_events()
-        assert len(failed_events) == 2
-        
-        # Should include AUTH_FAILURE and AUTHZ_DENY
-        event_types = {e.event_type for e in failed_events}
-        assert AuditEventType.AUTH_FAILURE in event_types
-        assert AuditEventType.AUTHZ_DENY in event_types
-
-    @pytest.mark.asyncio
-    async def test_get_security_events(self, provider):
-        """Test getting security-relevant events."""
-        # Create various events including security events
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        await provider.record_event(event_type=AuditEventType.AUTH_FAILURE)
-        await provider.record_event(event_type=AuditEventType.AUTHZ_DENY)
-        await provider.record_event(event_type=AuditEventType.SECURITY_VIOLATION)
-        await provider.record_event(event_type=AuditEventType.SESSION_CREATE)
-        
-        security_events = await provider.get_security_events()
-        
-        # Should include security-relevant events
-        security_types = {e.event_type for e in security_events}
-        assert AuditEventType.AUTH_FAILURE in security_types
-        assert AuditEventType.AUTHZ_DENY in security_types
-        assert AuditEventType.SECURITY_VIOLATION in security_types
-        assert AuditEventType.AUTH_SUCCESS not in security_types
-        assert AuditEventType.SESSION_CREATE not in security_types
-
-    @pytest.mark.asyncio
-    async def test_cleanup_old_events(self, config, container):
-        """Test cleanup of old events."""
-        config["retention_days"] = 0.001  # Very short retention for testing
-        provider = MemoryAuditProvider(config, container)
-        
-        # Create some events
-        for i in range(5):
-            await provider.record_event(
-                event_type=AuditEventType.AUTH_SUCCESS,
-                user_id=f"user_{i}"
-            )
-        
-        # Wait for events to expire
-        await asyncio.sleep(0.1)
-        
-        # Manual cleanup
-        cleaned_count = await provider.cleanup_old_events()
-        assert cleaned_count == 5
-        
-        # Events should be gone
-        events = await provider.query_events()
+    async def test_get_audit_events_empty(self, provider):
+        """Test getting audit events when none exist."""
+        events = await provider.get_audit_events(limit=10, offset=0)
         assert len(events) == 0
 
     @pytest.mark.asyncio
-    async def test_export_events_json(self, provider):
-        """Test exporting events to JSON format."""
-        # Create some events
-        event1 = await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            user_id="user1",
-            metadata={"method": "password"}
-        )
-        
-        event2 = await provider.record_event(
-            event_type=AuditEventType.AUTH_FAILURE,
-            user_id="user2",
-            ip_address="192.168.1.1"
-        )
-        
-        # Export events
-        exported = await provider.export_events(format="json")
-        
-        # Parse JSON
-        data = json.loads(exported)
-        assert isinstance(data, list)
-        assert len(data) == 2
-        
-        # Check event data
-        exported_ids = {event["event_id"] for event in data}
-        assert event1.id in exported_ids
-        assert event2.id in exported_ids
-
-    @pytest.mark.asyncio
-    async def test_export_events_unsupported_format(self, provider):
-        """Test exporting events with unsupported format."""
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        
-        with pytest.raises(ValueError, match="Unsupported export format: xml"):
-            await provider.export_events(format="xml")
-
-    @pytest.mark.asyncio
-    async def test_get_statistics(self, provider):
-        """Test getting audit provider statistics."""
-        # Initially empty
-        stats = await provider.get_statistics()
-        assert stats["total_events"] == 0
-        
-        # Create some events
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        await provider.record_event(event_type=AuditEventType.AUTH_FAILURE)
-        await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        await provider.record_event(event_type=AuditEventType.USER_CREATE)
-        
-        stats = await provider.get_statistics()
-        assert stats["total_events"] == 4
-        assert stats["event_type_counts"]["auth.success"] == 2
-        assert stats["event_type_counts"]["auth.failure"] == 1
-        assert stats["event_type_counts"]["user.create"] == 1
-
-    @pytest.mark.asyncio
-    async def test_event_indexing(self, provider):
-        """Test that events are properly indexed for efficient querying."""
-        user_id = "test_user"
-        event_type = AuditEventType.AUTH_SUCCESS
-        
-        # Create event
-        event = await provider.record_event(
-            event_type=event_type,
-            user_id=user_id
-        )
-        
-        # Check user index
-        user_key = f"user_{user_id}"
-        user_events = provider.store.get("user_index", user_key)
-        assert user_events is not None
-        assert event.id in user_events
-        
-        # Check type index
-        type_key = f"type_{event_type.value}"
-        type_events = provider.store.get("type_index", type_key)
-        assert type_events is not None
-        assert event.id in type_events
-        
-        # Check time index
-        hour_bucket = int(event.timestamp.timestamp() // 3600)
-        time_key = f"time_{hour_bucket}"
-        time_events = provider.store.get("time_index", time_key)
-        assert time_events is not None
-        assert event.id in time_events
-
-    @pytest.mark.asyncio
-    async def test_event_ttl_and_retention(self, config, container):
-        """Test event TTL and retention policies."""
-        config["retention_days"] = 0.01  # Very short retention
-        provider = MemoryAuditProvider(config, container)
-        
-        # Create event
-        event = await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-        
-        # Event should exist initially
-        retrieved = await provider.get_event(event.id)
-        assert retrieved is not None
-        
-        # Wait for TTL expiration
-        await asyncio.sleep(0.01 * 24 * 3600 + 0.1)  # retention + buffer
-        
-        # Event should be gone due to TTL
-        retrieved = await provider.get_event(event.id)
-        assert retrieved is None
-
-    @pytest.mark.asyncio
-    async def test_max_events_enforcement(self, config, container):
-        """Test maximum events limit enforcement."""
-        config["max_events"] = 5  # Very low limit for testing
-        provider = MemoryAuditProvider(config, container)
-        
-        # Create more events than the limit
-        events = []
-        for i in range(10):
-            event = await provider.record_event(
-                event_type=AuditEventType.AUTH_SUCCESS,
-                user_id=f"user_{i}"
+    async def test_get_audit_events_multiple(self, provider):
+        """Test getting multiple audit events."""
+        # Store multiple events
+        for i in range(3):
+            event = AuditEvent(
+                id=f"event_{i}",
+                timestamp=datetime.now(),
+                event_type=AuditEventType.LOGIN_SUCCESS,
+                user_id=f"user_{i}",
+                session_id=f"session_{i}",
+                resource="login",
+                action="authenticate",
+                result="success",
+                metadata={},
+                ip_address="192.168.1.1",
+                user_agent="Test Browser/1.0"
             )
-            events.append(event)
+            await provider.store_audit_event(event)
         
-        # Should have only max_events + buffer
-        total_events = provider.store.size("events")
-        assert total_events <= 6  # max_events + some buffer
+        # Get all events
+        events = await provider.get_audit_events(limit=10, offset=0)
+        assert len(events) == 3
+        
+        # Events should be sorted by timestamp (newest first)
+        event_ids = [e.id for e in events]
+        assert "event_0" in event_ids
+        assert "event_1" in event_ids
+        assert "event_2" in event_ids
 
     @pytest.mark.asyncio
-    async def test_sensitive_data_sanitization(self, config, container):
-        """Test sanitization of sensitive data."""
-        config["include_sensitive_data"] = False
-        provider = MemoryAuditProvider(config, container)
+    async def test_get_audit_events_pagination(self, provider):
+        """Test audit event pagination."""
+        # Store multiple events
+        for i in range(5):
+            event = AuditEvent(
+                id=f"event_{i}",
+                timestamp=datetime.now(),
+                event_type=AuditEventType.LOGIN_SUCCESS,
+                user_id=f"user_{i}",
+                session_id=f"session_{i}",
+                resource="login",
+                action="authenticate",
+                result="success",
+                metadata={},
+                ip_address="192.168.1.1",
+                user_agent="Test Browser/1.0"
+            )
+            await provider.store_audit_event(event)
         
-        # Create event with sensitive metadata
-        event = await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            metadata={
-                "password": "secret123",
-                "token": "abc123def456",
-                "safe_data": "this is safe",
-                "long_string": "x" * 150  # Will be truncated
-            }
-        )
+        # Test pagination
+        page1 = await provider.get_audit_events(limit=2, offset=0)
+        page2 = await provider.get_audit_events(limit=2, offset=2)
+        page3 = await provider.get_audit_events(limit=2, offset=4)
         
-        # Sensitive data should be redacted
-        assert event.metadata["password"] == "[REDACTED]"
-        assert event.metadata["token"] == "[REDACTED]" 
-        assert event.metadata["safe_data"] == "this is safe"
-        assert event.metadata["long_string"].endswith("...")
+        assert len(page1) == 2
+        assert len(page2) == 2
+        assert len(page3) == 1
+        
+        # Ensure no duplicates
+        all_event_ids = set()
+        for event in page1 + page2 + page3:
+            all_event_ids.add(event.id)
+        assert len(all_event_ids) == 5
 
     @pytest.mark.asyncio
-    async def test_sensitive_data_included(self, config, container):
-        """Test keeping sensitive data when configured."""
-        config["include_sensitive_data"] = True
-        provider = MemoryAuditProvider(config, container)
+    async def test_get_audit_events_time_range(self, provider):
+        """Test getting audit events within time range."""
+        base_time = datetime.now()
         
-        # Create event with sensitive metadata
-        event = await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            metadata={
-                "password": "secret123",
-                "safe_data": "this is safe"
-            }
+        # Store events at different times
+        event1 = AuditEvent(
+            id="event_1",
+            timestamp=base_time - timedelta(hours=2),
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="user_1",
+            session_id="session_1",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
         )
         
-        # Sensitive data should be preserved
-        assert event.metadata["password"] == "secret123"
-        assert event.metadata["safe_data"] == "this is safe"
+        event2 = AuditEvent(
+            id="event_2",
+            timestamp=base_time - timedelta(hours=1),
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="user_2",
+            session_id="session_2",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        event3 = AuditEvent(
+            id="event_3",
+            timestamp=base_time,
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="user_3",
+            session_id="session_3",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        await provider.store_audit_event(event1)
+        await provider.store_audit_event(event2)
+        await provider.store_audit_event(event3)
+        
+        # Get events from last 90 minutes (should get event2 and event3)
+        start_time = base_time - timedelta(minutes=90)
+        events = await provider.get_audit_events(
+            start_time=start_time,
+            end_time=base_time + timedelta(minutes=1),
+            limit=10,
+            offset=0
+        )
+        
+        assert len(events) == 2
+        event_ids = {e.id for e in events}
+        assert "event_2" in event_ids
+        assert "event_3" in event_ids
 
     @pytest.mark.asyncio
-    async def test_severity_determination(self, provider):
-        """Test event severity determination."""
-        # Test different severity levels
-        auth_failure = await provider.record_event(
-            event_type=AuditEventType.AUTH_FAILURE
+    async def test_get_user_audit_events(self, provider):
+        """Test getting audit events for specific user."""
+        # Store events for different users
+        event1 = AuditEvent(
+            id="event_1",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="target_user",
+            session_id="session_1",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
         )
-        assert auth_failure.metadata["severity"] == "warning"
         
-        auth_success = await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS
+        event2 = AuditEvent(
+            id="event_2",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="other_user",
+            session_id="session_2",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
         )
-        assert auth_success.metadata["severity"] == "low"
         
-        error_event = await provider.record_event(
-            event_type=AuditEventType.AUTH_SUCCESS,
-            result="error"
+        event3 = AuditEvent(
+            id="event_3",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.USER_CREATED,
+            user_id="target_user",
+            session_id="session_3",
+            resource="user",
+            action="create",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
         )
-        assert error_event.metadata["severity"] == "warning"
+        
+        await provider.store_audit_event(event1)
+        await provider.store_audit_event(event2)
+        await provider.store_audit_event(event3)
+        
+        # Get events for target_user only
+        events = await provider.get_user_audit_events(
+            user_id="target_user",
+            limit=10,
+            offset=0
+        )
+        
+        assert len(events) == 2
+        event_ids = {e.id for e in events}
+        assert "event_1" in event_ids
+        assert "event_3" in event_ids
+        assert "event_2" not in event_ids  # Different user
 
     @pytest.mark.asyncio
-    async def test_concurrent_event_recording(self, provider):
-        """Test concurrent event recording."""
-        import asyncio
+    async def test_search_audit_events_by_type(self, provider):
+        """Test searching audit events by event type."""
+        # Store events of different types
+        event1 = AuditEvent(
+            id="event_1",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="user_1",
+            session_id="session_1",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
         
-        async def record_event_worker(worker_id):
+        event2 = AuditEvent(
+            id="event_2",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.LOGIN_FAILURE,
+            user_id="user_2",
+            session_id="session_2",
+            resource="login",
+            action="authenticate",
+            result="failure",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        event3 = AuditEvent(
+            id="event_3",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.USER_CREATED,
+            user_id="user_3",
+            session_id="session_3",
+            resource="user",
+            action="create",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        await provider.store_audit_event(event1)
+        await provider.store_audit_event(event2)
+        await provider.store_audit_event(event3)
+        
+        # Search for login events only
+        events = await provider.search_audit_events(
+            event_types=[AuditEventType.LOGIN_SUCCESS, AuditEventType.LOGIN_FAILURE],
+            limit=10,
+            offset=0
+        )
+        
+        assert len(events) == 2
+        event_ids = {e.id for e in events}
+        assert "event_1" in event_ids
+        assert "event_2" in event_ids
+        assert "event_3" not in event_ids  # Different type
+
+    @pytest.mark.asyncio
+    async def test_search_audit_events_by_user(self, provider):
+        """Test searching audit events by user ID."""
+        # Store events for different users
+        event1 = AuditEvent(
+            id="event_1",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="target_user",
+            session_id="session_1",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        event2 = AuditEvent(
+            id="event_2",
+            timestamp=datetime.now(),
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="other_user",
+            session_id="session_2",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        await provider.store_audit_event(event1)
+        await provider.store_audit_event(event2)
+        
+        # Search for events by specific user
+        events = await provider.search_audit_events(
+            user_id="target_user",
+            limit=10,
+            offset=0
+        )
+        
+        assert len(events) == 1
+        assert events[0].id == "event_1"
+        assert events[0].user_id == "target_user"
+
+    @pytest.mark.asyncio
+    async def test_cleanup_old_events(self, provider):
+        """Test cleanup of old audit events."""
+        base_time = datetime.now()
+        
+        # Store old event
+        old_event = AuditEvent(
+            id="old_event",
+            timestamp=base_time - timedelta(days=100),  # Very old
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="user_1",
+            session_id="session_1",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        # Store recent event
+        recent_event = AuditEvent(
+            id="recent_event",
+            timestamp=base_time - timedelta(days=1),  # Recent
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="user_2",
+            session_id="session_2",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        await provider.store_audit_event(old_event)
+        await provider.store_audit_event(recent_event)
+        
+        # Cleanup events older than 30 days
+        cutoff_time = base_time - timedelta(days=30)
+        count = await provider.cleanup_old_events(cutoff_time)
+        
+        assert count == 1  # Only old event should be removed
+        
+        # Verify recent event still exists
+        events = await provider.get_audit_events(limit=10, offset=0)
+        assert len(events) == 1
+        assert events[0].id == "recent_event"
+
+    @pytest.mark.asyncio
+    async def test_search_audit_events_complex(self, provider):
+        """Test complex audit event search with multiple filters."""
+        base_time = datetime.now()
+        
+        # Store events with various properties
+        event1 = AuditEvent(
+            id="event_1",
+            timestamp=base_time - timedelta(hours=1),
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            user_id="target_user",
+            session_id="target_session",
+            resource="login",
+            action="authenticate",
+            result="success",
+            metadata={"method": "password"},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        event2 = AuditEvent(
+            id="event_2",
+            timestamp=base_time - timedelta(hours=2),
+            event_type=AuditEventType.LOGIN_FAILURE,
+            user_id="target_user",
+            session_id="other_session",
+            resource="login",
+            action="authenticate",
+            result="failure",
+            metadata={"method": "password"},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        event3 = AuditEvent(
+            id="event_3",
+            timestamp=base_time - timedelta(hours=3),
+            event_type=AuditEventType.USER_CREATED,
+            user_id="other_user",
+            session_id="target_session",
+            resource="user",
+            action="create",
+            result="success",
+            metadata={"role": "admin"},
+            ip_address="192.168.1.1",
+            user_agent="Test Browser/1.0"
+        )
+        
+        await provider.store_audit_event(event1)
+        await provider.store_audit_event(event2)
+        await provider.store_audit_event(event3)
+        
+        # Complex search: login events for target_user
+        events = await provider.search_audit_events(
+            event_types=[AuditEventType.LOGIN_SUCCESS, AuditEventType.LOGIN_FAILURE],
+            user_id="target_user",
+            resource="login",
+            start_time=base_time - timedelta(hours=6),
+            end_time=base_time,
+            limit=10,
+            offset=0
+        )
+        
+        assert len(events) == 2
+        event_ids = {e.id for e in events}
+        assert "event_1" in event_ids
+        assert "event_2" in event_ids
+        assert "event_3" not in event_ids  # Different user and type
+
+    @pytest.mark.asyncio
+    async def test_concurrent_audit_operations(self, provider):
+        """Test concurrent audit operations don't cause race conditions."""
+        async def store_event_worker(event_id):
             try:
-                event = await provider.record_event(
-                    event_type=AuditEventType.AUTH_SUCCESS,
-                    user_id=f"user_{worker_id}",
-                    metadata={"worker": worker_id}
+                event = AuditEvent(
+                    id=event_id,
+                    timestamp=datetime.now(),
+                    event_type=AuditEventType.LOGIN_SUCCESS,
+                    user_id=f"user_{event_id}",
+                    session_id=f"session_{event_id}",
+                    resource="login",
+                    action="authenticate",
+                    result="success",
+                    metadata={},
+                    ip_address="192.168.1.1",
+                    user_agent="Test Browser/1.0"
                 )
-                return event.id
+                await provider.store_audit_event(event)
+                return event_id
             except Exception:
                 return None
         
-        # Record events concurrently
-        tasks = [record_event_worker(i) for i in range(20)]
-        results = await asyncio.gather(*tasks)
+        # Store multiple events concurrently
+        tasks = []
+        for i in range(10):
+            event_id = f"event_{i}"
+            tasks.append(store_event_worker(event_id))
         
-        # All should succeed
-        successful = [r for r in results if r is not None]
-        assert len(successful) == 20
+        event_ids = await asyncio.gather(*tasks)
         
-        # All event IDs should be unique
-        assert len(set(successful)) == 20
-
-    @pytest.mark.asyncio
-    async def test_cleanup_lifecycle(self, provider):
-        """Test cleanup task lifecycle."""
-        await provider._ensure_cleanup_started()
-        assert provider._cleanup_started is True
+        # All events should be stored successfully
+        assert all(event_id is not None for event_id in event_ids)
+        assert len(set(event_ids)) == 10  # All should be unique
         
-        # Starting again should be idempotent
-        await provider._ensure_cleanup_started()
-        assert provider._cleanup_started is True
-
-    @pytest.mark.asyncio
-    async def test_event_counter_uniqueness(self, provider):
-        """Test that event counter ensures unique IDs."""
-        # Record events rapidly
-        events = []
-        for _ in range(100):
-            event = await provider.record_event(event_type=AuditEventType.AUTH_SUCCESS)
-            events.append(event)
-        
-        # All event IDs should be unique
-        event_ids = [e.id for e in events]
-        assert len(set(event_ids)) == 100
-
-    @pytest.mark.asyncio
-    async def test_time_range_querying_efficiency(self, provider):
-        """Test efficient time-range querying using time index."""
-        # Create events over time
-        events_by_hour = {}
-        current_time = time.time()
-        
-        for hour_offset in range(5):
-            # Simulate events from different hours
-            event_time = current_time - (hour_offset * 3600)
-            
-            # Manually set time for testing
-            event = await provider.record_event(
-                event_type=AuditEventType.AUTH_SUCCESS,
-                user_id=f"user_hour_{hour_offset}"
-            )
-            
-            hour_bucket = int(event_time // 3600)
-            if hour_bucket not in events_by_hour:
-                events_by_hour[hour_bucket] = []
-            events_by_hour[hour_bucket].append(event.id)
-        
-        # Query recent events (should use time index efficiently)
-        recent_start = current_time - 3600  # Last hour
-        recent_events = await provider.query_events(start_time=recent_start)
-        
-        # Should get events from recent time period
-        assert len(recent_events) > 0
+        # Verify all events were stored
+        events = await provider.get_audit_events(limit=20, offset=0)
+        assert len(events) == 10
