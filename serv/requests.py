@@ -1,14 +1,12 @@
-import io
 import json
-from dataclasses import dataclass
 from types import UnionType
 from typing import Any, Union, get_args, get_origin
 from urllib.parse import parse_qs
 
 from python_multipart.multipart import parse_options_header
 
-from serv.multipart_parser import MultipartParser
 from serv.http.forms import FileUpload
+from serv.multipart_parser import MultipartParser
 
 
 class Request:

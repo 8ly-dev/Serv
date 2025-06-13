@@ -11,9 +11,9 @@ import pytest
 import yaml
 from bevy.registries import Registry
 
+from serv._routing import Router
 from serv.extensions.loader import ExtensionSpec
 from serv.extensions.router_extension import RouterExtension
-from serv._routing import Router
 from tests.helpers import create_mock_importer
 
 

@@ -2,9 +2,11 @@
 
 import inspect
 import json
-from typing import Any, AsyncGenerator, Protocol, runtime_checkable
+from collections.abc import AsyncGenerator
+from typing import Any, Protocol, runtime_checkable
 
 from bevy import Inject, injectable
+
 from serv.protocols import AppContextProtocol
 
 
@@ -532,7 +534,6 @@ class Jinja2Response(Response):
 
     def render(self) -> AsyncGenerator[str, object]:
         from jinja2 import Environment, FileSystemLoader
-        from pathlib import Path
 
         template_locations = self._get_template_locations(self.created_by)
 

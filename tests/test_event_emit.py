@@ -4,7 +4,7 @@ import pytest
 from bevy import get_registry
 from bevy.containers import Container, get_container
 
-from serv._app import EventEmitter
+from serv.app.lifecycle import EventEmitter
 from serv.extensions import Listener, on
 from serv.routes import Route
 
@@ -31,7 +31,11 @@ async def test_event_emitter():
             events_seen.append((arg1, arg2))
 
     listener = TestListener()
-    emitter = EventEmitter({Path("."): [listener]})
+    from serv.app.extensions import ExtensionManager
+
+    extension_manager = ExtensionManager()
+    extension_manager._extensions[Path(".")] = [listener]
+    emitter = EventEmitter(extension_manager)
     await emitter.emit(
         "test.event", container=get_container(), arg1="value1", arg2="value2"
     )
@@ -57,7 +61,11 @@ async def test_listener_emit():
             )
 
     listener = TestListener()
-    event_emitter = EventEmitter({Path("."): [listener]})
+    from serv.app.extensions import ExtensionManager
+
+    extension_manager = ExtensionManager()
+    extension_manager._extensions[Path(".")] = [listener]
+    event_emitter = EventEmitter(extension_manager)
     get_container().instances[EventEmitter] = event_emitter
     # Register protocol for new architecture
     from serv.protocols import EventEmitterProtocol
@@ -89,7 +97,11 @@ async def test_emit_from_route():
 
     route = TestRoute()
     listener = TestListener()
-    event_emitter = EventEmitter({Path("."): [listener]})
+    from serv.app.extensions import ExtensionManager
+
+    extension_manager = ExtensionManager()
+    extension_manager._extensions[Path(".")] = [listener]
+    event_emitter = EventEmitter(extension_manager)
     get_container().instances[EventEmitter] = event_emitter
     # Register protocol for new architecture
     from serv.protocols import EventEmitterProtocol

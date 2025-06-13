@@ -446,7 +446,31 @@ class ExtensionLoader:
     ) -> ExtensionSpec:
         if (self._extension_loader.directory / extension_import).exists():
             extension_path = self._extension_loader.directory / extension_import
+        elif extension_import.startswith("serv.bundled"):
+            # Handle bundled extensions directly without using get_package_location
+            # to avoid metapath finder interference
+            import importlib.util
+            import sys
 
+            # Temporarily remove custom meta path finders to avoid interference
+            original_meta_path = sys.meta_path[:]
+            # Keep only the built-in finders
+            sys.meta_path = [
+                finder
+                for finder in sys.meta_path
+                if not isinstance(finder, type(sys.meta_path[0]))
+                or "ImporterMetaPathFinder" not in str(type(finder))
+            ]
+
+            try:
+                spec = importlib.util.find_spec(extension_import)
+                if spec and spec.submodule_search_locations:
+                    extension_path = Path(spec.submodule_search_locations[0])
+                else:
+                    raise ValueError(f"Bundled extension {extension_import} not found")
+            finally:
+                # Restore original meta path
+                sys.meta_path[:] = original_meta_path
         else:
             extension_path = Path(get_package_location(extension_import))
 
@@ -454,10 +478,46 @@ class ExtensionLoader:
             return known_extensions[extension_path]
 
         try:
+            # For bundled extensions, create a special importer that uses standard Python imports
+            if extension_import.startswith("serv.bundled"):
+                # Create a pass-through importer for bundled extensions that uses standard Python imports
+                class BundledImporter:
+                    def __init__(self, base_module):
+                        self.base_module = base_module
+
+                    def load_module(self, module_path):
+                        """Load a module using standard Python import from the bundled extension."""
+                        import importlib
+                        import sys
+
+                        full_module_name = f"{self.base_module}.{module_path}"
+
+                        # Temporarily remove custom meta path finders to avoid interference
+                        original_meta_path = sys.meta_path[:]
+                        # Keep only the built-in finders
+                        sys.meta_path = [
+                            finder
+                            for finder in sys.meta_path
+                            if not isinstance(finder, type(sys.meta_path[0]))
+                            or "ImporterMetaPathFinder" not in str(type(finder))
+                        ]
+
+                        try:
+                            return importlib.import_module(full_module_name)
+                        finally:
+                            # Restore original meta path
+                            sys.meta_path[:] = original_meta_path
+
+                bundled_importer = BundledImporter(extension_import)
+            else:
+                bundled_importer = self._extension_loader.using_sub_module(
+                    extension_import
+                )
+
             extension_spec = ExtensionSpec.from_path(
                 extension_path,
                 app_extension_settings,
-                self._extension_loader.using_sub_module(extension_import),
+                bundled_importer,
             )
         except Exception as e:
             e.add_note(

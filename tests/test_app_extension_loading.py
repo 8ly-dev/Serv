@@ -52,7 +52,9 @@ def test_real_plugin_loading_with_directory(
         yaml.dump(app_config, f)
 
     # Test that app can be created with empty plugin directory
-    with patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome:
+    with patch(
+        "serv.app.extensions.ExtensionManager.load_welcome_extension_if_needed"
+    ) as mock_enable_welcome:
         with Registry():
             app = App(config=str(config_file), extension_dir=str(extension_dir))
 
@@ -81,7 +83,9 @@ def test_real_plugin_loading_with_entry_points(
         yaml.dump(app_config, f)
 
     # Test that app can be created with plugin configuration
-    with patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome:
+    with patch(
+        "serv.app.extensions.ExtensionManager.load_welcome_extension_if_needed"
+    ) as mock_enable_welcome:
         with Registry():
             app = App(config=str(config_file), extension_dir=str(extension_dir))
 
@@ -108,7 +112,9 @@ def test_real_plugin_loading_with_middleware(
         yaml.dump(app_config, f)
 
     # Test that app can be created with middleware configuration
-    with patch("serv._app.App._enable_welcome_extension") as mock_enable_welcome:
+    with patch(
+        "serv.app.extensions.ExtensionManager.load_welcome_extension_if_needed"
+    ) as mock_enable_welcome:
         with Registry():
             app = App(config=str(config_file), extension_dir=str(extension_dir))
 

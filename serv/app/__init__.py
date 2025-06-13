@@ -3,9 +3,16 @@
 # Re-export from existing modules for backward compatibility
 try:
     from serv._app import App
+    from serv.app.extensions import ExtensionManager
+    from serv.app.lifecycle import EventEmitter, LifecycleManager
+    from serv.app.middleware import MiddlewareManager
 
     __all__ = [
         "App",
+        "ExtensionManager",
+        "EventEmitter",
+        "LifecycleManager",
+        "MiddlewareManager",
     ]
 except ImportError:
     # If direct imports fail, will be populated later during refactoring

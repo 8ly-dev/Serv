@@ -13,24 +13,24 @@ from typing import Any
 
 def match_path(request_path: str, path_pattern: str) -> dict[str, Any] | None:
     """Performs path matching against a pattern.
-    
+
     Supports exact matches and path parameters with optional type hints.
     Supported types: {param}, {param:int}, {param:path}
-    
+
     Args:
         request_path: The incoming request path to match
         path_pattern: The route pattern to match against
-        
+
     Returns:
         A dict of path parameters if matched, else None.
-        
+
     Examples:
         >>> match_path("/users/123", "/users/{user_id:int}")
         {"user_id": 123}
-        
+
         >>> match_path("/files/docs/readme.txt", "/files/{path:path}")
         {"path": "docs/readme.txt"}
-        
+
         >>> match_path("/api/v1/users", "/api/v{version:int}/users")
         {"version": 1}
     """
@@ -62,18 +62,18 @@ def match_segment_with_params(
     pattern_segment: str, request_segment: str
 ) -> dict[str, Any] | None:
     """Match a single path segment that may contain embedded parameters.
-    
+
     Args:
         pattern_segment: Pattern segment like "v{version:int}" or "{user_id}"
         request_segment: Actual request segment like "v1" or "123"
-        
+
     Returns:
         Dict of extracted parameters or None if no match
-        
+
     Examples:
         >>> match_segment_with_params("v{version:int}", "v2")
         {"version": 2}
-        
+
         >>> match_segment_with_params("{user_id:int}", "123")
         {"user_id": 123}
     """
@@ -154,18 +154,18 @@ def match_path_with_path_type(
     request_path: str, path_pattern: str
 ) -> dict[str, Any] | None:
     """Handle path patterns with path type parameters that can consume multiple segments.
-    
+
     Args:
         request_path: The incoming request path
         path_pattern: Pattern containing {param:path} parameters
-        
+
     Returns:
         Dict of extracted parameters or None if no match
-        
+
     Examples:
         >>> match_path_with_path_type("/files/docs/readme.txt", "/files/{path:path}")
         {"path": "docs/readme.txt"}
-        
+
         >>> match_path_with_path_type("/api/v1/files/docs/readme.txt", "/api/v{version:int}/files/{path:path}")
         {"version": 1, "path": "docs/readme.txt"}
     """
