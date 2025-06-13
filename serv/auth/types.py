@@ -56,6 +56,10 @@ class Permission:
             from .exceptions import AuthValidationError
 
             raise AuthValidationError("Permission name cannot be empty")
+    
+    def __hash__(self) -> int:
+        """Make Permission hashable based on name."""
+        return hash(self.name)
 
 
 @dataclass
@@ -78,6 +82,10 @@ class Role:
     def has_permission(self, permission_name: str) -> bool:
         """Check if this role has a specific permission."""
         return any(perm.name == permission_name for perm in self.permissions)
+    
+    def __hash__(self) -> int:
+        """Make Role hashable based on name."""
+        return hash(self.name)
 
 
 @dataclass

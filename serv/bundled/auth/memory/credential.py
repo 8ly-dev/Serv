@@ -8,6 +8,7 @@ import argon2
 from bevy import Container
 
 from serv.auth.audit.enforcement import AuditJournal
+from serv.auth.audit.events import AuditEventType
 from serv.auth.exceptions import (
     AuthenticationError,
     InvalidCredentialsError,
@@ -94,9 +95,10 @@ class MemoryCredentialProvider(CredentialProvider):
         
         # Create credentials
         credentials = Credentials(
-            user_id=user.user_id,
-            credential_type=CredentialType.PASSWORD,
-            credential_data={"password_hash": password_hash},
+            id=f"password_{user.id}_{int(time.time())}",
+            user_id=user.id,
+            type=CredentialType.PASSWORD,
+            data={"password_hash": password_hash},
             metadata={
                 "created_at": time.time(),
                 "algorithm": "argon2",
@@ -107,8 +109,17 @@ class MemoryCredentialProvider(CredentialProvider):
         )
         
         # Store credentials
-        credential_key = f"password:{user.user_id}"
+        credential_key = f"password:{user.id}"
         self.store.set("credentials", credential_key, credentials)
+        
+        # Record audit event
+        if audit_journal:
+            await audit_journal.record_event(
+                AuditEventType.CREDENTIAL_CREATE,
+                user_id=user.id,
+                result="success",
+                metadata={"type": "password"}
+            )
         
         return credentials
     
@@ -129,9 +140,10 @@ class MemoryCredentialProvider(CredentialProvider):
         
         # Create credentials
         credentials = Credentials(
-            user_id=user.user_id,
-            credential_type=CredentialType.TOKEN,
-            credential_data={"token": token},
+            id=f"token_{user.id}_{int(time.time())}",
+            user_id=user.id,
+            type=CredentialType.TOKEN,
+            data={"token": token},
             metadata={
                 "created_at": time.time(),
                 "expires_at": time.time() + token_ttl,
@@ -170,7 +182,7 @@ class MemoryCredentialProvider(CredentialProvider):
             )
         
         # Verify password
-        password_hash = credentials.credential_data["password_hash"]
+        password_hash = credentials.data["password_hash"]
         try:
             self.hasher.verify(password_hash, password)
             
@@ -296,7 +308,7 @@ class MemoryCredentialProvider(CredentialProvider):
             raise ProviderInitializationError("Failed to hash new password") from e
         
         # Update credentials
-        credentials.credential_data["password_hash"] = new_password_hash
+        credentials.data["password_hash"] = new_password_hash
         credentials.metadata["last_updated"] = time.time()
         credentials.metadata["failed_attempts"] = 0  # Reset failed attempts
         credentials.metadata["locked_until"] = None  # Unlock account
@@ -364,3 +376,314 @@ class MemoryCredentialProvider(CredentialProvider):
                 "salt_len": self.hasher.salt_len,
             }
         }
+
+    # Abstract methods from CredentialProvider interface
+    
+    async def verify_credentials(
+        self, credentials: Credentials, audit_journal: AuditJournal
+    ) -> bool:
+        """Verify if credentials are valid."""
+        await self._ensure_cleanup_started()
+        
+        try:
+            if credentials.type == CredentialType.PASSWORD:
+                password = credentials.data.get("password")
+                if not password:
+                    if audit_journal:
+                        await audit_journal.record_event(
+                            AuditEventType.CREDENTIAL_VERIFY,
+                            user_id=credentials.user_id,
+                            result="failure",
+                            metadata={"reason": "missing_password", "type": "password"}
+                        )
+                    return False
+                
+                result = await self.verify_password(credentials.user_id, password, audit_journal)
+                
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_VERIFY,
+                        user_id=credentials.user_id,
+                        result="success" if result else "failure",
+                        metadata={"type": "password"}
+                    )
+                
+                return result
+                
+            elif credentials.type == CredentialType.TOKEN:
+                token = credentials.data.get("token")
+                purpose = credentials.data.get("purpose", "default")
+                if not token:
+                    if audit_journal:
+                        await audit_journal.record_event(
+                            AuditEventType.CREDENTIAL_VERIFY,
+                            user_id=credentials.user_id,
+                            result="failure",
+                            metadata={"reason": "missing_token", "type": "token"}
+                        )
+                    return False
+                
+                verified_user_id = await self.verify_token(token, audit_journal)
+                result = verified_user_id == credentials.user_id
+                
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_VERIFY,
+                        user_id=credentials.user_id,
+                        result="success" if result else "failure",
+                        metadata={"type": "token", "purpose": purpose}
+                    )
+                
+                return result
+            
+            else:
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_VERIFY,
+                        user_id=credentials.user_id,
+                        result="failure",
+                        metadata={"reason": "unsupported_type", "type": str(credentials.type)}
+                    )
+                return False
+                
+        except Exception as e:
+            if audit_journal and hasattr(audit_journal, 'record_event'):
+                await audit_journal.record_event(
+                    AuditEventType.CREDENTIAL_VERIFY,
+                    user_id=credentials.user_id,
+                    result="error",
+                    metadata={"error": str(e), "type": str(credentials.type)}
+                )
+            return False
+
+    async def create_credentials(
+        self, user_id: str, credentials: Credentials, audit_journal: AuditJournal
+    ) -> None:
+        """Create new credentials for a user."""
+        await self._ensure_cleanup_started()
+        
+        try:
+            if credentials.type == CredentialType.PASSWORD:
+                password = credentials.data.get("password")
+                if not password:
+                    raise AuthenticationError("Password is required")
+                
+                # Create a temporary user object for credential creation
+                temp_user = User(id=user_id, username=user_id, email=None)
+                await self.create_password_credentials(temp_user, password, audit_journal)
+                
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_CREATE,
+                        user_id=user_id,
+                        result="success",
+                        metadata={"type": "password"}
+                    )
+                    
+            elif credentials.type == CredentialType.TOKEN:
+                purpose = credentials.data.get("purpose", "default")
+                # Create a temporary user object for credential creation
+                temp_user = User(id=user_id, username=user_id, email=None)
+                token_creds = await self.create_token_credentials(temp_user, audit_journal=audit_journal)
+                
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_CREATE,
+                        user_id=user_id,
+                        result="success",
+                        metadata={"type": "token", "purpose": purpose}
+                    )
+            
+            else:
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_CREATE,
+                        user_id=user_id,
+                        result="failure",
+                        metadata={"reason": "unsupported_type", "type": str(credentials.type)}
+                    )
+                raise AuthenticationError(f"Unsupported credential type: {credentials.type}")
+                
+        except Exception as e:
+            if audit_journal and hasattr(audit_journal, 'record_event'):
+                await audit_journal.record_event(
+                    AuditEventType.CREDENTIAL_CREATE,
+                    user_id=user_id,
+                    result="error",
+                    metadata={"error": str(e), "type": str(credentials.type)}
+                )
+            raise
+
+    async def update_credentials(
+        self,
+        user_id: str,
+        old_credentials: Credentials,
+        new_credentials: Credentials,
+        audit_journal: AuditJournal,
+    ) -> None:
+        """Update existing credentials."""
+        await self._ensure_cleanup_started()
+        
+        try:
+            if old_credentials.type != new_credentials.type:
+                raise AuthenticationError("Cannot change credential type during update")
+            
+            if new_credentials.type == CredentialType.PASSWORD:
+                old_password = old_credentials.data.get("password")
+                new_password = new_credentials.data.get("password")
+                
+                if not old_password or not new_password:
+                    raise AuthenticationError("Both old and new passwords are required")
+                
+                # Verify old password first
+                verified = await self.verify_password(user_id, old_password, audit_journal)
+                if not verified:
+                    raise AuthenticationError("Current password is incorrect")
+                
+                # Update password
+                await self.update_password(user_id, new_password, audit_journal)
+                
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_UPDATE,
+                        user_id=user_id,
+                        result="success",
+                        metadata={"type": "password"}
+                    )
+            
+            else:
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_UPDATE,
+                        user_id=user_id,
+                        result="failure",
+                        metadata={"reason": "unsupported_type", "type": str(new_credentials.type)}
+                    )
+                raise AuthenticationError(f"Credential type {new_credentials.type} does not support updates")
+                
+        except Exception as e:
+            if audit_journal and hasattr(audit_journal, 'record_event'):
+                await audit_journal.record_event(
+                    AuditEventType.CREDENTIAL_UPDATE,
+                    user_id=user_id,
+                    result="error",
+                    metadata={"error": str(e), "type": str(new_credentials.type)}
+                )
+            raise
+
+    async def delete_credentials(
+        self, user_id: str, credential_type: CredentialType, audit_journal: AuditJournal
+    ) -> None:
+        """Delete credentials for a user."""
+        await self._ensure_cleanup_started()
+        
+        try:
+            if credential_type == CredentialType.PASSWORD:
+                result = await self.delete_credentials_internal(user_id, audit_journal)
+                
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_DELETE,
+                        user_id=user_id,
+                        result="success" if result else "failure",
+                        metadata={"type": "password"}
+                    )
+                    
+            elif credential_type == CredentialType.TOKEN:
+                count = await self.revoke_user_tokens(user_id, audit_journal)
+                
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_DELETE,
+                        user_id=user_id,
+                        result="success",
+                        metadata={"type": "token", "count": count}
+                    )
+            
+            else:
+                if audit_journal:
+                    await audit_journal.record_event(
+                        AuditEventType.CREDENTIAL_DELETE,
+                        user_id=user_id,
+                        result="failure",
+                        metadata={"reason": "unsupported_type", "type": str(credential_type)}
+                    )
+                raise AuthenticationError(f"Unsupported credential type: {credential_type}")
+                
+        except Exception as e:
+            if audit_journal and hasattr(audit_journal, 'record_event'):
+                await audit_journal.record_event(
+                    AuditEventType.CREDENTIAL_DELETE,
+                    user_id=user_id,
+                    result="error",
+                    metadata={"error": str(e), "type": str(credential_type)}
+                )
+            raise
+
+    async def get_credential_types(self, user_id: str) -> set[CredentialType]:
+        """Get available credential types for a user."""
+        await self._ensure_cleanup_started()
+        
+        credential_types = set()
+        
+        # Check for password credentials
+        password_key = f"password:{user_id}"
+        if self.store.exists("credentials", password_key):
+            credential_types.add(CredentialType.PASSWORD)
+        
+        # Check for token credentials
+        for key in self.store.keys("credentials"):
+            if key.startswith("token:"):
+                cred = self.store.get("credentials", key)
+                if cred and cred.user_id == user_id:
+                    credential_types.add(CredentialType.TOKEN)
+                    break
+        
+        return credential_types
+
+    async def is_credential_compromised(self, credentials: Credentials) -> bool:
+        """Check if credentials are known to be compromised."""
+        # For memory provider, we don't have external compromise checking
+        # This could be extended to check against known compromised password lists
+        # For now, return False (not compromised)
+        return False
+    
+    # Helper method for delete_credentials to avoid name conflict
+    async def delete_credentials_internal(self, user_id: str, audit_journal: AuditJournal) -> bool:
+        """Internal method to delete all credentials for a user."""
+        await self._ensure_cleanup_started()
+        
+        deleted_any = False
+        
+        # Delete password credentials
+        password_key = f"password:{user_id}"
+        if self.store.delete("credentials", password_key):
+            deleted_any = True
+        
+        # Delete token credentials
+        tokens_deleted = await self.revoke_user_tokens(user_id, audit_journal)
+        if tokens_deleted > 0:
+            deleted_any = True
+        
+        # Delete lockout data
+        lockout_key = f"lockout:{user_id}"
+        if self.store.delete("lockouts", lockout_key):
+            deleted_any = True
+        
+        return deleted_any
+    
+    async def revoke_user_tokens(self, user_id: str, audit_journal: AuditJournal) -> int:
+        """Revoke all tokens for a user."""
+        count = 0
+        keys_to_delete = []
+        for key, credentials in self.store.items("credentials"):
+            if (key.startswith("token:") and 
+                credentials.user_id == user_id and
+                credentials.type == CredentialType.TOKEN):
+                keys_to_delete.append(key)
+        
+        for key in keys_to_delete:
+            if self.store.delete("credentials", key):
+                count += 1
+        
+        return count

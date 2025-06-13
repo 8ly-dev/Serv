@@ -60,21 +60,27 @@ class MemoryUserProvider(UserProvider):
         default_permissions = self.config.get("default_permissions", [])
         for perm_config in default_permissions:
             permission = Permission(
-                permission=perm_config["permission"],
+                name=perm_config["permission"],
                 description=perm_config.get("description", ""),
                 resource=perm_config.get("resource"),
-                metadata=perm_config.get("metadata", {}),
+                action=perm_config.get("action"),
             )
-            self.store.set("permissions", permission.permission, permission)
+            self.store.set("permissions", permission.name, permission)
         
         # Create default roles
         default_role_configs = self.config.get("default_role_configs", [])
         for role_config in default_role_configs:
+            # Convert permission names to Permission objects
+            permission_objs = []
+            for perm_name in role_config.get("permissions", []):
+                permission = self.store.get("permissions", perm_name)
+                if permission:
+                    permission_objs.append(permission)
+            
             role = Role(
                 name=role_config["name"],
                 description=role_config.get("description", ""),
-                permissions=set(role_config.get("permissions", [])),
-                metadata=role_config.get("metadata", {}),
+                permissions=permission_objs,
             )
             self.store.set("roles", role.name, role)
     
@@ -141,9 +147,6 @@ class MemoryUserProvider(UserProvider):
         await self._ensure_cleanup_started()
         return self.store.get("users", user_id)
     
-    async def get_user(self, user_id: str) -> User | None:
-        """Get user by ID (legacy method)."""
-        return await self.get_user_by_id(user_id)
     
     async def get_user_by_email(self, email: str) -> User | None:
         """Get user by email address."""
@@ -164,27 +167,25 @@ class MemoryUserProvider(UserProvider):
         return None
     
     async def update_user(
-        self,
-        user_id: str,
-        email: str | None = None,
-        username: str | None = None,
-        display_name: str | None = None,
-        is_active: bool | None = None,
-        is_verified: bool | None = None,
-        metadata: Dict[str, Any] | None = None,
-        audit_journal: AuditJournal = None,
-    ) -> User | None:
+        self, user_id: str, updates: dict[str, Any], audit_journal: AuditJournal
+    ) -> User:
         """Update user information."""
         await self._ensure_cleanup_started()
         
         user = self.store.get("users", user_id)
         if not user:
-            return None
+            raise AuthenticationError(f"User {user_id} not found")
+        
+        # Extract updates
+        email = updates.get("email")
+        username = updates.get("username")
+        is_active = updates.get("is_active")
+        metadata = updates.get("metadata")
         
         # Check email uniqueness if changing email
         if email and email != user.email and not self.allow_duplicate_emails:
             existing_user = await self.get_user_by_email(email)
-            if existing_user and existing_user.user_id != user_id:
+            if existing_user and existing_user.id != user_id:
                 raise AuthenticationError(f"User with email {email} already exists")
         
         # Update fields
@@ -195,12 +196,8 @@ class MemoryUserProvider(UserProvider):
             user.email = email
         if username is not None:
             user.username = username
-        if display_name is not None:
-            user.display_name = display_name
         if is_active is not None:
             user.is_active = is_active
-        if is_verified is not None:
-            user.is_verified = is_verified
         if metadata is not None:
             user.metadata.update(metadata)
         
@@ -221,40 +218,30 @@ class MemoryUserProvider(UserProvider):
         
         return user
     
-    async def delete_user(
-        self,
-        user_id: str,
-        audit_journal: AuditJournal,
-    ) -> bool:
+    async def delete_user(self, user_id: str, audit_journal: AuditJournal) -> None:
         """Delete a user."""
         await self._ensure_cleanup_started()
         
         user = self.store.get("users", user_id)
         if not user:
-            return False
+            raise AuthenticationError(f"User {user_id} not found")
         
         # Remove from indexes
-        self.store.delete("user_emails", user.email.lower())
+        if user.email:
+            self.store.delete("user_emails", user.email.lower())
         if user.username:
             self.store.delete("user_usernames", user.username.lower())
         
         # Remove user
         self.store.delete("users", user_id)
-        
-        return True
     
-    async def assign_role(
-        self,
-        user_id: str,
-        role_name: str,
-        audit_journal: AuditJournal,
-    ) -> bool:
+    async def assign_role(self, user_id: str, role_name: str) -> None:
         """Assign role to user."""
         await self._ensure_cleanup_started()
         
         user = self.store.get("users", user_id)
         if not user:
-            return False
+            raise AuthenticationError(f"User {user_id} not found")
         
         # Check if role exists, create if auto_create_roles is enabled
         role = self.store.get("roles", role_name)
@@ -262,21 +249,19 @@ class MemoryUserProvider(UserProvider):
             role = Role(
                 name=role_name,
                 description=f"Auto-created role: {role_name}",
-                permissions=set(),
-                metadata={"auto_created": True, "created_at": time.time()},
+                permissions=[],
             )
             self.store.set("roles", role_name, role)
         elif not role:
             raise AuthorizationError(f"Role {role_name} does not exist")
         
         # Assign role
-        user.roles.add(role_name)
-        user.metadata["updated_at"] = time.time()
-        
-        # Store updated user
-        self.store.set("users", user_id, user)
-        
-        return True
+        if role_name not in user.roles:
+            user.roles.append(role_name)
+            user.metadata["updated_at"] = time.time()
+            
+            # Store updated user
+            self.store.set("users", user_id, user)
     
     async def revoke_role(
         self,
@@ -301,16 +286,33 @@ class MemoryUserProvider(UserProvider):
     
     async def remove_role(self, user_id: str, role_name: str) -> None:
         """Remove a role from a user (interface method)."""
-        await self.revoke_role(user_id, role_name, None)
+        await self._ensure_cleanup_started()
+        
+        user = self.store.get("users", user_id)
+        if not user:
+            raise AuthenticationError(f"User {user_id} not found")
+        
+        if role_name in user.roles:
+            user.roles.remove(role_name)
+            user.metadata["updated_at"] = time.time()
+            self.store.set("users", user_id, user)
     
-    async def get_user_roles(self, user_id: str) -> Set[str]:
+    async def get_user_roles(self, user_id: str) -> set[Role]:
         """Get roles assigned to user."""
         await self._ensure_cleanup_started()
         
         user = self.store.get("users", user_id)
-        return user.roles if user else set()
+        if not user:
+            return set()
+        
+        roles = []
+        for role_name in user.roles:
+            role = self.store.get("roles", role_name)
+            if role:
+                roles.append(role)
+        return set(roles) if roles else set()
     
-    async def get_user_permissions(self, user_id: str) -> Set[str]:
+    async def get_user_permissions(self, user_id: str) -> set[Permission]:
         """Get effective permissions for user."""
         await self._ensure_cleanup_started()
         
@@ -324,7 +326,9 @@ class MemoryUserProvider(UserProvider):
         for role_name in user.roles:
             role = self.store.get("roles", role_name)
             if role:
-                permissions.update(role.permissions)
+                # Role.permissions is already a list of Permission objects
+                for permission in role.permissions:
+                    permissions.add(permission)
         
         return permissions
     
@@ -336,20 +340,21 @@ class MemoryUserProvider(UserProvider):
     ) -> bool:
         """Check if user has specific permission."""
         user_permissions = await self.get_user_permissions(user_id)
+        permission_names = {p.name for p in user_permissions}
         
         # Check exact permission match
-        if permission in user_permissions:
+        if permission in permission_names:
             return True
         
         # Check wildcard permissions
         permission_parts = permission.split(":")
         for i in range(len(permission_parts)):
             wildcard_perm = ":".join(permission_parts[:i+1]) + ":*"
-            if wildcard_perm in user_permissions:
+            if wildcard_perm in permission_names:
                 return True
         
         # Check for admin/superuser permissions
-        if "admin:*" in user_permissions or "*:*" in user_permissions:
+        if "admin:*" in permission_names or "*:*" in permission_names:
             return True
         
         return False
@@ -455,13 +460,10 @@ class MemoryUserProvider(UserProvider):
             raise AuthorizationError(f"Permission {permission} already exists")
         
         perm = Permission(
-            permission=permission,
+            name=permission,
             description=description,
             resource=resource,
-            metadata={
-                "created_at": time.time(),
-                **(metadata or {}),
-            }
+            action=metadata.get("action") if metadata else None,
         )
         
         self.store.set("permissions", permission, perm)
@@ -473,15 +475,14 @@ class MemoryUserProvider(UserProvider):
         return self.store.get("permissions", permission)
     
     async def list_users(
-        self,
-        limit: int = 100,
-        offset: int = 0,
-        active_only: bool = False,
-    ) -> List[User]:
+        self, limit: int = 100, offset: int = 0, filters: dict[str, Any] | None = None
+    ) -> list[User]:
         """List users with pagination."""
         await self._ensure_cleanup_started()
         
         users = []
+        active_only = filters.get("active_only", False) if filters else False
+        
         for user in self.store.values("users"):
             if active_only and not user.is_active:
                 continue

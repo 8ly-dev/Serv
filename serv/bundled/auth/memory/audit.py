@@ -151,6 +151,40 @@ class MemoryAuditProvider(AuditProvider):
         
         return event
     
+    async def store_audit_event(self, event: AuditEvent) -> None:
+        """Store an audit event."""
+        await self._ensure_cleanup_started()
+        
+        # Filter sensitive data if required
+        if not self.include_sensitive_data:
+            event = self._sanitize_event(event)
+        
+        # Store event with retention TTL
+        retention_ttl = self.retention_days * 24 * 3600  # Convert days to seconds
+        self.store.set("events", event.id, event, ttl_seconds=retention_ttl)
+        
+        # Store in time-based index for efficient querying
+        time_key = f"time_{int(event.timestamp.timestamp() // 3600)}"  # Hour-based buckets
+        hour_events = self.store.get("time_index", time_key) or []
+        hour_events.append(event.id)
+        self.store.set("time_index", time_key, hour_events, ttl_seconds=retention_ttl)
+        
+        # Store in user-based index
+        if event.user_id:
+            user_key = f"user_{event.user_id}"
+            user_events = self.store.get("user_index", user_key) or []
+            user_events.append(event.id)
+            self.store.set("user_index", user_key, user_events, ttl_seconds=retention_ttl)
+        
+        # Store in event type index
+        type_key = f"type_{event.event_type.value}"
+        type_events = self.store.get("type_index", type_key) or []
+        type_events.append(event.id)
+        self.store.set("type_index", type_key, type_events, ttl_seconds=retention_ttl)
+        
+        # Enforce event limits
+        await self._enforce_event_limits()
+    
     async def get_event(self, event_id: str) -> AuditEvent | None:
         """Get specific audit event by ID."""
         await self._ensure_cleanup_started()
@@ -308,21 +342,87 @@ class MemoryAuditProvider(AuditProvider):
             limit=limit,
         )
     
-    async def cleanup_old_events(self) -> int:
-        """Clean up old events beyond retention period."""
+    
+    async def get_audit_events(
+        self,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[AuditEvent]:
+        """Get audit events within a time range."""
+        start_timestamp = start_time.timestamp() if start_time else None
+        end_timestamp = end_time.timestamp() if end_time else None
+        
+        return await self.query_events(
+            start_time=start_timestamp,
+            end_time=end_timestamp,
+            limit=limit,
+            offset=offset,
+        )
+    
+    async def get_user_audit_events(
+        self,
+        user_id: str,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[AuditEvent]:
+        """Get audit events for a specific user."""
+        start_timestamp = start_time.timestamp() if start_time else None
+        end_timestamp = end_time.timestamp() if end_time else None
+        
+        return await self.query_events(
+            user_id=user_id,
+            start_time=start_timestamp,
+            end_time=end_timestamp,
+            limit=limit,
+            offset=offset,
+        )
+    
+    async def search_audit_events(
+        self,
+        event_types: list[AuditEventType] | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        resource: str | None = None,
+        filters: dict[str, Any] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[AuditEvent]:
+        """Search audit events with various filters."""
+        start_timestamp = start_time.timestamp() if start_time else None
+        end_timestamp = end_time.timestamp() if end_time else None
+        
+        return await self.query_events(
+            event_types=event_types,
+            user_id=user_id,
+            session_id=session_id,
+            resource=resource,
+            start_time=start_timestamp,
+            end_time=end_timestamp,
+            limit=limit,
+            offset=offset,
+        )
+    
+    async def cleanup_old_events(self, older_than: datetime) -> int:
+        """Clean up audit events older than specified time."""
         await self._ensure_cleanup_started()
         
-        cutoff_time = time.time() - (self.retention_days * 24 * 3600)
+        cutoff_timestamp = older_than.timestamp()
         cleanup_count = 0
         
         # Clean up main events
         for event_id in list(self.store.keys("events")):
             event = self.store.get("events", event_id)
-            if event and event.timestamp.timestamp() < cutoff_time:
+            if event and event.timestamp.timestamp() < cutoff_timestamp:
                 self.store.delete("events", event_id)
                 cleanup_count += 1
         
-        # Clean up indexes (they have TTL but let's be thorough)
+        # Clean up indexes
         for index_type in ["time_index", "user_index", "type_index"]:
             for key in list(self.store.keys(index_type)):
                 event_ids = self.store.get(index_type, key) or []

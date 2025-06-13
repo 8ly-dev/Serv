@@ -2,6 +2,7 @@
 
 import secrets
 import time
+from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from bevy import Container
@@ -62,17 +63,20 @@ class MemorySessionProvider(SessionProvider):
     
     async def create_session(
         self,
-        user: User,
+        user_id: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
-        ttl_seconds: int | None = None,
+        duration: timedelta | None = None,
         audit_journal: AuditJournal = None,
     ) -> Session:
         """Create a new session for a user."""
         await self._ensure_cleanup_started()
         
-        # Validate TTL
-        session_ttl = ttl_seconds or self.default_session_ttl
+        # Validate duration
+        if duration:
+            session_ttl = int(duration.total_seconds())
+        else:
+            session_ttl = self.default_session_ttl
         if session_ttl > self.max_session_ttl:
             session_ttl = self.max_session_ttl
         
@@ -84,24 +88,24 @@ class MemorySessionProvider(SessionProvider):
             session_id = secrets.token_urlsafe(self.session_id_length)
         
         # Check concurrent session limit
-        await self._enforce_session_limits(user.user_id)
+        await self._enforce_session_limits(user_id)
         
         # Create session
-        current_time = time.time()
+        from datetime import datetime, timedelta
+        current_time = datetime.now()
+        expires_time = current_time + timedelta(seconds=session_ttl)
+        
         session = Session(
-            session_id=session_id,
-            user_id=user.user_id,
+            id=session_id,
+            user_id=user_id,
             created_at=current_time,
-            expires_at=current_time + session_ttl,
+            expires_at=expires_time,
             last_accessed=current_time,
-            ip_address=ip_address,
-            user_agent=user_agent,
             metadata={
                 "creation_ip": ip_address,
                 "creation_user_agent": user_agent,
                 "access_count": 1,
-                "last_refresh": current_time,
-                "is_active": True,
+                "last_refresh": current_time.timestamp(),
             }
         )
         
@@ -109,9 +113,9 @@ class MemorySessionProvider(SessionProvider):
         self.store.set("sessions", session_id, session, ttl_seconds=session_ttl)
         
         # Track user sessions
-        user_sessions = self.store.get("user_sessions", user.user_id) or set()
+        user_sessions = self.store.get("user_sessions", user_id) or set()
         user_sessions.add(session_id)
-        self.store.set("user_sessions", user.user_id, user_sessions, ttl_seconds=session_ttl)
+        self.store.set("user_sessions", user_id, user_sessions, ttl_seconds=session_ttl)
         
         return session
     
@@ -124,7 +128,9 @@ class MemorySessionProvider(SessionProvider):
             return None
         
         # Check if session has expired
-        if time.time() > session.expires_at:
+        from datetime import datetime
+        current_time = datetime.now()
+        if session.expires_at and current_time > session.expires_at:
             await self._cleanup_session(session_id, session.user_id)
             return None
         
@@ -159,7 +165,8 @@ class MemorySessionProvider(SessionProvider):
             raise AuthenticationError("Session user agent mismatch")
         
         # Update session access time and metadata
-        current_time = time.time()
+        from datetime import datetime
+        current_time = datetime.now()
         session.last_accessed = current_time
         session.metadata["access_count"] = session.metadata.get("access_count", 0) + 1
         
@@ -170,16 +177,13 @@ class MemorySessionProvider(SessionProvider):
             session.user_agent = user_agent
         
         # Calculate remaining TTL and store updated session
-        remaining_ttl = session.expires_at - current_time
+        remaining_ttl = (session.expires_at - current_time).total_seconds() if session.expires_at else None
         self.store.set("sessions", session_id, session, ttl_seconds=remaining_ttl)
         
         return session
     
     async def refresh_session(
-        self,
-        session_id: str,
-        ttl_seconds: int | None = None,
-        audit_journal: AuditJournal = None,
+        self, session_id: str, audit_journal: AuditJournal
     ) -> Session | None:
         """Refresh session expiration time."""
         await self._ensure_cleanup_started()
@@ -197,7 +201,7 @@ class MemorySessionProvider(SessionProvider):
             return session
         
         # Calculate new expiration
-        new_ttl = ttl_seconds or self.default_session_ttl
+        new_ttl = self.default_session_ttl
         if new_ttl > self.max_session_ttl:
             new_ttl = self.max_session_ttl
         
@@ -219,7 +223,7 @@ class MemorySessionProvider(SessionProvider):
         self,
         session_id: str,
         audit_journal: AuditJournal,
-    ) -> bool:
+    ) -> None:
         """Destroy a session."""
         await self._ensure_cleanup_started()
         
@@ -229,14 +233,8 @@ class MemorySessionProvider(SessionProvider):
         
         # Clean up session
         await self._cleanup_session(session_id, session.user_id)
-        return True
     
-    async def destroy_user_sessions(
-        self,
-        user_id: str,
-        except_session_id: str | None = None,
-        audit_journal: AuditJournal = None,
-    ) -> int:
+    async def destroy_user_sessions(self, user_id: str) -> int:
         """Destroy all sessions for a user, optionally except one."""
         await self._ensure_cleanup_started()
         
@@ -244,9 +242,6 @@ class MemorySessionProvider(SessionProvider):
         destroyed_count = 0
         
         for session_id in user_sessions.copy():
-            if except_session_id and session_id == except_session_id:
-                continue
-            
             if self.store.delete("sessions", session_id):
                 destroyed_count += 1
                 user_sessions.discard(session_id)
@@ -259,7 +254,7 @@ class MemorySessionProvider(SessionProvider):
         
         return destroyed_count
     
-    async def get_user_sessions(self, user_id: str) -> List[Session]:
+    async def get_active_sessions(self, user_id: str) -> list[Session]:
         """Get all active sessions for a user."""
         await self._ensure_cleanup_started()
         
@@ -267,11 +262,12 @@ class MemorySessionProvider(SessionProvider):
         sessions = []
         expired_sessions = []
         
-        current_time = time.time()
+        from datetime import datetime
+        current_time = datetime.now()
         
         for session_id in user_sessions:
             session = self.store.get("sessions", session_id)
-            if session is None or current_time > session.expires_at:
+            if session is None or (session.expires_at and current_time > session.expires_at):
                 expired_sessions.append(session_id)
             else:
                 sessions.append(session)
@@ -288,9 +284,17 @@ class MemorySessionProvider(SessionProvider):
         
         return sessions
     
+    async def cleanup_expired_sessions(self) -> int:
+        """Clean up expired sessions."""
+        await self._ensure_cleanup_started()
+        
+        # Let the store's TTL mechanism handle cleanup
+        # This is called automatically by the cleanup task
+        return 0
+    
     async def get_session_count(self, user_id: str) -> int:
         """Get count of active sessions for a user."""
-        sessions = await self.get_user_sessions(user_id)
+        sessions = await self.get_active_sessions(user_id)
         return len(sessions)
     
     async def cleanup_expired_sessions(self) -> int:
@@ -311,7 +315,7 @@ class MemorySessionProvider(SessionProvider):
     
     async def _enforce_session_limits(self, user_id: str) -> None:
         """Enforce concurrent session limits for a user."""
-        user_sessions = await self.get_user_sessions(user_id)
+        user_sessions = await self.get_active_sessions(user_id)
         
         if len(user_sessions) >= self.max_concurrent_sessions:
             # Remove oldest sessions to make room
@@ -321,7 +325,7 @@ class MemorySessionProvider(SessionProvider):
             user_sessions.sort(key=lambda s: s.created_at)
             
             for session in user_sessions[:sessions_to_remove]:
-                await self._cleanup_session(session.session_id, user_id)
+                await self._cleanup_session(session.id, user_id)
     
     async def _cleanup_session(self, session_id: str, user_id: str) -> None:
         """Clean up a session and its references."""
