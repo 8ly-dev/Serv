@@ -5,10 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 **Testing:**
-- `uv ruv pytest` - Run all tests
+- `uv run pytest` - Run all tests
 - `uv run pytest tests/e2e/` - Run end-to-end tests
 - `uv run pytest tests/test_specific_file.py` - Run specific test file
 - `uv run pytest -k "test_name"` - Run tests matching pattern
+- `uv run python scripts/validate_interfaces.py` - Validate auth provider interface compliance
 
 **Code Quality:**
 - `uv run ruff check` - Run linting
