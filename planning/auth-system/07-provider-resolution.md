@@ -373,9 +373,23 @@ class DatabaseCredentialProvider(CredentialProvider):
     """Database-backed credential provider using Ommi."""
     
     def __init__(self, config: Dict[str, Any], container: Container):
-        self.config = self._validate_and_parse_config(config)
-        self.container = container
-        self._db = None
+        try:
+            self.config = self._validate_and_parse_config(config)
+            self.container = container
+            self._db = None
+            
+            # Fail-fast: Test database connection at startup
+            qualifier = self.config.get("database_qualifier")
+            if not qualifier:
+                raise ConfigurationError("database_qualifier is required for database credential provider")
+            
+            # Verify we can get the database instance
+            test_db = container.get(Ommi, Options(qualifier=qualifier))
+            if not test_db:
+                raise ConfigurationError(f"Database with qualifier '{qualifier}' not found in container")
+                
+        except Exception as e:
+            raise ConfigurationError(f"Failed to initialize database credential provider: {e}") from e
     
     @property 
     def db(self) -> Ommi:
