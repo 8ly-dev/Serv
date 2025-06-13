@@ -11,26 +11,19 @@ class AuditEnforced:
     def __init_subclass__(cls, **kwargs):
         """Validate audit requirements when subclass is created."""
         super().__init_subclass__(**kwargs)
-
-        # Validate that all methods with audit requirements are properly decorated
-        cls._validate_audit_methods()
-
-    @classmethod
-    def _validate_audit_methods(cls):
-        """Validate that all audit-required methods are properly set up.
-
-        Ensures that subclasses cannot override or weaken audit requirements
-        from parent classes, which would create security vulnerabilities.
-        """
-        for attr_name in dir(cls):
-            # Skip private/magic methods and non-callable attributes
-            if attr_name.startswith("_"):
+        
+        # Validate audit requirements for all methods in this class
+        for method_name in dir(cls):
+            if method_name.startswith("_"):
                 continue
-
-            attr = getattr(cls, attr_name)
-            if callable(attr) and hasattr(attr, "_audit_pipeline"):
-                # Method has audit requirements - validate against parent classes
-                cls._validate_audit_requirement_inheritance(attr_name, attr)
+            
+            method = getattr(cls, method_name)
+            if not callable(method):
+                continue
+                
+            # Only validate methods that have audit requirements
+            if hasattr(method, "_audit_pipeline"):
+                cls._validate_audit_requirement_inheritance(method_name, method)
 
     @classmethod
     def _validate_audit_requirement_inheritance(
