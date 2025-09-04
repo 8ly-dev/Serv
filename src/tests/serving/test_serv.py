@@ -24,7 +24,7 @@ class TestServ:
             original_cwd = Path.cwd()
             try:
                 os.chdir(tmpdir)
-                with pytest.raises(ConfigurationError, match="serv.prod.yaml.*not found"):
+                with pytest.raises(ConfigurationError, match="serving.prod.yaml.*not found"):
                     Serv()
             finally:
                 os.chdir(original_cwd)
@@ -35,7 +35,7 @@ class TestServ:
 environment: dev
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "serv.dev.yaml"
+            config_file = Path(tmpdir) / "serving.dev.yaml"
             config_file.write_text(yaml_content)
             
             original_cwd = Path.cwd()
@@ -53,7 +53,7 @@ environment: dev
 environment: staging
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "serv.staging.yaml"
+            config_file = Path(tmpdir) / "serving.staging.yaml"
             config_file.write_text(yaml_content)
             
             original_cwd = Path.cwd()
@@ -65,34 +65,34 @@ environment: staging
             finally:
                 os.chdir(original_cwd)
 
-    def test_init_with_string_config_path(self):
-        """Test Serv initialization with string config path."""
+    def test_init_with_string_working_directory(self):
+        """Test Serv initialization with string working directory."""
         yaml_content = """
 database:
   host: localhost
   port: 5432
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "config.yaml"
+            config_file = Path(tmpdir) / "serving.prod.yaml"
             config_file.write_text(yaml_content)
             
-            serv = Serv(config_path=str(config_file))
+            serv = Serv(working_directory=str(tmpdir))
             
             assert serv.config.get("database")["host"] == "localhost"
             assert serv.config.get("database")["port"] == 5432
 
-    def test_init_with_path_config_path(self):
-        """Test Serv initialization with Path object config path."""
+    def test_init_with_path_working_directory(self):
+        """Test Serv initialization with Path object working directory."""
         yaml_content = """
 app:
   name: TestApp
   version: 1.0.0
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "app.yaml"
+            config_file = Path(tmpdir) / "serving.prod.yaml"
             config_file.write_text(yaml_content)
             
-            serv = Serv(config_path=config_file)
+            serv = Serv(working_directory=Path(tmpdir))
             
             assert serv.config.get("app")["name"] == "TestApp"
             assert serv.config.get("app")["version"] == "1.0.0"
@@ -105,7 +105,7 @@ database:
   host: dev.db.local
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "serv.dev.yaml"
+            config_file = Path(tmpdir) / "serving.dev.yaml"
             config_file.write_text(yaml_content)
             
             # Change working directory temporarily
@@ -125,15 +125,15 @@ database:
             original_cwd = Path.cwd()
             try:
                 os.chdir(tmpdir)
-                with pytest.raises(ConfigurationError, match="serv.test.yaml.*not found"):
+                with pytest.raises(ConfigurationError, match="serving.test.yaml.*not found"):
                     Serv(environment="test")
             finally:
                 os.chdir(original_cwd)
 
-    def test_nonexistent_explicit_config_path(self):
-        """Test behavior when explicitly specified config doesn't exist."""
-        with pytest.raises(ConfigurationError, match="not found"):
-            Serv(config_path="/nonexistent/path/config.yaml")
+    def test_nonexistent_working_directory(self):
+        """Test behavior when explicitly specified working directory doesn't exist."""
+        with pytest.raises(ConfigurationError, match="does not exist"):
+            Serv(working_directory="/nonexistent/path")
 
     def test_invalid_yaml_fails(self):
         """Test that invalid YAML content causes initialization to fail."""
@@ -144,11 +144,11 @@ test:
   : : content
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "invalid.yaml"
+            config_file = Path(tmpdir) / "serving.prod.yaml"
             config_file.write_text(invalid_yaml)
             
             with pytest.raises(ConfigurationError, match="Failed to load configuration"):
-                Serv(config_path=config_file)
+                Serv(working_directory=tmpdir)
 
     def test_config_injection(self):
         """Test that Config is properly added to container for injection."""
@@ -157,10 +157,10 @@ test:
   value: 123
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "test.yaml"
+            config_file = Path(tmpdir) / "serving.prod.yaml"
             config_file.write_text(yaml_content)
             
-            serv = Serv(config_path=config_file)
+            serv = Serv(working_directory=tmpdir)
             
             # Get Config from container
             injected_config = serv.container.get(Config)
@@ -175,10 +175,10 @@ DatabaseModel:
   port: 3306
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "config.yaml"
+            config_file = Path(tmpdir) / "serving.prod.yaml"
             config_file.write_text(yaml_content)
             
-            serv = Serv(config_path=config_file)
+            serv = Serv(working_directory=tmpdir)
             
             # Get model from container
             db_model = serv.container.get(DatabaseModel)
@@ -192,7 +192,7 @@ DatabaseModel:
 environment: production
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_file = Path(tmpdir) / "serv.production.yaml"
+            config_file = Path(tmpdir) / "serving.production.yaml"
             config_file.write_text(yaml_content)
             
             original_cwd = Path.cwd()
@@ -204,8 +204,8 @@ environment: production
             finally:
                 os.chdir(original_cwd)
 
-    def test_config_path_priority(self):
-        """Test that explicit config_path takes priority over auto-detection."""
+    def test_working_directory_priority(self):
+        """Test that explicit working_directory takes priority over current directory."""
         yaml_auto = """
 source: auto
 """
@@ -213,18 +213,20 @@ source: auto
 source: explicit
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create auto-detect file (won't be used)
-            auto_file = Path(tmpdir) / "serv.test.yaml"
+            # Create auto-detect file in main directory
+            auto_file = Path(tmpdir) / "serving.test.yaml"
             auto_file.write_text(yaml_auto)
             
-            # Create explicit file
-            explicit_file = Path(tmpdir) / "explicit.yaml"
+            # Create explicit file in subdirectory
+            subdir = Path(tmpdir) / "subdir"
+            subdir.mkdir()
+            explicit_file = Path(subdir) / "serving.test.yaml"
             explicit_file.write_text(yaml_explicit)
             
             original_cwd = Path.cwd()
             try:
                 os.chdir(tmpdir)
-                serv = Serv(config_path=explicit_file, environment="test")
+                serv = Serv(working_directory=subdir, environment="test")
                 
                 assert serv.config.get("source") == "explicit"
             finally:
@@ -241,14 +243,19 @@ instance: second
 port: 9000
 """
         with tempfile.TemporaryDirectory() as tmpdir:
-            config1 = Path(tmpdir) / "config1.yaml"
+            # Create two subdirectories with their own configs
+            dir1 = Path(tmpdir) / "dir1"
+            dir1.mkdir()
+            config1 = dir1 / "serving.prod.yaml"
             config1.write_text(yaml1)
             
-            config2 = Path(tmpdir) / "config2.yaml"
+            dir2 = Path(tmpdir) / "dir2"
+            dir2.mkdir()
+            config2 = dir2 / "serving.prod.yaml"
             config2.write_text(yaml2)
             
-            serv1 = Serv(config_path=config1)
-            serv2 = Serv(config_path=config2)
+            serv1 = Serv(working_directory=dir1)
+            serv2 = Serv(working_directory=dir2)
             
             assert serv1.config.get("instance") == "first"
             assert serv1.config.get("port") == 8000
@@ -270,17 +277,17 @@ port: 9000
                     Serv(environment="custom")
                 
                 error_msg = str(exc_info.value)
-                assert "serv.custom.yaml" in error_msg
+                assert "serving.custom.yaml" in error_msg
                 assert str(tmpdir) in error_msg
             finally:
                 os.chdir(original_cwd)
 
     def test_error_message_for_explicit_path(self):
         """Test that error message is clear when explicit path doesn't exist."""
-        nonexistent_path = "/some/fake/path/config.yaml"
+        nonexistent_path = "/some/fake/path"
         with pytest.raises(ConfigurationError) as exc_info:
-            Serv(config_path=nonexistent_path)
+            Serv(working_directory=nonexistent_path)
         
         error_msg = str(exc_info.value)
         assert nonexistent_path in error_msg
-        assert "not found" in error_msg.lower()
+        assert "does not exist" in error_msg.lower()
