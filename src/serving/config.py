@@ -1,10 +1,7 @@
 import re
 from pathlib import Path
-from typing import Any, ClassVar, overload
+from typing import Any, ClassVar, Literal, overload
 
-from bevy import hooks
-from bevy.containers import Container, Optional
-from bevy.hooks import Hook
 import yaml
 
 
@@ -18,11 +15,26 @@ class Config:
     @overload
     def get[T](self, key: str, model: type[T]) -> T: ...
 
-    def get[T](self, key: str, model: type[T] | None = None) -> T:
-        if model:
-            return model(**self.config[key])
+    @overload
+    def get[T](self, key: str, model: type[T], is_collection: Literal[True]) -> list[T]: ...
 
-        return self.config[key]
+    def get[T](self, key: str, model: type[T] | None = None, is_collection: bool = False) -> dict[str, Any] | T | list[T]:
+        if not model:
+            return self.config.get(key, [] if is_collection else {})
+
+        if is_collection:
+            return [
+                self._construct(model, config)
+                for config in self.config.get(key, [])
+            ]
+
+        return self._construct(model, self.config.get(key, {}))
+
+    def _construct[T](self, model: type[T], config: dict) -> T:
+        if hasattr(model, "from_dict"):
+            return model.from_dict(config)
+
+        return model(**config)
 
     @classmethod
     def load_config(cls, name: str, directory: str = ".") -> "Config":
@@ -46,9 +58,11 @@ class Config:
 
 class ConfigModel:
     __model_key__: ClassVar[str]
+    __is_collection__: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs):
         cls.__model_key__ = kwargs.pop("model_key", cls.__name__)
+        cls.__is_collection__ = kwargs.pop("is_collection", False)
         super().__init_subclass__(**kwargs)
 
     @classmethod
@@ -56,18 +70,3 @@ class ConfigModel:
         """Converts a class name (ExampleClass) to a file name (example-class.yaml) using kebab case."""
         kebab_case = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", cls.__name__).lower()
         return f"{kebab_case}.yaml"
-
-
-@hooks.hooks(Hook.HANDLE_UNSUPPORTED_DEPENDENCY)
-def handle_model_types(container: Container, dependency: type) -> Optional:
-    try:
-        if not issubclass(dependency, ConfigModel):
-            return Optional.Nothing()
-    except (TypeError, AttributeError):
-        # Not a class or not a subclass of Model
-        return Optional.Nothing()
-    
-    # It's a Model subclass, try to get and instantiate it
-    config = container.get(Config)
-    model_instance = config.get(dependency.__model_key__, dependency)
-    return Optional.Some(model_instance)
