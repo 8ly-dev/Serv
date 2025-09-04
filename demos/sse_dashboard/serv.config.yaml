@@ -1,6 +1,0 @@
-site_info:
-  name: "SSE Dashboard Demo"
-  description: "Real-time dashboard with Server-Sent Events"
-
-extensions:
-  - dashboard 

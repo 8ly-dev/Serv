@@ -1,17 +1,13 @@
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
 
 import pytest
-import yaml
-from bevy.containers import Container
 from bevy.registries import Registry
 
-from serving.config import Config, Model, handle_model_types
+from serving.config import Config, ConfigModel, handle_model_types
 
 
-class DatabaseModel(Model):
+class DatabaseModel(ConfigModel):
     """Model for database configuration."""
     
     def __init__(self, host: str, port: int, username: str, password: str, database: str):
@@ -22,7 +18,7 @@ class DatabaseModel(Model):
         self.database = database
 
 
-class ServerModel(Model):
+class ServerModel(ConfigModel):
     """Model for server configuration."""
     
     def __init__(self, host: str, port: int, debug: bool = False, workers: int = 1):
@@ -32,7 +28,7 @@ class ServerModel(Model):
         self.workers = workers
 
 
-class CustomKeyModel(Model, model_key="CustomConfig"):
+class CustomKeyModel(ConfigModel, model_key="CustomConfig"):
     """Model with custom model key."""
     
     def __init__(self, value: str, enabled: bool = True):
@@ -40,7 +36,7 @@ class CustomKeyModel(Model, model_key="CustomConfig"):
         self.enabled = enabled
 
 
-class AppSettingsModel(Model):
+class AppSettingsModel(ConfigModel):
     """Model for application settings."""
     
     def __init__(self, name: str, version: str, features: list[str], settings: dict):

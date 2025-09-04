@@ -1,1 +1,0 @@
-::: serv.bundled.extensions.welcome.welcome

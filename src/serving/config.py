@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, overload
 
 from bevy import hooks
 from bevy.containers import Container, Optional
@@ -12,7 +12,13 @@ class Config:
     def __init__(self, config: dict):
         self.config = config
 
-    def get[T: dict](self, key: str, model: type[T] | None = None) -> T:
+    @overload
+    def get(self, key: str) -> dict[str, Any]: ...
+
+    @overload
+    def get[T](self, key: str, model: type[T]) -> T: ...
+
+    def get[T](self, key: str, model: type[T] | None = None) -> T:
         if model:
             return model(**self.config[key])
 
@@ -38,7 +44,7 @@ class Config:
             return Config(yaml.safe_load(f))
 
 
-class Model:
+class ConfigModel:
     __model_key__: ClassVar[str]
 
     def __init_subclass__(cls, **kwargs):
@@ -53,9 +59,9 @@ class Model:
 
 
 @hooks.hooks(Hook.HANDLE_UNSUPPORTED_DEPENDENCY)
-def handle_model_types(container: Container, dependency: type, context: dict[str, Any]) -> Optional:
+def handle_model_types(container: Container, dependency: type) -> Optional:
     try:
-        if not issubclass(dependency, Model):
+        if not issubclass(dependency, ConfigModel):
             return Optional.Nothing()
     except (TypeError, AttributeError):
         # Not a class or not a subclass of Model

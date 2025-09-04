@@ -4,13 +4,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
 
-from serving.config import Config, Model
+from serving.config import Config, ConfigModel
 from serving.serv import ConfigurationError, Serv
 
 
-class DatabaseModel(Model):
+class DatabaseModel(ConfigModel):
     """Test model for database configuration."""
     
     def __init__(self, host: str, port: int):

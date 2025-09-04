@@ -1,5 +1,0 @@
-# Requirements for microblog demo
-# Note: Install Ommi ORM for database functionality
-# uv add ommi
-ommi>=0.2.0
-aiosqlite>=0.21.0
