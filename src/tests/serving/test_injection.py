@@ -199,7 +199,8 @@ class TestModelInjection:
         container = registry.create_container()
         container.add(Config(config_dict))
         
-        with pytest.raises(KeyError):
+        from bevy.injection_types import DependencyResolutionError
+        with pytest.raises(DependencyResolutionError):
             container.get(DatabaseModel)
 
     def test_invalid_model_parameters(self):
