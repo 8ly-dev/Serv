@@ -1,0 +1,12 @@
+auth:
+  credential_provider: credentials:CredentialProvider
+
+routers:
+  - entrypoint: routes:app
+    routes:
+      - path: /{user_id}
+        permissions:
+          - permission:demo:view-dashboard
+      - path: /
+        permissions:
+          - permission:demo:view-homepage
