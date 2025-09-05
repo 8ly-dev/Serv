@@ -9,6 +9,7 @@ import starlette.responses
 from bevy import get_container
 from bevy.registries import Registry
 from starlette.applications import Starlette
+from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 from starlette.routing import Mount, Route
 from starlette.templating import Jinja2Templates
@@ -17,6 +18,8 @@ import serving.types
 from serving.auth import AuthConfig, AuthConfigurationError, CredentialProvider
 from serving.config import Config, ConfigModel
 from serving.error_handler import ErrorHandler
+from serving.exception_handlers import http_exception_handler, general_exception_handler, not_found_handler
+from serving.exception_middleware import ExceptionMiddleware
 from serving.injectors import handle_config_model_types, handle_cookie_types, handle_header_types, handle_path_param_types, handle_query_param_types
 from serving.router import RouterConfig, Router
 from serving.serv_middleware import ServMiddleware
@@ -98,9 +101,19 @@ class Serv:
         
         self.app = Starlette(
             routes=self._load_routes(),
-            middleware=[Middleware(ServMiddleware, serv=self)],
-
+            middleware=[
+                Middleware(ExceptionMiddleware, serv=self),
+                Middleware(ServMiddleware, serv=self),
+            ],
+            exception_handlers={
+                HTTPException: http_exception_handler,
+                404: not_found_handler,
+                500: general_exception_handler,
+            },
         )
+        
+        # Store serv instance in app state for exception handlers
+        self.app.state.serv = self
 
     def _configure_auth(self) -> None:
         """Configure authentication based on the configuration."""

@@ -4,7 +4,7 @@ auth:
 routers:
   - entrypoint: routes:app
     routes:
-      - path: /{user_id}
+      - path: /users/{user_id}
         permissions:
           - permission:demo:view-dashboard
       - path: /

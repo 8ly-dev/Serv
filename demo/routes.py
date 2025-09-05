@@ -17,6 +17,11 @@ async def redirect_page() -> PlainText:
     return "Hello World!"
 
 
-@app.route("/{user_id}")
+@app.route("/users/{user_id}")
 async def user_dashboard(user_id: int, page: QueryParam[int]) -> HTML:
     return f"<h1>User Dashboard</h1><p>Hello, {user_id}, {page}</p>"
+
+
+@app.route("/error")
+async def error_page() -> HTML:
+    raise Exception("This is an error")
