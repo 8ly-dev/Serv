@@ -68,7 +68,7 @@
         }
 
         .error-description {
-            font-size: 16px;
+            font-size: 18px;
             color: var(--text-secondary);
             margin-bottom: 40px;
             line-height: 1.6;
@@ -111,17 +111,20 @@
 
         .home-link {
             display: inline-block;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 500;
             color: var(--bg);
             background: var(--text-primary);
             text-decoration: none;
             padding: 12px 24px;
             border: none;
-            border-radius: 6px;
+            border-radius: 12px;
             position: relative;
             overflow: hidden;
             transition: transform 0.2s ease;
+            /* Squircle effect using smooth corners */
+            clip-path: path('M 12 0 L 88 0 Q 100 0 100 12 L 100 88 Q 100 100 88 100 L 12 100 Q 0 100 0 88 L 0 12 Q 0 0 12 0');
+            clip-path: inset(0 round 12px);
         }
 
         .home-link::before {
@@ -142,10 +145,11 @@
 
         @media (prefers-color-scheme: dark) {
             .home-link::before {
+                /* Dark shimmer on white button in dark mode */
                 background: linear-gradient(
                     90deg,
                     transparent,
-                    rgba(255, 255, 255, 0.1),
+                    rgba(0, 0, 0, 0.1),
                     transparent
                 );
             }
@@ -169,7 +173,7 @@
             }
 
             .error-description {
-                font-size: 14px;
+                font-size: 16px;
             }
         }
 
