@@ -109,7 +109,7 @@ def handle_path_param_types(container: Container, dependency: type, context: dic
     if is_annotated(dependency, PathParam):
         dependency, name = get_args(dependency)
 
-    elif get_origin(dependency) is not Header:
+    elif get_origin(dependency) is not PathParam:
         return Optional.Nothing()
 
     if name is None:
