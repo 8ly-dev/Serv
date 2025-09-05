@@ -193,11 +193,16 @@ class Serv:
             permissions = set() if route_config is None else route_config.permissions
             credential_provider = get_container().get(CredentialProvider)
             if not get_container().call(credential_provider.has_credentials, permissions):
+                # Only show permission details in development mode
+                details = None
+                if hasattr(self, 'environment') and self.environment in ('dev', 'development'):
+                    details = f"Required permissions: {permissions}" if permissions else "Authentication required"
+                
                 return self.error_handler.render_error(
                     request, 
                     error_code=401,
                     error_message="Unauthorized",
-                    details="You don't have the required permissions to access this resource."
+                    details=details
                 )
 
             result = await get_container().call(endpoint, **request.path_params)

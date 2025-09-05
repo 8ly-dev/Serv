@@ -3,28 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error {{ error_code }} - {{ error_message }}</title>
+    <title>{{ error_message }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #ffffff;
-            --bg-secondary: #f8f9fa;
-            --text-primary: #212529;
-            --text-secondary: #6c757d;
-            --text-muted: #adb5bd;
-            --border-color: #dee2e6;
-            --error-color: #dc3545;
-            --shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-            --radius: 8px;
+            --text-primary: #000000;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --bg: #ffffff;
+            --border: #e5e5e5;
         }
 
-        [data-theme="dark"] {
-            --bg-primary: #1a1d23;
-            --bg-secondary: #2d3139;
-            --text-primary: #e9ecef;
-            --text-secondary: #adb5bd;
-            --text-muted: #6c757d;
-            --border-color: #495057;
-            --error-color: #f87171;
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --text-primary: #ffffff;
+                --text-secondary: #a0a0a0;
+                --text-muted: #808080;
+                --bg: #000000;
+                --border: #333333;
+            }
         }
 
         * {
@@ -34,134 +33,101 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: var(--bg-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 16px;
+            line-height: 1.6;
             color: var(--text-primary);
+            background: var(--bg);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
-            transition: background-color 0.3s ease, color 0.3s ease;
+            padding: 24px;
         }
 
         .container {
             width: 100%;
-            max-width: 600px;
-            background: var(--bg-secondary);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            padding: 40px;
-            text-align: center;
-            position: relative;
-        }
-
-        .theme-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: transparent;
-            border: 1px solid var(--border-color);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-        }
-
-        .theme-toggle:hover {
-            background: var(--bg-primary);
-            transform: rotate(180deg);
-        }
-
-        .theme-toggle svg {
-            width: 20px;
-            height: 20px;
-            fill: var(--text-secondary);
+            max-width: 480px;
         }
 
         .error-code {
-            font-size: 72px;
-            font-weight: 700;
-            color: var(--error-color);
+            font-size: 96px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.04em;
             margin-bottom: 16px;
-            letter-spacing: -2px;
         }
 
         .error-message {
             font-size: 24px;
-            font-weight: 600;
+            font-weight: 500;
+            line-height: 1.3;
+            margin-bottom: 16px;
             color: var(--text-primary);
-            margin-bottom: 12px;
         }
 
         .error-description {
             font-size: 16px;
             color: var(--text-secondary);
-            margin-bottom: 32px;
-            line-height: 1.5;
+            margin-bottom: 40px;
+            line-height: 1.6;
         }
 
-        .divider {
-            width: 60px;
-            height: 3px;
-            background: var(--error-color);
-            margin: 0 auto 32px;
-            border-radius: 2px;
-        }
-
+        {% if details %}
         .details {
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: calc(var(--radius) / 2);
-            padding: 20px;
-            margin-top: 32px;
+            margin: 40px 0;
+            padding: 24px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
             text-align: left;
         }
 
         .details-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-bottom: 12px;
+            font-size: 12px;
+            font-weight: 500;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
         }
 
         .details-content {
-            font-size: 14px;
-            color: var(--text-muted);
-            font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
-            word-break: break-all;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-x: auto;
+        }
+        {% endif %}
+
+        .footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 40px;
         }
 
-        .back-link {
+        .home-link {
             display: inline-block;
-            margin-top: 32px;
-            padding: 12px 24px;
-            background: var(--error-color);
-            color: white;
-            text-decoration: none;
-            border-radius: calc(var(--radius) / 2);
+            font-size: 14px;
             font-weight: 500;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 12px 24px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            transition: all 0.2s ease;
         }
 
-        .back-link:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        .home-link:hover {
+            color: var(--text-primary);
+            border-color: var(--text-primary);
         }
 
-        @media (max-width: 640px) {
-            .container {
-                padding: 32px 24px;
-            }
-
+        @media (max-width: 480px) {
             .error-code {
-                font-size: 56px;
+                font-size: 72px;
             }
 
             .error-message {
@@ -183,122 +149,64 @@
 </head>
 <body>
     <div class="container">
-        <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
-            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: none;">
-                <path d="M12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18Z"/>
-                <path d="M12 2V4M12 20V22M4.93 4.93L6.34 6.34M17.66 17.66L19.07 19.07M2 12H4M20 12H22M6.34 17.66L4.93 19.07M19.07 4.93L17.66 6.34"/>
-            </svg>
-            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-        </button>
-
         <div class="error-code">{{ error_code }}</div>
-        <div class="error-message">{{ error_message }}</div>
-        <div class="divider"></div>
-        <div class="error-description">
+        <h1 class="error-message">{{ error_message }}</h1>
+        <p class="error-description">
             {% if error_code == 400 %}
-                The request could not be understood by the server due to malformed syntax.
+                Something went wrong with your request. Please check and try again.
             {% elif error_code == 401 %}
-                You are not authorized to access this resource. Please check your credentials.
+                You need to sign in to access this page.
             {% elif error_code == 403 %}
-                You don't have permission to access this resource.
+                You don't have permission to view this page.
             {% elif error_code == 404 %}
-                The page you are looking for could not be found. It may have been moved or deleted.
+                We couldn't find the page you're looking for. It might have been moved or deleted.
             {% elif error_code == 405 %}
-                The request method is not allowed for this resource.
+                This action isn't allowed here.
             {% elif error_code == 408 %}
-                The server timed out waiting for the request.
+                The request took too long. Please try again.
             {% elif error_code == 409 %}
-                The request could not be completed due to a conflict with the current state of the resource.
+                There's a conflict with the current state. Please refresh and try again.
             {% elif error_code == 410 %}
-                The requested resource is no longer available and has been permanently removed.
+                This page is no longer available.
             {% elif error_code == 413 %}
-                The request entity is larger than the server is willing or able to process.
+                The file or request is too large to process.
             {% elif error_code == 414 %}
-                The requested URL is too long for the server to process.
+                The URL is too long to process.
             {% elif error_code == 415 %}
-                The media type of the requested data is not supported by the server.
+                This file type isn't supported.
             {% elif error_code == 418 %}
-                I'm a teapot. This server refuses to brew coffee because it is, permanently, a teapot.
+                I'm a teapot, not a coffee machine. ☕
             {% elif error_code == 422 %}
-                The request was well-formed but was unable to be followed due to semantic errors.
+                We couldn't process your request. Please check your input.
             {% elif error_code == 429 %}
-                You have sent too many requests in a given amount of time. Please try again later.
+                Slow down! You're making too many requests. Please wait a moment.
             {% elif error_code == 500 %}
-                The server encountered an unexpected condition that prevented it from fulfilling the request.
+                Something went wrong on our end. We're looking into it.
             {% elif error_code == 501 %}
-                The server does not support the functionality required to fulfill the request.
+                This feature isn't available yet.
             {% elif error_code == 502 %}
-                The server received an invalid response from an upstream server.
+                We're having trouble connecting to our servers. Please try again.
             {% elif error_code == 503 %}
-                The server is currently unable to handle the request. Please try again later.
+                We're temporarily offline for maintenance. Back soon!
             {% elif error_code == 504 %}
-                The server did not receive a timely response from an upstream server.
+                The connection timed out. Please try again.
             {% elif error_code == 505 %}
-                The server does not support the HTTP protocol version used in the request.
+                Your browser version isn't supported.
             {% else %}
-                An unexpected error occurred while processing your request.
+                Something unexpected happened. Please try again.
             {% endif %}
-        </div>
+        </p>
 
         {% if details %}
         <div class="details">
-            <div class="details-title">Technical Details</div>
+            <div class="details-title">Debug Information</div>
             <div class="details-content">{{ details }}</div>
         </div>
         {% endif %}
 
-        <a href="/" class="back-link">Go to Homepage</a>
+        <div class="footer">
+            <a href="/" class="home-link">Go home</a>
+        </div>
     </div>
-
-    <script>
-        // Check for saved theme preference or default to system preference
-        function getThemePreference() {
-            const savedTheme = localStorage.getItem('theme');
-            if (savedTheme) {
-                return savedTheme;
-            }
-            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
-
-        // Apply theme
-        function applyTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            
-            // Update icon visibility
-            const sunIcon = document.querySelector('.sun-icon');
-            const moonIcon = document.querySelector('.moon-icon');
-            
-            if (theme === 'dark') {
-                sunIcon.style.display = 'block';
-                moonIcon.style.display = 'none';
-            } else {
-                sunIcon.style.display = 'none';
-                moonIcon.style.display = 'block';
-            }
-        }
-
-        // Toggle theme
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
-            applyTheme(newTheme);
-            localStorage.setItem('theme', newTheme);
-        }
-
-        // Initialize theme
-        document.addEventListener('DOMContentLoaded', () => {
-            applyTheme(getThemePreference());
-        });
-
-        // Listen for system theme changes
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-            if (!localStorage.getItem('theme')) {
-                applyTheme(e.matches ? 'dark' : 'light');
-            }
-        });
-    </script>
 </body>
 </html>

@@ -19,11 +19,16 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             
             # Handle 404 responses
             if response.status_code == 404:
+                # Only show path details in development mode
+                details = None
+                if hasattr(self.serv, 'environment') and self.serv.environment in ('dev', 'development'):
+                    details = f"The requested path '{request.url.path}' could not be found."
+                
                 return self.serv.error_handler.render_error(
                     request,
                     error_code=404,
                     error_message="Not Found",
-                    details=f"The requested path '{request.url.path}' could not be found."
+                    details=details
                 )
             
             return response
@@ -39,14 +44,12 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             
         except Exception as exc:
             # Handle general exceptions as 500 errors
-            import traceback
-            import io
-            
-            # Format exception details
-            details = str(exc)
-            
-            # Include full traceback in development mode
+            # Only show details in development mode
+            details = None
             if hasattr(self.serv, 'environment') and self.serv.environment in ('dev', 'development'):
+                import traceback
+                import io
+                
                 # Format the exception with traceback
                 tb_str = io.StringIO()
                 traceback.print_exception(type(exc), exc, exc.__traceback__, file=tb_str)

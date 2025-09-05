@@ -76,7 +76,8 @@ class TestExceptionHandlers:
         call_args = mock_error_handler.render_error.call_args
         assert call_args[1]["error_code"] == 500
         assert call_args[1]["error_message"] == "Internal Server Error"
-        assert "Something went wrong" in call_args[1]["details"]
+        # In prod mode, details should be None
+        assert call_args[1]["details"] is None
     
     async def test_general_exception_handler_dev_mode(self):
         """Test general exception handler includes traceback in dev mode."""
@@ -109,6 +110,7 @@ class TestExceptionHandlers:
         mock_request.url.path = "/missing/path"
         
         mock_serv = MagicMock()
+        mock_serv.environment = "prod"  # Test prod mode
         mock_error_handler = MagicMock()
         mock_error_handler.render_error.return_value = Response("404 page", status_code=200, media_type="text/html")
         mock_serv.error_handler = mock_error_handler
@@ -126,6 +128,29 @@ class TestExceptionHandlers:
             mock_request,
             error_code=404,
             error_message="Not Found",
+            details=None  # No details in prod mode
+        )
+    
+    async def test_not_found_handler_dev_mode(self):
+        """Test 404 handler shows path details in dev mode."""
+        mock_request = MagicMock(spec=Request)
+        mock_request.url.path = "/missing/path"
+        
+        mock_serv = MagicMock()
+        mock_serv.environment = "dev"  # Test dev mode
+        mock_error_handler = MagicMock()
+        mock_error_handler.render_error.return_value = Response("404 page", status_code=200, media_type="text/html")
+        mock_serv.error_handler = mock_error_handler
+        
+        mock_request.app.state.serv = mock_serv
+        
+        exc = HTTPException(status_code=404)
+        response = await not_found_handler(mock_request, exc)
+        
+        mock_error_handler.render_error.assert_called_once_with(
+            mock_request,
+            error_code=404,
+            error_message="Not Found",
             details="The requested path '/missing/path' could not be found."
         )
 
@@ -137,6 +162,7 @@ class TestExceptionMiddleware:
         """Test middleware handles 404 responses."""
         # Create mock serv
         mock_serv = MagicMock()
+        mock_serv.environment = "prod"  # Test prod mode
         mock_error_handler = MagicMock()
         mock_error_handler.render_error.return_value = Response("404 page", status_code=200, media_type="text/html")
         mock_serv.error_handler = mock_error_handler
@@ -156,12 +182,12 @@ class TestExceptionMiddleware:
         # Call middleware
         response = await middleware.dispatch(mock_request, mock_call_next)
         
-        # Verify error handler was called
+        # Verify error handler was called without details in prod
         mock_error_handler.render_error.assert_called_once_with(
             mock_request,
             error_code=404,
             error_message="Not Found",
-            details="The requested path '/missing' could not be found."
+            details=None
         )
     
     async def test_middleware_handles_http_exceptions(self):
@@ -212,7 +238,8 @@ class TestExceptionMiddleware:
         call_args = mock_error_handler.render_error.call_args
         assert call_args[1]["error_code"] == 500
         assert call_args[1]["error_message"] == "Internal Server Error"
-        assert "Something broke" in call_args[1]["details"]
+        # In prod mode, details should be None
+        assert call_args[1]["details"] is None
     
     async def test_middleware_passes_through_success(self):
         """Test middleware passes through successful responses."""
