@@ -17,8 +17,26 @@ def is_annotated(dependency: type, expected_type: TypeAliasType) -> bool:
     return get_origin(dependency) is Annotated and get_origin(get_args(dependency)[0]) is expected_type
 
 
+def get_parameter_default(context: dict):
+    """Extract the parameter default value from the injection context.
+    
+    Returns the unwrapped default value if it exists, otherwise None.
+    """
+    if "injection_context" not in context:
+        return None
+    
+    parameter_default = getattr(context["injection_context"], "parameter_default", Optional.Nothing())
+    
+    # Unwrap the Optional
+    match parameter_default:
+        case Optional.Some(value):
+            return value
+        case _:
+            return None
+
+
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY
-def handle_config_model_types(container: Container, dependency: type) -> Optional:
+def handle_config_model_types(container: Container, dependency: type, context: dict) -> Optional:
     must_be_collection = False
     if get_origin(dependency) is list:
         dependency = get_args(dependency)[0]
@@ -46,13 +64,18 @@ def handle_config_model_types(container: Container, dependency: type) -> Optiona
         model_instance = config.get(dependency.__model_key__, dependency, is_collection=is_collection)
         return Optional.Some(model_instance)
     except KeyError:
-        # Key not found in config
+        # Key not found in config - check for default value
+        default = get_parameter_default(context)
+        if default is not None:
+            return Optional.Some(default)
+        
+        # No default value available
         if is_collection:
-            # Return empty list for collections when key is missing
+            # Return empty list for collections when key is missing and no default
             return Optional.Some([])
         else:
-            # For single models, return Nothing so DI can try other sources
-            return Optional.Nothing()
+            # For single models, return None when no default exists
+            return Optional.Some(None)
 
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY
@@ -68,7 +91,14 @@ def handle_cookie_types(container: Container, dependency: type, context: dict) -
         raise ValueError(f"Missing name for Cookie dependency: {dependency}")
 
     request = container.get(Request)
-    return Optional.Some(request.cookies.get(name))
+    value = request.cookies.get(name)
+    
+    if value is None:
+        # Check for default value
+        default = get_parameter_default(context)
+        return Optional.Some(default)  # Return default or None
+    
+    return Optional.Some(value)
 
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY
@@ -84,7 +114,14 @@ def handle_header_types(container: Container, dependency: type, context: dict) -
         raise ValueError(f"Missing name for Header dependency: {dependency}")
 
     request = container.get(Request)
-    return Optional.Some(request.headers.get(name))
+    value = request.headers.get(name)
+    
+    if value is None:
+        # Check for default value
+        default = get_parameter_default(context)
+        return Optional.Some(default)  # Return default or None
+    
+    return Optional.Some(value)
 
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY
@@ -100,7 +137,14 @@ def handle_query_param_types(container: Container, dependency: type, context: di
         raise ValueError(f"Missing name for QueryParam dependency: {dependency}")
 
     request = container.get(Request)
-    return Optional.Some(request.query_params.get(name))
+    value = request.query_params.get(name)
+    
+    if value is None:
+        # Check for default value
+        default = get_parameter_default(context)
+        return Optional.Some(default)  # Return default or None
+    
+    return Optional.Some(value)
 
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY
@@ -116,5 +160,11 @@ def handle_path_param_types(container: Container, dependency: type, context: dic
         raise ValueError(f"Missing name for PathParam dependency: {dependency}")
 
     request = container.get(Request)
-    return Optional.Some(request.path_params.get(name))
-
+    value = request.path_params.get(name)
+    
+    if value is None:
+        # Check for default value
+        default = get_parameter_default(context)
+        return Optional.Some(default)  # Return default or None
+    
+    return Optional.Some(value)
