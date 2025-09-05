@@ -7,7 +7,8 @@ from typing import List
 import pytest
 from bevy.registries import Registry
 
-from serving.config import Config, ConfigModel, handle_model_types
+from serving.config import Config, ConfigModel
+from serving.injectors import handle_config_model_types
 
 
 class Server(ConfigModel, is_collection=True):
@@ -139,7 +140,7 @@ class TestConfigModelInjection:
         }
         
         registry = Registry()
-        handle_model_types.register_hook(registry)
+        handle_config_model_types.register_hook(registry)
         container = registry.create_container()
         
         config = Config(config_data)
@@ -166,7 +167,7 @@ class TestConfigModelInjection:
         }
         
         registry = Registry()
-        handle_model_types.register_hook(registry)
+        handle_config_model_types.register_hook(registry)
         container = registry.create_container()
         
         config = Config(config_data)
@@ -189,7 +190,7 @@ class TestConfigModelInjection:
         }
         
         registry = Registry()
-        handle_model_types.register_hook(registry)
+        handle_config_model_types.register_hook(registry)
         container = registry.create_container()
         
         config = Config(config_data)
@@ -208,7 +209,7 @@ class TestConfigModelInjection:
         }
         
         registry = Registry()
-        handle_model_types.register_hook(registry)
+        handle_config_model_types.register_hook(registry)
         container = registry.create_container()
         
         config = Config(config_data)
@@ -233,7 +234,7 @@ class TestConfigModelInjection:
         }
         
         registry = Registry()
-        handle_model_types.register_hook(registry)
+        handle_config_model_types.register_hook(registry)
         container = registry.create_container()
         
         config = Config(config_data)
@@ -263,7 +264,7 @@ class TestConfigModelInjection:
         }
         
         registry = Registry()
-        handle_model_types.register_hook(registry)
+        handle_config_model_types.register_hook(registry)
         container = registry.create_container()
         
         config = Config(config_data)

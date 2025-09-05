@@ -143,8 +143,9 @@ class TestConfig:
 
     def test_get_missing_key(self):
         config = Config({"key": "value"})
-        with pytest.raises(KeyError):
-            config.get("nonexistent")
+        # When no model is provided, missing keys return empty dict
+        result = config.get("nonexistent")
+        assert result == {}
 
     def test_get_with_invalid_model_params(self):
         config_dict = {"database": {"host": "localhost"}}
