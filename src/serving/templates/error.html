@@ -50,20 +50,21 @@
             max-width: 480px;
         }
 
-        .error-code {
-            font-size: 96px;
+        .error-message {
+            font-size: 48px;
             font-weight: 900;
-            line-height: 1;
-            letter-spacing: -0.04em;
-            margin-bottom: 16px;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            margin-bottom: 12px;
+            color: var(--text-primary);
         }
 
-        .error-message {
-            font-size: 24px;
+        .error-code {
+            font-size: 20px;
             font-weight: 500;
             line-height: 1.3;
-            margin-bottom: 16px;
-            color: var(--text-primary);
+            margin-bottom: 8px;
+            color: var(--text-secondary);
         }
 
         .error-description {
@@ -112,26 +113,59 @@
             display: inline-block;
             font-size: 14px;
             font-weight: 500;
-            color: var(--text-secondary);
+            color: var(--bg);
+            background: var(--text-primary);
             text-decoration: none;
             padding: 12px 24px;
-            border: 1px solid var(--border);
+            border: none;
             border-radius: 6px;
-            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease;
+        }
+
+        .home-link::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.2),
+                transparent
+            );
+            transition: left 0.5s ease;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .home-link::before {
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.1),
+                    transparent
+                );
+            }
         }
 
         .home-link:hover {
-            color: var(--text-primary);
-            border-color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        .home-link:hover::before {
+            left: 100%;
         }
 
         @media (max-width: 480px) {
-            .error-code {
-                font-size: 72px;
+            .error-message {
+                font-size: 36px;
             }
 
-            .error-message {
-                font-size: 20px;
+            .error-code {
+                font-size: 18px;
             }
 
             .error-description {
