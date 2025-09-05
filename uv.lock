@@ -17,14 +17,14 @@ wheels = [
 
 [[package]]
 name = "bevy"
-version = "3.1.0b4"
+version = "3.1.0b5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tramp" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/34/d3deb0be048a6e751d680edb57e0a96af7db4bdd0999035baef1b3edfd19/bevy-3.1.0b4.tar.gz", hash = "sha256:71eac2c5647b589b67204d4cf93148fc56e3cb34d00588ebc3ff737475bb167f", size = 27251 }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/0b/6a4acde0fb2dedae700bf7db3f8ea4d65770574b196e078fcf23cbac818f/bevy-3.1.0b5.tar.gz", hash = "sha256:06b89b8a4df2bf4e201bca73770fe0ac20b2166290be68ebb588b999bc0c9823", size = 27248 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/d3/6c756e0d4aa6ec8d97d33efc9418532a08baa8fd86f8928cb3232633fb22/bevy-3.1.0b4-py3-none-any.whl", hash = "sha256:31ad80551cfc9117d99cfc5818bedf745f5e1d7aaf2a6296be1ce24ff1c05043", size = 29754 },
+    { url = "https://files.pythonhosted.org/packages/99/58/f0442ff618c880017f1373b6871f2787812d58de0b593b3e4a0894165a4c/bevy-3.1.0b5-py3-none-any.whl", hash = "sha256:d1608bcdc8b219e88bdcb9d479cef5b0594fea22ea22b62b51c5eaf54b706093", size = 29754 },
 ]
 
 [[package]]
@@ -277,7 +277,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bevy", specifier = ">=3.1.0b4" },
+    { name = "bevy", specifier = ">=3.1.0b5" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "pyyaml", specifier = ">=6.0.2" },
