@@ -1,7 +1,7 @@
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -15,6 +15,13 @@ class DatabaseModel(ConfigModel):
     def __init__(self, host: str, port: int):
         self.host = host
         self.port = port
+
+
+@pytest.fixture(autouse=True)
+def disable_auth():
+    """Disable authentication for all tests."""
+    with patch('serving.serv.Serv._configure_auth', MagicMock()):
+        yield
 
 
 class TestServ:
