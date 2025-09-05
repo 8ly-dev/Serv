@@ -16,6 +16,7 @@ from starlette.templating import Jinja2Templates
 import serving.types
 from serving.auth import AuthConfig, AuthConfigurationError, CredentialProvider
 from serving.config import Config, ConfigModel
+from serving.error_handler import ErrorHandler
 from serving.injectors import handle_config_model_types, handle_cookie_types, handle_header_types, handle_path_param_types, handle_query_param_types
 from serving.router import RouterConfig, Router
 from serving.serv_middleware import ServMiddleware
@@ -25,6 +26,13 @@ from serving.serv_middleware import ServMiddleware
 class TemplatesConfig(ConfigModel, model_key="templates"):
     """Configuration for templates."""
     directory: str = "templates"
+
+
+@dataclass
+class ThemingConfig(ConfigModel, model_key="theming"):
+    """Configuration for theming and custom error pages."""
+    error_templates: dict[str, str] | None = None  # Maps error codes to template paths
+    default_error_template: str | None = None  # Default template for all errors
 
 
 class ConfigurationError(Exception):
@@ -76,6 +84,18 @@ class Serv:
         self._configure_auth()
 
         self.templates = Jinja2Templates(directory=self.container.get(TemplatesConfig).directory)
+        
+        # Configure error handler with theming support
+        try:
+            theming_config = self.container.get(ThemingConfig)
+        except (KeyError, TypeError):
+            theming_config = None
+        
+        self.error_handler = ErrorHandler(
+            theming_config=theming_config,
+            templates=self.templates if theming_config else None
+        )
+        
         self.app = Starlette(
             routes=self._load_routes(),
             middleware=[Middleware(ServMiddleware, serv=self)],
@@ -160,8 +180,11 @@ class Serv:
             permissions = set() if route_config is None else route_config.permissions
             credential_provider = get_container().get(CredentialProvider)
             if not get_container().call(credential_provider.has_credentials, permissions):
-                return starlette.responses.PlainTextResponse(
-                    "401 Unauthorized", status_code=401
+                return self.error_handler.render_error(
+                    request, 
+                    error_code=401,
+                    error_message="Unauthorized",
+                    details="You don't have the required permissions to access this resource."
                 )
 
             result = await get_container().call(endpoint, **request.path_params)
