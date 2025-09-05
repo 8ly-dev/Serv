@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "serving"
-version = "0.1.0a11"
-description = "Serv is a powerful, extensible, and minimally opinionated ASGI web framework for Python, designed for building modern web applications and APIs with ease."
+name = "getserving"
+version = "0.1.1a1"
+description = "A powerful, dependency-injection-driven ASGI web framework for Python with first-class support for configuration management, type-safe routing, and extensible middleware."
 readme = "README.md"
 requires-python = ">=3.13"
 license = {file = "LICENSE"}
@@ -28,7 +28,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
 ]
 dependencies = [
-    "bevy>=3.1.0b5",
+    "bevy>=3.1.0b6",
     "starlette>=0.41.0",
     "jinja2>=3.1.6",
     "python-multipart>=0.0.20",
@@ -38,11 +38,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/8ly/Serv"
-Documentation = "https://8ly.github.io/Serv/"
-Repository = "https://github.com/8ly/Serv"
-Issues = "https://github.com/8ly/Serv/issues"
-Changelog = "https://github.com/8ly/Serv/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/ZechCodes/Serving"
+Documentation = "https://github.com/ZechCodes/Serving/tree/main/docs"
+Repository = "https://github.com/ZechCodes/Serving"
+Issues = "https://github.com/ZechCodes/Serving/issues"
+Changelog = "https://github.com/ZechCodes/Serving/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 server = [
