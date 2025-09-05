@@ -14,6 +14,7 @@ from starlette.routing import Mount, Route
 from starlette.templating import Jinja2Templates
 
 import serving.types
+from serving.auth import AuthConfig, AuthConfigurationError, CredentialProvider
 from serving.config import Config, ConfigModel
 from serving.injectors import handle_config_model_types, handle_cookie_types, handle_header_types, handle_path_param_types, handle_query_param_types
 from serving.router import RouterConfig, Router
@@ -66,9 +67,13 @@ class Serv:
 
         # Determine environment
         self.environment = self._get_environment(environment)
+        self.working_directory = working_directory
 
         # Load configuration (will raise if not found)
         self._load_configuration(working_directory)
+
+        # Configure authentication
+        self._configure_auth()
 
         self.templates = Jinja2Templates(directory=self.container.get(TemplatesConfig).directory)
         self.app = Starlette(
@@ -76,6 +81,21 @@ class Serv:
             middleware=[Middleware(ServMiddleware, serv=self)],
 
         )
+
+    def _configure_auth(self) -> None:
+        """Configure authentication based on the configuration."""
+        config_path = self.get_config_path(self.working_directory, self.environment)
+        try:
+            auth_config = self.container.get(AuthConfig)
+        except TypeError as e:
+            raise AuthConfigurationError(
+                f"Authentication is not correctly configured", config_path
+            ) from e
+        except AuthConfigurationError as e:
+            e.set_config_path(config_path)
+            raise
+
+        self.container.add(CredentialProvider, auth_config.credential_provider())
 
     def _load_configuration(self, working_directory: str | Path | None) -> None:
         """Load configuration from the specified working directory or in the current working directory. Which config
@@ -137,6 +157,13 @@ class Serv:
 
     def _wrap_endpoint(self, endpoint, route_config):
         async def wrapped_endpoint(request):
+            permissions = set() if route_config is None else route_config.permissions
+            credential_provider = get_container().get(CredentialProvider)
+            if not get_container().call(credential_provider.has_credentials, permissions):
+                return starlette.responses.PlainTextResponse(
+                    "401 Unauthorized", status_code=401
+                )
+
             result = await get_container().call(endpoint, **request.path_params)
             match get_annotations(endpoint)["return"]:
                 case serving.types.PlainText:
