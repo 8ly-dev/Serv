@@ -1,7 +1,12 @@
 import importlib
+import hmac
+import hashlib
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, runtime_checkable, Type
+from typing import Protocol, runtime_checkable
+
+from bevy import Inject, auto_inject, injectable
 
 from serving.config import ConfigModel
 
@@ -32,11 +37,20 @@ class CredentialProvider(Protocol):
         """
         ...
 
+    def generate_csrf_token(self) -> str:
+        """Generate a CSRF token for form rendering."""
+        ...
+
+    def validate_csrf_token(self, token: str) -> bool:
+        """Validate a CSRF token provided in a request."""
+        ...
+
 
 @dataclass
 class AuthConfig(ConfigModel, model_key="auth"):
     """Configuration for authentication."""
-    credential_provider: Type[CredentialProvider]
+    credential_provider: type[CredentialProvider]
+    csrf_secret: str | None = None
 
     @classmethod
     def from_dict(cls, config: dict) -> "AuthConfig":
@@ -59,4 +73,34 @@ class AuthConfig(ConfigModel, model_key="auth"):
                 f"The module '{module.__file__}' does not have the credential provider '{attr}'"
             ) from e
 
-        return cls(credential_provider=credential_provider)
+        return cls(
+            credential_provider=credential_provider,
+            csrf_secret=config.get("csrf_secret"),
+        )
+
+
+@auto_inject
+@injectable
+class HMACCredentialProvider:
+    """Simple HMAC-based credential provider with CSRF support."""
+
+    def __init__(self, config: Inject[AuthConfig]):
+        if not config.csrf_secret:
+            raise AuthConfigurationError("CSRF secret not configured")
+        self._secret = config.csrf_secret.encode()
+
+    def has_credentials(self, permissions: set[str]) -> bool:  # pragma: no cover - example implementation
+        return True
+
+    def generate_csrf_token(self) -> str:
+        token = secrets.token_urlsafe(32)
+        signature = hmac.new(self._secret, token.encode(), hashlib.sha256).hexdigest()
+        return f"{token}.{signature}"
+
+    def validate_csrf_token(self, token: str) -> bool:
+        try:
+            raw, signature = token.rsplit(".", 1)
+        except ValueError:
+            return False
+        expected = hmac.new(self._secret, raw.encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, signature)

@@ -859,39 +859,36 @@ async def delete_user(user_id: PathParam[int]) -> JSON:
 ### Form Handling
 
 ```python
+from dataclasses import dataclass
+from serving.forms import Form, CSRFProtection
 from serving.router import Router
-from serving.types import HTML, Jinja2
-from starlette.requests import Request
-from bevy import dependency
+from serving.types import Jinja2
 
 app = Router()
 
-@app.route("/contact", methods={"GET"})
-async def contact_form() -> HTML:
-    return """
-    <form method="post" action="/contact">
-        <input name="name" placeholder="Your Name" required>
-        <input name="email" type="email" placeholder="Your Email" required>
-        <textarea name="message" placeholder="Your Message" required></textarea>
-        <button type="submit">Send</button>
-    </form>
-    """
+@dataclass
+class Login(Form, template="login.html"):
+    username: str
+    password: str
+    confirm_password: str
 
-@app.route("/contact", methods={"POST"})
-async def handle_contact(request: Request = dependency()) -> HTML:
-    form = await request.form()
-    name = form["name"]
-    email = form["email"]
-    message = form["message"]
-    
-    # Process the form data (e.g., send email, save to database)
-    # ...
-    
-    return f"""
-    <h1>Thank you, {name}!</h1>
-    <p>We'll respond to {email} soon.</p>
-    <p>Your message: {message}</p>
-    """
+@app.route("/login")
+async def show_login() -> Jinja2:
+    return "page.html", {"login_form": Login(username="", password="", confirm_password="")}
+
+# login.html
+# <form method="post">
+#     {{ csrf() }}
+#     <input name="username" value="{{ form.username }}">
+#     <input name="password" type="password" value="{{ form.password }}">
+#     <input name="confirm_password" type="password" value="{{ form.confirm_password }}">
+# </form>
+
+# If csrf() is omitted, rendering raises MissingCSRFTokenError
+
+# Disable CSRF explicitly
+class Search(Form, template="search.html", csrf=CSRFProtection.Disabled):
+    query: str
 ```
 
 ### File Upload
