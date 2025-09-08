@@ -20,9 +20,17 @@ from serving.config import Config, ConfigModel
 from serving.error_handler import ErrorHandler
 from serving.exception_handlers import http_exception_handler, general_exception_handler, not_found_handler
 from serving.exception_middleware import ExceptionMiddleware
-from serving.injectors import handle_config_model_types, handle_cookie_types, handle_header_types, handle_path_param_types, handle_query_param_types
+from serving.injectors import (
+    handle_config_model_types,
+    handle_cookie_types,
+    handle_header_types,
+    handle_path_param_types,
+    handle_query_param_types,
+    handle_form_types,
+)
 from serving.router import RouterConfig, Router
 from serving.serv_middleware import ServMiddleware
+from serving.csrf_middleware import CSRFMiddleware
 
 
 @dataclass
@@ -73,6 +81,7 @@ class Serv:
         handle_header_types.register_hook(self.registry)
         handle_path_param_types.register_hook(self.registry)
         handle_query_param_types.register_hook(self.registry)
+        handle_form_types.register_hook(self.registry)
 
         self.container = self.registry.create_container()
 
@@ -87,6 +96,7 @@ class Serv:
         self._configure_auth()
 
         self.templates = Jinja2Templates(directory=self.container.get(TemplatesConfig).directory)
+        self.container.add(self.templates)
         
         # Configure error handler with theming support
         try:
@@ -104,6 +114,7 @@ class Serv:
             middleware=[
                 Middleware(ExceptionMiddleware, serv=self),
                 Middleware(ServMiddleware, serv=self),
+                Middleware(CSRFMiddleware),
             ],
             exception_handlers={
                 HTTPException: http_exception_handler,
@@ -128,7 +139,8 @@ class Serv:
             e.set_config_path(config_path)
             raise
 
-        self.container.add(CredentialProvider, auth_config.credential_provider())
+        provider = auth_config.credential_provider()
+        self.container.add(CredentialProvider, provider)
 
     def _load_configuration(self, working_directory: str | Path | None) -> None:
         """Load configuration from the specified working directory or in the current working directory. Which config

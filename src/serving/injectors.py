@@ -1,3 +1,5 @@
+import asyncio
+import inspect
 from typing import Annotated, get_args, get_origin, TypeAliasType
 
 from bevy import Container
@@ -6,6 +8,7 @@ from starlette.requests import Request
 from tramp.optionals import Optional
 
 from serving.config import Config, ConfigModel
+from serving.forms import Form
 
 type Cookie[T] = T
 type Header[T] = T
@@ -97,8 +100,25 @@ def handle_cookie_types(container: Container, dependency: type, context: dict) -
         # Check for default value
         default = get_parameter_default(context)
         return Optional.Some(default)  # Return default or None
-    
+
     return Optional.Some(value)
+
+
+@hooks.HANDLE_UNSUPPORTED_DEPENDENCY
+def handle_form_types(container: Container, dependency: type, context: dict) -> Optional:
+    try:
+        if not issubclass(dependency, Form):
+            return Optional.Nothing()
+    except (TypeError, AttributeError):
+        return Optional.Nothing()
+
+    instance = container.call(dependency.from_request)
+    if inspect.iscoroutine(instance):
+        instance = asyncio.run(instance)
+
+    container.add(dependency, instance)
+    return Optional.Some(instance)
+
 
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY

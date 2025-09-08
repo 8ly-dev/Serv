@@ -106,8 +106,33 @@ For more complex scenarios or to group related endpoints, you can create classes
   class DemoRoutesExtension(Extension):
       async def on_app_request_begin(self, router: Router = dependency()):
           router.add_route("/", HomeRoute) # Registers all handlers in HomeRoute for "/"
-          router.add_route("/submit", SubmitRoute)
+      router.add_route("/submit", SubmitRoute)
   ```
+
+A form can also be defined directly using the base `Form` type:
+
+```python
+from dataclasses import dataclass
+from serving.forms import Form, CSRFProtection
+
+@dataclass
+class Login(Form, template="login.html"):
+    username: str
+    password: str
+    confirm_password: str
+
+class Search(Form, template="search.html", csrf=CSRFProtection.Disabled):
+    query: str
+```
+`login.html` must call `{{ csrf() }}` to inject the synchronizer token:
+
+```html
+<form method="post">
+  {{ csrf() }}
+  <input name="username" value="{{ form.username }}">
+  ...
+</form>
+```
     When `router.add_route()` receives a `Route` class, it registers all implicitly discovered handlers (method-based and form-based) from that class.
 
 **3. Path Parameters:**
