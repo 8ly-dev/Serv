@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import inspect
 from typing import Annotated, get_args, get_origin, TypeAliasType
 
@@ -112,9 +113,43 @@ def handle_form_types(container: Container, dependency: type, context: dict) -> 
     except (TypeError, AttributeError):
         return Optional.Nothing()
 
+    # Check if the form is already cached in the container
+    try:
+        existing = container.get(dependency)
+        return Optional.Some(existing)
+    except:
+        pass
+
+    # Call the async from_request method
     instance = container.call(dependency.from_request)
+    
     if inspect.iscoroutine(instance):
-        instance = asyncio.run(instance)
+        # Try to get the running event loop
+        try:
+            loop = asyncio.get_running_loop()
+            
+            # Create a concurrent.futures.Future to bridge sync/async
+            future = concurrent.futures.Future()
+            
+            async def run_and_set():
+                try:
+                    result = await instance
+                    future.set_result(result)
+                except Exception as e:
+                    future.set_exception(e)
+            
+            # Schedule the coroutine on the event loop
+            task = loop.create_task(run_and_set())
+            
+            # Block until the future is resolved
+            # This will work even though we're in an async context
+            # because we're using concurrent.futures.Future, not asyncio.Future
+            instance = future.result(timeout=30)  # 30 second timeout
+            
+        except RuntimeError:
+            # No running loop, we're in a sync context
+            # Safe to use asyncio.run
+            instance = asyncio.run(instance)
 
     container.add(dependency, instance)
     return Optional.Some(instance)

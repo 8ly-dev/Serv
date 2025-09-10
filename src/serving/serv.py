@@ -30,7 +30,6 @@ from serving.injectors import (
 )
 from serving.router import RouterConfig, Router
 from serving.serv_middleware import ServMiddleware
-from serving.csrf_middleware import CSRFMiddleware
 
 
 @dataclass
@@ -114,7 +113,6 @@ class Serv:
             middleware=[
                 Middleware(ExceptionMiddleware, serv=self),
                 Middleware(ServMiddleware, serv=self),
-                Middleware(CSRFMiddleware),
             ],
             exception_handlers={
                 HTTPException: http_exception_handler,

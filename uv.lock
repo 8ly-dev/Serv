@@ -59,7 +59,7 @@ wheels = [
 
 [[package]]
 name = "getserving"
-version = "0.1.0a11"
+version = "0.1.1a1"
 source = { editable = "." }
 dependencies = [
     { name = "bevy" },
