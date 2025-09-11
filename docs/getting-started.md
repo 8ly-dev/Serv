@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide walks you through installing Serv, creating a minimal app, and running it.
+This guide walks you through installing Serving, creating a minimal app, and running it.
 
 ## Install
 
@@ -22,10 +22,10 @@ app = Router()
 
 @app.route("/")
 async def home() -> PlainText:
-    return "Hello, Serv!"
+    return "Hello, Serving!"
 ```
 
-2) Add a configuration file in your working directory. Serv looks for `serving.{env}.yaml` (defaults to `prod`).
+2) Add a configuration file in your working directory. Serving looks for `serving.{env}.yaml` (defaults to `prod`).
 
 ```yaml
 # serving.dev.yaml
@@ -55,11 +55,11 @@ serv -e dev --reload
 ```
 
 - `-e/--env` selects the environment (e.g., `dev`, `prod`) and picks `serving.{env}.yaml`.
-- Add any extra `uvicorn` flags after the Serv options (e.g., `--host`, `--port`).
+- Add any extra `uvicorn` flags after the Serving options (e.g., `--host`, `--port`).
 
 ## Return Types
 
-Serv inspects your endpoint’s return annotation to format responses:
+Serving inspects your endpoint’s return annotation to format responses:
 
 - `PlainText` -> `text/plain`
 - `HTML` -> `text/html`

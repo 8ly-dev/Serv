@@ -1,6 +1,6 @@
 # Middleware
 
-Serv configures a small, focused middleware stack by default.
+Serving configures a small, focused middleware stack by default.
 
 ## Stack Overview
 
@@ -8,7 +8,7 @@ Serv configures a small, focused middleware stack by default.
 - `ServMiddleware` — Creates a request-scoped DI container branch and manages response headers/status/redirects
 - `CSRFMiddleware` — Validates CSRF tokens for mutating HTTP methods
 
-These are always enabled by Serv when constructing the Starlette app.
+These are always enabled by Serving when constructing the Starlette app.
 
 ## ServMiddleware Behavior
 

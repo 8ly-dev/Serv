@@ -1,6 +1,6 @@
 # Testing
 
-Serv apps are standard ASGI applications (Starlette under the hood), so you can test them with `starlette.testclient.TestClient` or HTTPX.
+Serving apps are standard ASGI applications (Starlette under the hood), so you can test them with `starlette.testclient.TestClient` or HTTPX.
 
 ## Test a Router End-to-End
 
@@ -30,7 +30,7 @@ def test_home(tmp_path: Path, monkeypatch):
         """
     )
 
-    # Build a Serv instance against the temp dir
+    # Build a Serving app instance against the temp dir
     serv = Serv(working_directory=tmp_path, environment="test")
     client = TestClient(serv.app)
 

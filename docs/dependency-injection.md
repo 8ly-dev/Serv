@@ -1,6 +1,6 @@
 # Dependency Injection
 
-Serv uses the Bevy DI container to wire request-scoped dependencies into your route functions and helpers. Each request runs in a container branch created by `ServMiddleware` so your functions can declare values they need.
+Serving uses the Bevy DI container to wire request-scoped dependencies into your route functions and helpers. Each request runs in a container branch created by `ServMiddleware` so your functions can declare values they need.
 
 ## What You Can Inject
 
@@ -88,7 +88,7 @@ You can also override the key using `Annotated`, e.g. `Annotated[QueryParam[str]
 
 ## Request-Scoped Container
 
-For each request, Serv creates a container branch and preloads:
+For each request, Serving creates a container branch and preloads:
 
 - `Request`
 - a response accumulator (see [Response Helpers](response.md))

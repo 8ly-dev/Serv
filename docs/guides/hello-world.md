@@ -1,6 +1,6 @@
 # Guide: Hello World
 
-This quick guide gets you from zero to a running Serv app.
+This quick guide gets you from zero to a running Serving app.
 
 ## 1) Create a Router
 
@@ -13,7 +13,7 @@ app = Router()
 
 @app.route("/")
 async def home() -> PlainText:
-    return "Hello, Serv!"
+    return "Hello, Serving!"
 ```
 
 ## 2) Create Config

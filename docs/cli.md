@@ -1,6 +1,6 @@
 # CLI
 
-Serv ships a small CLI wrapper around Uvicorn that handles working directory, environment selection, and configuration validation before launching.
+Serving ships a small CLI wrapper around Uvicorn that handles working directory, environment selection, and configuration validation before launching.
 
 ## Command
 

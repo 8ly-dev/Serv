@@ -1,6 +1,6 @@
 # Forms & CSRF
 
-Serv includes a simple form abstraction built on Jinja2 with built-in CSRF protection.
+Serving includes a simple form abstraction built on Jinja2 with built-in CSRF protection.
 
 ## Define a Form
 

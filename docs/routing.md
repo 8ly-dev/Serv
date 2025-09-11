@@ -1,6 +1,6 @@
 # Routing
 
-Serv routing is centered around a lightweight `Router` that collects Starlette `Route` objects via a decorator. You declaratively wire routers in YAML.
+Serving routing is centered around a lightweight `Router` that collects Starlette `Route` objects via a decorator. You declaratively wire routers in YAML.
 
 ## Define a Router
 
@@ -12,7 +12,7 @@ app = Router()
 
 @app.route("/")
 async def home() -> PlainText:
-    return "Hello from Serv"
+    return "Hello from Serving"
 
 @app.route("/health")
 async def health() -> JSON:
@@ -43,7 +43,7 @@ async def create_item() -> JSON:
 
 ## Path Params
 
-Use Python parameters that match path placeholders. Serv will pass `request.path_params` into your function.
+Use Python parameters that match path placeholders. Serving will pass `request.path_params` into your function.
 
 ```python
 @app.route("/users/{user_id}")
@@ -53,7 +53,7 @@ async def user(user_id: int) -> JSON:
 
 ## Query/Header/Cookie Params
 
-Serv provides lightweight type helpers that make it easy to pull values from the request without touching `Request` directly:
+Serving provides lightweight type helpers that make it easy to pull values from the request without touching `Request` directly:
 
 ```python
 from serving.injectors import QueryParam, Header, Cookie

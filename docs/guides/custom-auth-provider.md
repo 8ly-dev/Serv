@@ -50,4 +50,4 @@ routers:
         permissions: [admin]
 ```
 
-Serv passes the `permissions` set to `has_credentials()` before invoking your route handler. If it returns `False`, Serv renders a themed 401 page.
+Serving passes the `permissions` set to `has_credentials()` before invoking your route handler. If it returns `False`, Serving renders a themed 401 page.

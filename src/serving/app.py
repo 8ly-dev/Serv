@@ -4,7 +4,7 @@ from serving.serv import Serv
 
 
 def create_app():
-    """Create the Serv application using environment variables for configuration.
+    """Create the Serving application using environment variables for configuration.
     
     The working directory should be set by the CLI before this is called.
     The environment can be set via SERV_ENVIRONMENT env variable.

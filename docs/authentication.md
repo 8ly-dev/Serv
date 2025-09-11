@@ -1,6 +1,6 @@
 # Authentication & Permissions
 
-Serv delegates authentication and authorization to a pluggable `CredentialProvider`. You must configure one in YAML for the app to start.
+Serving delegates authentication and authorization to a pluggable `CredentialProvider`. You must configure one in YAML for the app to start.
 
 ## Configure in YAML
 
@@ -27,7 +27,7 @@ class CredentialProvider(Protocol):
     def validate_csrf_token(self, token: str) -> bool: ...
 ```
 
-At runtime Serv wraps each route to call `has_credentials(permissions)` with the set declared for that path in your YAML. If it returns `False`, Serv renders a themed 401 page.
+At runtime Serving wraps each route to call `has_credentials(permissions)` with the set declared for that path in your YAML. If it returns `False`, Serving renders a themed 401 page.
 
 ## Built-in Example Provider
 

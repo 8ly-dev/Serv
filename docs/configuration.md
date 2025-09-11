@@ -1,6 +1,6 @@
 # Configuration
 
-Serv loads a single YAML file named `serving.{environment}.yaml` from your working directory. The environment defaults to `prod` but can be set via `SERV_ENVIRONMENT` or the CLI `-e/--env` flag.
+Serving loads a single YAML file named `serving.{environment}.yaml` from your working directory. The environment defaults to `prod` but can be set via `SERV_ENVIRONMENT` or the CLI `-e/--env` flag.
 
 ## File Location
 
@@ -34,7 +34,7 @@ theming:
   default_error_template: errors/error.html
 ```
 
-See [Error Handling & Theming](error-handling.md) for details and the fallback template used by Serv.
+See [Error Handling & Theming](error-handling.md) for details and the fallback template used by Serving.
 
 ## Authentication
 
@@ -69,7 +69,7 @@ routers:
 
 ## Multiple Routers
 
-You can declare more than one router. Serv will mount each, honoring optional `prefix` values, and wrap endpoints with authentication and response handling.
+You can declare more than one router. Serving will mount each, honoring optional `prefix` values, and wrap endpoints with authentication and response handling.
 
 ## Validation & Errors
 

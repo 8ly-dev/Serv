@@ -32,7 +32,7 @@ theming:
 
 ## 3) Dev-specific Details
 
-In `dev`/`development` environments, Serv may include debugging context on error pages:
+In `dev`/`development` environments, Serving may include debugging context on error pages:
 
 - 404 shows the missing path
 - 500 includes a formatted traceback

@@ -1,9 +1,9 @@
-# Serv: The Extensible Python Web Framework 🚀
+# Serving: The Extensible Python Web Framework 🚀
 
 > [!WARNING]
-> Serv is currently in alpha and is NOT recommended for production use. APIs are subject to change.
+> Serving is currently in alpha and is NOT recommended for production use. APIs are subject to change.
 
-Serv is a small ASGI web framework built on Starlette with first‑class dependency injection (Bevy), YAML configuration, typed routing, forms with CSRF, and themed error pages.
+Serving is a small ASGI web framework built on Starlette with first‑class dependency injection (Bevy), YAML configuration, typed routing, forms with CSRF, and themed error pages.
 
 ## ✨ Highlights
 
@@ -38,7 +38,7 @@ app = Router()
 
 @app.route("/")
 async def index() -> Jinja2:
-    return "home.html", {"message": "Hello from Serv"}
+    return "home.html", {"message": "Hello from Serving"}
 
 @app.route("/hello")
 async def hello(name: QueryParam[str] = "world") -> PlainText:
@@ -65,7 +65,8 @@ environment: dev
 
 auth:
   credential_provider: myapp.auth:MyProvider
-  csrf_secret: change-me-long-random-string
+  config:
+    csrf_secret: change-me-long-random-string
 
 templates:
   directory: templates
@@ -96,7 +97,7 @@ Your app will be available at http://127.0.0.1:8000.
 
 ## 🔐 Authentication & Permissions
 
-Configure an auth provider in YAML (`auth.credential_provider`). Serv calls `has_credentials(permissions)` before invoking a route; if denied, a themed 401 page is rendered. See [Authentication](docs/authentication.md) for the `CredentialProvider` protocol and examples.
+Configure an auth provider in YAML (`auth.credential_provider`). Serving calls `has_credentials(permissions)` before invoking a route; if denied, a themed 401 page is rendered. See [Authentication](docs/authentication.md) for the `CredentialProvider` protocol and examples.
 
 ## 🧾 Forms & CSRF
 

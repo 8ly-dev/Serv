@@ -1,6 +1,6 @@
 # Error Handling & Theming
 
-Serv centralizes error rendering so you can theme error pages consistently. In production it shows clean messages; in development it can include details.
+Serving centralizes error rendering so you can theme error pages consistently. In production it shows clean messages; in development it can include details.
 
 ## Built-in Behavior
 
@@ -26,11 +26,11 @@ theming:
 
 ## Fallback Template
 
-Serv ships a default `error.html` used when no custom template is available. You can find it in the package at `serving/templates/error.html` for inspiration.
+Serving ships a default `error.html` used when no custom template is available. You can find it in the package at `serving/templates/error.html` for inspiration.
 
 ## Passing Details in Dev
 
-When running with `SERV_ENVIRONMENT=dev` (or `-e dev`), Serv includes additional details for errors:
+When running with `SERV_ENVIRONMENT=dev` (or `-e dev`), Serving includes additional details for errors:
 
 - HTTP 404: shows the missing path
 - Exceptions: includes a formatted traceback

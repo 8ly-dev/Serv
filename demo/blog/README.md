@@ -1,6 +1,6 @@
-# Serv Blog Demo
+# Serving Blog Demo
 
-A minimal blog built on Serv demonstrating routing, forms + CSRF, templating, and simple in-memory storage. Uses Markdown for content and slugify for URLs.
+A minimal blog built on Serving demonstrating routing, forms + CSRF, templating, and simple in-memory storage. Uses Markdown for content and slugify for URLs.
 
 ## Install demo deps
 
@@ -16,7 +16,7 @@ Using pip (editable install with extras):
 
 From this directory:
 
-1) Ensure you have Serv installed (CLI recommended): `pip install getserving[server]`
+1) Ensure you have Serving installed (CLI recommended): `pip install getserving[server]`
 2) Run the app against the included config:
 
 ```bash

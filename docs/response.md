@@ -1,6 +1,6 @@
 # Response Helpers
 
-Serv provides a few helpers to modify the response from anywhere in your request-handling code. They operate on a request-scoped accumulator managed by `ServMiddleware`.
+Serving provides a few helpers to modify the response from anywhere in your request-handling code. They operate on a request-scoped accumulator managed by `ServMiddleware`.
 
 ## Helpers
 
@@ -28,7 +28,7 @@ async def go() -> str:
 
 ## Return Type Mapping
 
-Serv formats your raw return value based on your function’s return annotation:
+Serving formats your raw return value based on your function’s return annotation:
 
 - `PlainText` -> `PlainTextResponse`
 - `JSON` -> `JSONResponse`
@@ -36,4 +36,4 @@ Serv formats your raw return value based on your function’s return annotation:
 - `Jinja2` -> `TemplateResponse` (tuple of `(template_name, context_dict)`)
 - Any existing `starlette.responses.Response` is passed through as-is
 
-If the annotation does not match any of the above and the return type is not a `Response`, Serv raises a `ValueError`.
+If the annotation does not match any of the above and the return type is not a `Response`, Serving raises a `ValueError`.

@@ -1,6 +1,6 @@
-# Serv Documentation
+# Serving Documentation
 
-Serv is a modern, dependency-injection-driven ASGI web framework built on Starlette. It emphasizes configuration, type-safe routing, forms with CSRF protection, and a small but composable core.
+Serving is a modern, dependency-injection-driven ASGI web framework built on Starlette. It emphasizes configuration, type-safe routing, forms with CSRF protection, and a small but composable core.
 
 - Requires Python 3.13+
 - Package name: 

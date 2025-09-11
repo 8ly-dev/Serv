@@ -60,7 +60,7 @@ class Serv:
         working_directory: str | Path | None = None,
         environment: str | None = None,
     ):
-        """Initialize Serv application with configuration and dependency injection.
+        """Initialize Serving application with configuration and dependency injection.
         
         Args:
             working_directory: Path to working directory where config files are located.
