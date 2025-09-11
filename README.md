@@ -1,402 +1,143 @@
 # Serv: The Extensible Python Web Framework 🚀
 
 > [!WARNING]
-> **Serv is currently in alpha and is NOT recommended for production use. APIs are subject to change.**
+> Serv is currently in alpha and is NOT recommended for production use. APIs are subject to change.
 
-**Build web applications your way.** Serv is a modern ASGI web framework that puts extensions first, letting you craft everything from simple APIs to complex web applications using a powerful CLI and modular architecture.
+Serv is a small ASGI web framework built on Starlette with first‑class dependency injection (Bevy), YAML configuration, typed routing, forms with CSRF, and themed error pages.
 
-## ✨ Why Serv?
+## ✨ Highlights
 
-- **🔧 CLI-First Development**: Get started in seconds with powerful scaffolding
-- **🧩 Extension-Driven**: Build features as reusable extensions
-- **🎯 Smart Routing**: Signature-based route handlers that just work
-- **⚡ Modern Architecture**: ASGI-native with dependency injection
-- **🧪 Test-Friendly**: Built-in testing patterns and utilities
+- ASGI/Starlette core with a minimal surface area
+- Dependency Injection via Bevy (request‑scoped container)
+- YAML configuration with typed `ConfigModel`s (including collections)
+- Lightweight routing decorator; return‑type‑based responses
+- Forms + CSRF with Jinja2 templates
+- Themed error pages with dev‑mode details
+- Simple CLI wrapper around Uvicorn
 
 ## 🚀 Quick Start
 
-### Installation
+### Install
 
 ```bash
-pip install getserving
+pip install getserving[server]
 ```
 
-### Create Your First App
+### Minimal App
 
-```bash
-# Initialize a new Serv project
-serv create app
-
-# Create your first extension
-serv create extension --name users
-
-# Add a route to handle user data
-serv create route --name user-api --path /api/users
-
-# Enable the extension
-serv extension enable users
-
-# Start developing
-serv launch --dev
-```
-
-Your site is running at http://127.0.0.1:8000 🎉
-
-## 🏗️ Core Concepts
-
-### Extensions Are Everything
-
-In Serv, functionality lives in **extensions**. Each extension is a self-contained module in the `extensions/` directory:
-
-```
-my-project/
-├── serv.config.yaml      # App configuration
-└── extensions/           # Your extensions
-    └── users/
-        ├── extension.yaml
-        └── main.py
-```
-
-### Routes with Personality
-
-Routes in Serv are **classes** that handle HTTP methods intelligently:
+1) Router module
 
 ```python
-from typing import Annotated
-from serv.routes import Route, handle
-from serv.responses import JsonResponse, HtmlResponse
+# myapp/web.py
+from serving.router import Router
+from serving.types import PlainText, JSON, Jinja2
+from serving.injectors import QueryParam
+from serving import redirect
 
-class UserRoute(Route):
-    @handle.GET
-    async def get_user(self) -> Annotated[dict, JsonResponse]:
-        return {"id": 1, "name": "John Doe"}
-    
-    @handle.POST
-    async def create_user(self, name: str) -> Annotated[str, HtmlResponse]:
-        return f"<h1>Created user: {name}</h1>"
+app = Router()
+
+@app.route("/")
+async def index() -> Jinja2:
+    return "home.html", {"message": "Hello from Serv"}
+
+@app.route("/hello")
+async def hello(name: QueryParam[str] = "world") -> PlainText:
+    return f"Hello, {name}!"
+
+@app.route("/redirect")
+async def go_home() -> PlainText:
+    redirect("/")
+    return "This will not be sent"
 ```
 
-### Smart Parameter Injection
+2) Template
 
-Routes automatically inject what you need:
-
-```python
-from serv.injectors import Query, Header, Cookie
-
-class SearchRoute(Route):
-    @handle.GET
-    async def search_basic(self) -> Annotated[dict, JsonResponse]:
-        """Handles /search with no parameters"""
-        return {"results": ["default", "results"]}
-    
-    @handle.GET 
-    async def search_with_query(
-        self, 
-        q: Annotated[str, Query("q")]
-    ) -> Annotated[dict, JsonResponse]:
-        """Handles /search?q=something"""
-        return {"query": q, "results": [f"result for {q}"]}
-    
-    @handle.GET
-    async def search_authenticated(
-        self,
-        q: Annotated[str, Query("q")],
-        auth: Annotated[str, Header("Authorization")]
-    ) -> Annotated[dict, JsonResponse]:
-        """Handles /search?q=something with Authorization header"""
-        return {"query": q, "authenticated": True}
+```html
+<!-- templates/home.html -->
+<h1>{{ message }}</h1>
 ```
 
-Serv automatically picks the **most specific** handler based on available request data.
-
-## 🔧 Building with the CLI
-
-### Project Management
-
-```bash
-# Initialize new project
-serv create app
-
-# Validate your configuration
-serv config validate
-
-# Show current settings
-serv config show
-```
-
-### Extension Development
-
-```bash
-# Create an extension
-serv create extension --name blog
-
-# Add components to your extension
-serv create route --name article --path /articles
-serv create listener --name email-notifications  
-serv create middleware --name rate-limiting
-
-# Manage extensions
-serv extension list
-serv extension enable blog
-serv extension validate blog
-```
-
-### Development & Testing
-
-```bash
-# Start development server with auto-reload
-serv launch --dev
-
-# Run tests
-serv test
-
-# Interactive debugging shell
-serv shell
-```
-
-## 🧩 Extension Patterns
-
-### Extension Structure
-
-Each extension follows a standard pattern:
+3) Configuration
 
 ```yaml
-# extensions/blog/extension.yaml
-name: Blog
-description: A simple blog system
-version: 1.0.0
-author: You
+# serving.dev.yaml
+environment: dev
 
-listeners:
-  - main:BlogExtension
+auth:
+  credential_provider: myapp.auth:MyProvider
+  csrf_secret: change-me-long-random-string
 
-# Optional: Define routes declaratively
+templates:
+  directory: templates
+
 routers:
-  - name: blog_router
+  - entrypoint: myapp.web:app
     routes:
-      - path: /blog
-        handler: main:BlogHomeRoute
-      - path: /blog/{slug}
-        handler: main:BlogPostRoute
+      - path: "/"
+      - path: "/hello"
+      - path: "/redirect"
 ```
 
-```python
-# extensions/blog/main.py
-from typing import Annotated
-from serv.routes import Route, handle, HtmlResponse
-
-class BlogHomeRoute(Route):
-    @handle.GET
-    async def show_posts(self) -> Annotated[str, HtmlResponse]:
-        return "<h1>My Blog</h1><p>Welcome to my blog!</p>"
-
-class BlogPostRoute(Route):
-    @handle.GET
-    async def show_post(self, slug: str) -> Annotated[str, HtmlResponse]:
-        return f"<h1>Post: {slug}</h1><p>Blog post content here.</p>"
-```
-
-### Form Handling
-
-```python
-from typing import Annotated
-from dataclasses import dataclass
-from serv.routes import Form, Route, HtmlResponse, handle
-
-@dataclass
-class ContactForm(Form):
-    name: str
-    email: str
-    message: str
-
-class ContactRoute(Route):
-    @handle.GET
-    async def show_form(self) -> Annotated[str, HtmlResponse]:
-        return """
-        <form method="post">
-            <input name="name" placeholder="Name" required>
-            <input name="email" type="email" placeholder="Email" required>
-            <textarea name="message" placeholder="Message" required></textarea>
-            <button type="submit">Send</button>
-        </form>
-        """
-    
-    @handle.POST
-    async def process_form(self, form: ContactForm) -> Annotated[str, HtmlResponse]:
-        # Form is automatically parsed and validated
-        return f"Thanks {form.name}! We'll contact you at {form.email}."
-```
-
-### Event System
-
-```python
-from serv.extensions import Listener, on
-
-class NotificationExtension(Listener):
-    @on("user.created")
-    async def send_welcome_email(self, user_id: int, email: str):
-        await self.send_email(email, "Welcome!")
-    
-    @on("order.completed")  
-    async def send_receipt(self, order_id: int, customer_email: str):
-        await self.send_email(customer_email, f"Receipt for order {order_id}")
-
-# Emit events from anywhere in your app
-await self.emit("user.created", user_id=123, email="user@example.com")
-```
-
-## 🧪 Testing Your Extensions
-
-Serv includes comprehensive testing utilities for easy end-to-end testing without running a server:
-
-### Test Client Factory
-
-The `create_test_app_client` function creates a test client that mirrors all CLI launch options:
-
-```python
-import pytest
-from pathlib import Path
-from serv import create_test_app_client
-
-@pytest.mark.asyncio
-async def test_my_api():
-    # Create a test client using your app's config
-    async with create_test_app_client(Path("serv.config.yaml"), dev=True) as client:
-        # Test POST request
-        response = await client.post("/api/users", json={"name": "Test User"})
-        assert response.status_code == 201
-        
-        # Test GET request
-        response = await client.get("/api/users/1")
-        assert response.status_code == 200
-        user = response.json()
-        assert user["name"] == "Test User"
-
-@pytest.mark.asyncio
-async def test_with_custom_extensions():
-    # Test with custom extension directory
-    async with create_test_app_client(
-        Path("test.config.yaml"), 
-        extension_dirs="./test_extensions",
-        dev=True
-    ) as client:
-        response = await client.get("/test-endpoint")
-        assert response.status_code == 200
-```
-
-The test client supports all CLI parameters:
-- `dev=True` - Enable development mode  
-- `extension_dirs="./custom"` - Custom extension directory
-- `dry_run=True` - Just validate app creation
-- All other `serv launch` equivalent options
-
-### Legacy Testing Helpers
-
-For more advanced scenarios, use the existing testing utilities:
-
-```python
-import pytest
-from tests.helpers import RouteTestExtension
-
-@pytest.mark.asyncio
-async def test_user_route(app, client):
-    # Add route to test app
-    plugin = RouteTestExtension("/users", UserRoute)
-    app.add_extension(plugin)
-    
-    # Test the route
-    response = await client.get("/users")
-    assert response.status_code == 200
-    
-    # Test with parameters
-    response = await client.get("/users?search=john")
-    assert "john" in response.json()["results"]
-```
-
-```python
-# Test forms and file uploads
-@pytest.mark.asyncio  
-async def test_contact_form(app, client):
-    plugin = RouteTestExtension("/contact", ContactRoute)
-    app.add_extension(plugin)
-    
-    # Test form submission
-    response = await client.post("/contact", data={
-        "name": "John",
-        "email": "john@example.com", 
-        "message": "Hello!"
-    })
-    assert "Thanks John!" in response.text
-```
-
-## 📚 Examples
-
-Check out the comprehensive demos in the `/demos/` directory:
-
-- **[Basic App](demos/basic_app/)** - Simple routes and responses
-- **[Extension Demo](demos/extension_middleware_demo/)** - Full extension with middleware  
-- **[Signature Routing](demos/signature_routing_demo/)** - Advanced parameter injection
-- **[Complex Routes](demos/complex_route_demo/)** - Multi-handler routes
-
-## 🔄 Deployment
-
-### ASGI Deployment
-
-Serv apps are standard ASGI applications:
-
-```python
-# main.py
-from serv.app import App
-
-app = App(config="serv.config.yaml")
-```
+4) Run
 
 ```bash
-# Production with Gunicorn
-gunicorn main:app -k uvicorn.workers.UvicornWorker
-
-# Development with Uvicorn
-uvicorn main:app --reload
-
-# Or use Serv's CLI
-serv launch --host 0.0.0.0 --port 8000
+serv -e dev --reload
 ```
 
-### Configuration
+Your app will be available at http://127.0.0.1:8000.
 
-```yaml
-# serv.config.yaml
-site_info:
-  name: "My Web App"
-  description: "Built with Serv"
+## 🧭 Return Types
 
-extensions:
-  - users      # Load from extensions/users/
-  - blog       # Load from extensions/blog/
-  - auth:      # Load with custom config
-      settings:
-        secret_key: "your-secret-key"
+- `PlainText` → PlainTextResponse
+- `JSON` → JSONResponse
+- `HTML` → HTMLResponse
+- `Jinja2` → TemplateResponse (tuple of `template_name`, `context_dict`)
+- Returning a Starlette `Response` is passed through as‑is
 
-middleware:
-  - logging
-  - rate_limiting
+## 🔐 Authentication & Permissions
+
+Configure an auth provider in YAML (`auth.credential_provider`). Serv calls `has_credentials(permissions)` before invoking a route; if denied, a themed 401 page is rendered. See docs/authentication.md for the `CredentialProvider` protocol and examples.
+
+## 🧾 Forms & CSRF
+
+Use `serving.forms.Form` with Jinja2. When CSRF is enabled (default), templates must call `{{ csrf() }}`; invalid tokens are rejected by `CSRFMiddleware`. See docs/forms.md.
+
+## 🎨 Error Pages & Theming
+
+Customize error templates via the `theming` section in YAML. Dev mode can include extra details (stack traces, missing path). See docs/error-handling.md.
+
+## 🧰 CLI
+
+```bash
+serv [-d DIR] [-e ENV] [uvicorn options...]
 ```
+
+- `-d, --working-directory DIR` — where your `serving.{env}.yaml` lives
+- `-e, --env ENV` — choose environment (e.g., `dev`, `prod`)
+- All other flags are passed to Uvicorn (e.g., `--reload`, `--host`, `--port`)
+
+## 📚 Documentation
+
+See the docs/ directory for detailed guides and references:
+
+- docs/getting-started.md — install and minimal setup
+- docs/configuration.md — YAML layout, templates, theming, routers, auth
+- docs/routing.md — router decorator, params, permissions
+- docs/dependency-injection.md — Bevy DI and `ConfigModel`s
+- docs/forms.md — forms + CSRF
+- docs/error-handling.md — exceptions and theming
+- docs/authentication.md — provider protocol and configuration
+- docs/middleware.md — default middleware stack
+- docs/response.md — response helpers (`set_header`, `redirect`, etc.)
+- docs/cli.md — CLI flags and examples
+- docs/testing.md — testing patterns
+
+Also see the demo/ directory for a runnable example.
 
 ## 🤝 Contributing
 
-We welcome contributions! Whether it's:
-
-- 🐛 Bug reports and fixes
-- 💡 Feature suggestions and implementations
-- 📖 Documentation improvements
-- 🧪 Tests and examples
-
-Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Contributions are welcome! Bug reports, feature suggestions, docs, and tests are appreciated. Please open an issue or pull request.
 
 ## 📄 License
 
-Serv is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
-
----
-
-**Ready to serve?** 🍽️ Start building with `serv create app` and discover the power of extension-driven development.
+MIT — see [LICENSE](LICENSE).
