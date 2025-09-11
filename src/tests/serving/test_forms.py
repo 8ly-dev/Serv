@@ -176,3 +176,145 @@ def test_form_injection_uses_cached_instance(tmp_path):
     assert form1.name == "alice"
     assert form1 is form2
 
+
+@pytest.mark.asyncio
+async def test_form_injection_invalid_csrf_via_injector(tmp_path):
+    (tmp_path / "login.html").write_text("")
+    container = setup_container(tmp_path)
+
+    @dataclass
+    class Login(Form, template="login.html"):
+        username: str
+
+    body = urlencode({"username": "alice", "csrf_token": "bad"}).encode()
+    headers = [
+        (b"content-type", b"application/x-www-form-urlencoded"),
+        (b"content-length", str(len(body)).encode()),
+    ]
+    scope = {"type": "http", "method": "POST", "path": "/", "headers": headers}
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request = Request(scope, receive=receive)
+
+    with container.branch() as c:
+        c.add(Request, request)
+
+        @auto_inject
+        @injectable
+        def use_form(form: Inject[Login]):
+            return form
+
+        with pytest.raises(ValueError):
+            # Injection should invoke the async hook which validates CSRF
+            c.call(use_form)
+
+
+@pytest.mark.asyncio
+async def test_form_injection_into_async_function(tmp_path):
+    (tmp_path / "simple.html").write_text("")
+    container = setup_container(tmp_path)
+
+    @dataclass
+    class Simple(Form, template="simple.html", csrf=CSRFProtection.Disabled):
+        name: str
+
+    body = urlencode({"name": "bob"}).encode()
+    headers = [
+        (b"content-type", b"application/x-www-form-urlencoded"),
+        (b"content-length", str(len(body)).encode()),
+    ]
+    scope = {"type": "http", "method": "POST", "path": "/", "headers": headers}
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request = Request(scope, receive=receive)
+
+    with container.branch() as c:
+        c.add(Request, request)
+
+        @auto_inject
+        @injectable
+        async def use_form_async(form1: Inject[Simple], form2: Inject[Simple]):
+            return form1, form2
+
+        form1, form2 = await c.call(use_form_async)
+
+    assert form1.name == "bob"
+    assert form1 is form2
+
+
+def test_form_injection_cached_across_calls_in_same_branch(tmp_path):
+    (tmp_path / "simple.html").write_text("")
+    container = setup_container(tmp_path)
+
+    @dataclass
+    class Simple(Form, template="simple.html", csrf=CSRFProtection.Disabled):
+        name: str
+
+    body = urlencode({"name": "carol"}).encode()
+    headers = [
+        (b"content-type", b"application/x-www-form-urlencoded"),
+        (b"content-length", str(len(body)).encode()),
+    ]
+    scope = {"type": "http", "method": "POST", "path": "/", "headers": headers}
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request = Request(scope, receive=receive)
+
+    with container.branch() as c:
+        c.add(Request, request)
+
+        @auto_inject
+        @injectable
+        def get_form(form: Inject[Simple]):
+            return form
+
+        form_a = c.call(get_form)
+        form_b = c.call(get_form)
+
+    assert form_a.name == "carol"
+    assert form_a is form_b
+
+
+def test_form_injection_new_instance_per_branch(tmp_path):
+    (tmp_path / "simple.html").write_text("")
+    container = setup_container(tmp_path)
+
+    @dataclass
+    class Simple(Form, template="simple.html", csrf=CSRFProtection.Disabled):
+        name: str
+
+    def make_request(value: str):
+        body = urlencode({"name": value}).encode()
+        headers = [
+            (b"content-type", b"application/x-www-form-urlencoded"),
+            (b"content-length", str(len(body)).encode()),
+        ]
+        scope = {"type": "http", "method": "POST", "path": "/", "headers": headers}
+
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        return Request(scope, receive=receive)
+
+    @auto_inject
+    @injectable
+    def get_form(form: Inject[Simple]):
+        return form
+
+    with container.branch() as c1:
+        c1.add(Request, make_request("one"))
+        form1 = c1.call(get_form)
+
+    with container.branch() as c2:
+        c2.add(Request, make_request("two"))
+        form2 = c2.call(get_form)
+
+    assert form1.name == "one"
+    assert form2.name == "two"
+    assert form1 is not form2

@@ -105,17 +105,14 @@ def handle_cookie_types(container: Container, dependency: type, context: dict) -
 
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY
-def handle_form_types(container: Container, dependency: type, context: dict) -> Optional:
+async def handle_form_types(container: Container, dependency: type, context: dict) -> Optional:
     try:
         if not issubclass(dependency, Form):
             return Optional.Nothing()
     except (TypeError, AttributeError):
         return Optional.Nothing()
 
-    instance = container.call(dependency.from_request)
-    if inspect.iscoroutine(instance):
-        instance = asyncio.run(instance)
-
+    instance = await container.call(dependency.from_request)
     container.add(dependency, instance)
     return Optional.Some(instance)
 
