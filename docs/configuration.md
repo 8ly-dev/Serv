@@ -42,10 +42,12 @@ See [Error Handling & Theming](error-handling.md) for details and the fallback t
 auth:
   credential_provider: myapp.auth:MyProvider  # module:ClassName or module:attribute
   csrf_secret: "change-me-long-random-string"
+  csrf_ttl_seconds: 3600                       # optional; TTL for time-bound CSRF tokens
 ```
 
 - `credential_provider` must resolve to a class implementing the `CredentialProvider` protocol (see ./authentication.md)
 - `csrf_secret` is required for CSRF token generation/validation
+- `csrf_ttl_seconds` sets the validity window for providers that embed timestamps (e.g., `TimedHMACCredentialProvider`)
 
 ## Routers
 

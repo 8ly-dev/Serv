@@ -60,3 +60,5 @@ contact = await Contact.from_request(request)
 `CSRFMiddleware` automatically validates CSRF tokens for `POST`, `PUT`, `PATCH`, and `DELETE` requests. It returns `400 Invalid CSRF token` if validation fails.
 
 Ensure you provide `auth.csrf_secret` in your YAML so the provider can sign tokens.
+
+If you use time-bound CSRF tokens (e.g., `TimedHMACCredentialProvider`), also configure `auth.csrf_ttl_seconds` to control how long tokens remain valid.

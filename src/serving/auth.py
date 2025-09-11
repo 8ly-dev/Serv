@@ -3,6 +3,7 @@ import hmac
 import hashlib
 import secrets
 from dataclasses import dataclass
+import time
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -51,6 +52,8 @@ class AuthConfig(ConfigModel, model_key="auth"):
     """Configuration for authentication."""
     credential_provider: type[CredentialProvider]
     csrf_secret: str | None = None
+    # Lifetime for CSRF tokens in seconds (used by time-bound providers)
+    csrf_ttl_seconds: int | None = 3600
 
     @classmethod
     def from_dict(cls, config: dict) -> "AuthConfig":
@@ -76,6 +79,7 @@ class AuthConfig(ConfigModel, model_key="auth"):
         return cls(
             credential_provider=credential_provider,
             csrf_secret=config.get("csrf_secret"),
+            csrf_ttl_seconds=config.get("csrf_ttl_seconds", 3600),
         )
 
 
@@ -104,3 +108,64 @@ class HMACCredentialProvider:
             return False
         expected = hmac.new(self._secret, raw.encode(), hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
+
+
+class TimedHMACCredentialProvider:
+    """HMAC-based CSRF provider with embedded timestamp and expiry.
+
+    Token format (URL-safe):
+        nonce.timestamp.signature
+
+    - nonce: URL-safe random string (no '.')
+    - timestamp: Unix epoch seconds (int)
+    - signature: HMAC-SHA256 over "nonce.timestamp" using the configured secret
+
+    Validation checks:
+    - Signature must match
+    - Token must not be expired based on configured TTL
+    """
+
+    @auto_inject
+    @injectable
+    def __init__(self, config: Inject[AuthConfig]):
+        if not config.csrf_secret:
+            raise AuthConfigurationError("CSRF secret not configured")
+        self._secret = config.csrf_secret.encode()
+        # Default to 1 hour if not provided
+        self._ttl = int(config.csrf_ttl_seconds or 3600)
+
+    def has_credentials(self, permissions: set[str]) -> bool:  # pragma: no cover - example implementation
+        return True
+
+    def generate_csrf_token(self) -> str:
+        # URL-safe nonce; '.' is not produced by token_urlsafe
+        nonce = secrets.token_urlsafe(32)
+        ts = str(int(time.time()))
+        raw = f"{nonce}.{ts}"
+        sig = hmac.new(self._secret, raw.encode(), hashlib.sha256).hexdigest()
+        return f"{raw}.{sig}"
+
+    def validate_csrf_token(self, token: str) -> bool:
+        try:
+            nonce, ts_str, sig = token.split(".", 3)
+        except ValueError:
+            return False
+
+        # Recompute signature
+        raw = f"{nonce}.{ts_str}"
+        expected_sig = hmac.new(self._secret, raw.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected_sig, sig):
+            return False
+
+        # Check expiry
+        try:
+            ts = int(ts_str)
+        except ValueError:
+            return False
+
+        now = int(time.time())
+        if ts > now:
+            # Future timestamp is invalid
+            return False
+
+        return (now - ts) <= self._ttl

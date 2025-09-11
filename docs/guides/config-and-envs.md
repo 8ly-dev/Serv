@@ -11,6 +11,7 @@ environment: dev
 auth:
   credential_provider: myapp.auth:MyProvider
   csrf_secret: dev-secret
+  csrf_ttl_seconds: 3600
 ```
 
 ```yaml
@@ -20,6 +21,7 @@ environment: prod
 auth:
   credential_provider: myapp.auth:MyProvider
   csrf_secret: ${PROD_CSRF_SECRET}
+  csrf_ttl_seconds: 3600
 ```
 
 ## 2) Choose Environment
