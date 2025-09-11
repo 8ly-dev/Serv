@@ -72,8 +72,14 @@ class Router:
         if not isinstance(methods, set) or not all(isinstance(method, str) for method in methods):
             raise ValueError("Methods must be a set of strings")
 
+        # Normalize methods to upper-case and ensure HEAD accompanies GET for convenience
+        normalized_methods = {m.upper() for m in methods}
+        if "GET" in normalized_methods:
+            normalized_methods.add("HEAD")
+
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
-            self.routes.append(Route(path, func, methods=methods))
+            # Starlette accepts an iterable of method strings; pass a list for consistency
+            self.routes.append(Route(path, func, methods=list(normalized_methods)))
             return func
 
         return decorator
