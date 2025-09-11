@@ -232,7 +232,8 @@ class Serv:
         # so that reverse proxies/CDNs can serve assets while templates still use url_for.
         try:
             static_config = self.container.get(StaticConfig)
-        except (KeyError, TypeError, ValueError):
+        except KeyError:
+            # No static section configured
             static_config = None
 
         if static_config and static_config.mount:

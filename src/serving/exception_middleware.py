@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 from starlette.exceptions import HTTPException
+from starlette.routing import Mount
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -30,26 +31,38 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
                         from serving.config import Config  # local import to avoid cycles
                         config = self.serv.container.get(Config)
                         static_cfg = config.get('static') or {}
-                        mount = static_cfg.get('mount', '/static')
+                        mount = static_cfg.get('mount', '/static') or '/static'
                         directory = static_cfg.get('directory', 'static')
                         serve_opt = static_cfg.get('serve')
                         serve_assets = serve_opt if serve_opt is not None else True  # dev default True
 
-                        if serve_assets and mount and request.url.path.startswith(mount + '/'):
+                        if mount and request.url.path.startswith(mount + '/'):
+                            # Detect whether a static mount exists in the app routes
+                            is_mounted = any(
+                                isinstance(r, Mount) and r.path == mount for r in getattr(self.serv.app, 'routes', [])
+                            )
                             base_dir = self.serv.get_config_path(self.serv.working_directory, self.serv.environment).parent
                             dir_path = Path(directory)
                             if not dir_path.is_absolute():
                                 dir_path = base_dir / dir_path
-                            rel = request.url.path[len(mount) + 1 :]  # strip mount and leading slash
-                            resolved = dir_path / rel
-                            if not resolved.exists():
+
+                            if not is_mounted:
                                 logging.getLogger('serving.static').warning(
-                                    "Static asset not found: url=%s resolved=%s (mount=%s, dir=%s)",
-                                    request.url.path,
-                                    str(resolved),
+                                    "Static route not mounted for request under mount=%s (dir=%s). Check 'static.mount'/'static.serve' settings.",
                                     mount,
                                     str(dir_path),
                                 )
+                            elif serve_assets:
+                                rel = request.url.path[len(mount) + 1 :]  # strip mount and leading slash
+                                resolved = dir_path / rel
+                                if not resolved.exists():
+                                    logging.getLogger('serving.static').warning(
+                                        "Static asset not found: url=%s resolved=%s (mount=%s, dir=%s)",
+                                        request.url.path,
+                                        str(resolved),
+                                        mount,
+                                        str(dir_path),
+                                    )
                 except Exception:
                     # Do not allow logging to interfere with error rendering
                     pass

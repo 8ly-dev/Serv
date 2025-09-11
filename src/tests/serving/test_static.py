@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from starlette.testclient import TestClient
 
 from serving.serv import Serv
@@ -69,3 +71,23 @@ static:
     # Expect a proper 404 status and a log entry about missing static file
     assert r.status_code == 404
     assert any("Static asset not found" in rec.message for rec in caplog.records)
+
+
+def test_invalid_static_shape_raises(tmp_path: Path):
+    # Invalid: list instead of mapping
+    yaml = """
+environment: dev
+
+auth:
+  credential_provider: serving.auth:HMACCredentialProvider
+  config:
+    csrf_secret: test-secret
+
+static:
+  - mount: /static
+    directory: static
+"""
+    write_yaml(tmp_path, yaml)
+
+    with pytest.raises(Exception):
+        Serv(working_directory=tmp_path, environment="dev")
