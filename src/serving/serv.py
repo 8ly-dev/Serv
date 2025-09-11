@@ -58,6 +58,13 @@ class StaticConfig(ConfigModel, model_key="static"):
     # to True in dev and False otherwise.
     serve: bool | None = None
 
+    @classmethod
+    def from_dict(cls, config: dict) -> "StaticConfig | None":
+        # If the key is present with no options, treat as absent
+        if not config:
+            return None
+        return cls(**config)
+
 
 @dataclass
 class ThemingConfig(ConfigModel, model_key="theming"):
@@ -231,7 +238,18 @@ class Serv:
         if static_config and static_config.mount:
             is_dev = getattr(self, 'environment', 'prod') in ('dev', 'development')
             serve_assets = static_config.serve if static_config.serve is not None else is_dev
-            static_app = StaticFiles(directory=static_config.directory) if serve_assets else Starlette()
+
+            # Resolve directory relative to working directory if needed
+            directory = static_config.directory
+            try:
+                base_dir = self.get_config_path(self.working_directory, self.environment).parent
+            except Exception:
+                base_dir = Path.cwd()
+            dir_path = Path(directory)
+            if not dir_path.is_absolute():
+                dir_path = base_dir / dir_path
+
+            static_app = StaticFiles(directory=str(dir_path)) if serve_assets else Starlette()
             routes.append(
                 Mount(
                     static_config.mount,

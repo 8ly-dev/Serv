@@ -62,7 +62,8 @@ class ErrorHandler:
                     return self.custom_templates.TemplateResponse(
                         request=request,
                         name=template_path,
-                        context=context
+                        context=context,
+                        status_code=error_code,
                     )
                 except Exception:
                     # If custom template fails, fall back to built-in
@@ -72,7 +73,8 @@ class ErrorHandler:
         return self.fallback_templates.TemplateResponse(
             request=request,
             name="error.html",
-            context=context
+            context=context,
+            status_code=error_code,
         )
     
     def _get_default_message(self, error_code: int) -> str:

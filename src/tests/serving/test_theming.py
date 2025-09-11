@@ -66,8 +66,8 @@ class TestErrorHandler:
         
         response = handler.render_error(mock_request, 404)
         
-        # Should return HTMLResponse with fallback template
-        assert response.status_code == 200  # Template response is always 200
+        # Should return HTMLResponse with fallback template and correct status code
+        assert response.status_code == 404
         assert response.media_type == "text/html"
 
     def test_render_error_with_custom_message(self):
@@ -84,7 +84,7 @@ class TestErrorHandler:
             details="The specific resource was not found"
         )
         
-        assert response.status_code == 200
+        assert response.status_code == 404
 
 
 class TestServWithTheming:
@@ -192,6 +192,6 @@ environment: test
                 import asyncio
                 response = asyncio.run(wrapped(mock_request))
                 
-                # Should return HTML response from error handler
-                assert response.status_code == 200  # Template response
+                # Should return HTML response from error handler with 401 status
+                assert response.status_code == 401
                 assert response.media_type == "text/html"

@@ -1,4 +1,7 @@
 """Exception handling middleware with themed error pages."""
+import logging
+from pathlib import Path
+
 from starlette.exceptions import HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -19,6 +22,37 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             
             # Handle 404 responses
             if response.status_code == 404:
+                # In development, if static is configured to serve assets, log missing static file details
+                try:
+                    env = getattr(self.serv, 'environment', 'prod')
+                    is_dev = env in ('dev', 'development')
+                    if is_dev:
+                        from serving.config import Config  # local import to avoid cycles
+                        config = self.serv.container.get(Config)
+                        static_cfg = config.get('static') or {}
+                        mount = static_cfg.get('mount', '/static')
+                        directory = static_cfg.get('directory', 'static')
+                        serve_opt = static_cfg.get('serve')
+                        serve_assets = serve_opt if serve_opt is not None else True  # dev default True
+
+                        if serve_assets and mount and request.url.path.startswith(mount + '/'):
+                            base_dir = self.serv.get_config_path(self.serv.working_directory, self.serv.environment).parent
+                            dir_path = Path(directory)
+                            if not dir_path.is_absolute():
+                                dir_path = base_dir / dir_path
+                            rel = request.url.path[len(mount) + 1 :]  # strip mount and leading slash
+                            resolved = dir_path / rel
+                            if not resolved.exists():
+                                logging.getLogger('serving.static').warning(
+                                    "Static asset not found: url=%s resolved=%s (mount=%s, dir=%s)",
+                                    request.url.path,
+                                    str(resolved),
+                                    mount,
+                                    str(dir_path),
+                                )
+                except Exception:
+                    # Do not allow logging to interfere with error rendering
+                    pass
                 # Only show path details in development mode
                 details = None
                 if hasattr(self.serv, 'environment') and self.serv.environment in ('dev', 'development'):
