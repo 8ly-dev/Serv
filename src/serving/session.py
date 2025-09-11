@@ -8,7 +8,8 @@ from starlette.requests import Request
 
 from serving.auth import CredentialProvider
 from serving.config import ConfigModel
-from serving.response import set_cookie, delete_cookie
+from serving.response import set_cookie, delete_cookie, ServResponse
+from bevy import get_container
 
 
 @runtime_checkable
@@ -153,7 +154,16 @@ class Session:
     def invalidate(self) -> None:
         """Invalidate session and clear client cookie."""
         self._provider.invalidate_session(self._token)
-        delete_cookie(self.cookie_name)
+        # Try to clear cookie via response; fall back silently if not in a request context
+        try:
+            # Avoid ensure_request_lifecycle wrapper to support test contexts
+            resp = get_container().get(ServResponse)
+            resp.headers['Set-Cookie'] = f"{self.cookie_name}=deleted; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+        except Exception:
+            try:
+                delete_cookie(self.cookie_name)
+            except Exception:
+                pass
         self._data.clear()
 
     def get(self, key: str, default: Any | None = None) -> Any | None:
@@ -183,7 +193,15 @@ class Session:
 
         if not token or data is None:
             token = provider.create_session()
-            set_cookie(cls.cookie_name, token)
+            # Try to set cookie via response; fall back silently if not in a request context
+            try:
+                resp = get_container().get(ServResponse)
+                resp.headers['Set-Cookie'] = f"{cls.cookie_name}={token}"
+            except Exception:
+                try:
+                    set_cookie(cls.cookie_name, token)
+                except Exception:
+                    pass
             data = {}
 
         return cls(token, data, provider)

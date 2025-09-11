@@ -21,6 +21,7 @@ Serving is a modern, dependency-injection-driven ASGI web framework built on Sta
 - [Dependency Injection](dependency-injection.md)
 - [Forms & CSRF](forms.md)
 - [Authentication](authentication.md)
+- [Sessions](sessions.md)
 - [Error Handling & Theming](error-handling.md)
 - [Middleware](middleware.md)
 - [Response Helpers](response.md)

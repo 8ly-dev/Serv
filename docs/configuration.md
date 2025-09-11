@@ -13,6 +13,7 @@ Serving loads a single YAML file named `serving.{environment}.yaml` from your wo
 - `templates`: Configure template directory for Jinja2
 - `theming`: Configure error page templates
 - `auth`: Configure authentication and CSRF
+- `session`: Configure session provider and mapping type
 - `routers`: Declaratively wire routers and permissions
 
 ## Templates
@@ -51,6 +52,21 @@ auth:
 - For built-in CSRF providers, set `csrf_secret` (required) and optionally `csrf_ttl_seconds` under `auth.config`
 
 ## Routers
+
+## Sessions
+
+```yaml
+session:
+  session_provider: serving.session:InMemorySessionProvider
+  session_type: serving.session:Session  # optional
+  config: {}
+```
+
+- `session_provider` must implement the `SessionProvider` protocol
+- `session_type` defaults to the built-in `Session` mapping
+- `config` is passed as keyword args to your provider constructor
+
+See [Sessions](sessions.md) for details.
 
 ```yaml
 routers:

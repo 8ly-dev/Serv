@@ -27,6 +27,8 @@ from serving.injectors import (
     handle_path_param_types,
     handle_query_param_types,
     handle_form_types,
+    handle_session_types,
+    handle_session_param_types,
 )
 from serving.router import RouterConfig, Router
 from serving.session import SessionConfig, SessionProvider, Session
@@ -83,6 +85,8 @@ class Serv:
         handle_path_param_types.register_hook(self.registry)
         handle_query_param_types.register_hook(self.registry)
         handle_form_types.register_hook(self.registry)
+        handle_session_types.register_hook(self.registry)
+        handle_session_param_types.register_hook(self.registry)
 
         self.container = self.registry.create_container()
 

@@ -86,6 +86,15 @@ async def agent(user_agent: Header[str]):  # header name becomes "user-agent"
 
 You can also override the key using `Annotated`, e.g. `Annotated[QueryParam[str], "query"]`.
 
+### Sessions
+
+- Inject the current request’s session mapping with `Session` (from `serving.session`).
+- Inject a single value from the session using `SessionParam[T]` (from `serving.injectors`).
+  - Uses the parameter name as the key by default, supports `Annotated[..., "key"]` to override.
+  - Distinguishes between missing keys and present-but-None values; defaults apply only when the key is missing.
+
+See [Sessions](sessions.md) for provider configuration and examples.
+
 ## Request-Scoped Container
 
 For each request, Serving creates a container branch and preloads:

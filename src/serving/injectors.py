@@ -162,9 +162,25 @@ def handle_session_param_types(container: Container, dependency: type, context: 
     name = context["injection_context"].parameter_name if "injection_context" in context else None
     if is_annotated(dependency, SessionParam):
         dependency, name = get_args(dependency)
-
-    elif get_origin(dependency) is not SessionParam:
-        return Optional.Nothing()
+    else:
+        origin = get_origin(dependency)
+        if origin is SessionParam:
+            # Using SessionParam[T] without Annotated override
+            pass
+        elif origin is Annotated:
+            # Support Annotated[T, SessionParam, "name"] style
+            args = get_args(dependency)
+            meta = args[1:]
+            if any(m is SessionParam for m in meta):
+                # Extract optional explicit key override from metadata
+                for m in meta:
+                    if isinstance(m, str):
+                        name = m
+                        break
+            else:
+                return Optional.Nothing()
+        else:
+            return Optional.Nothing()
 
     if name is None:
         raise ValueError(f"Missing name for SessionParam dependency: {dependency}")
