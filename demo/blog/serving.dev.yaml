@@ -1,7 +1,12 @@
 environment: dev
 
 auth:
-  credential_provider: credentials:DemoCredentialProvider
+  credential_provider: serving.auth:TimedHMACCredentialProvider
+  config:
+    # Demo secret for signing CSRF tokens (do not use in prod)
+    csrf_secret: dev-secret
+    # Optional: time window (seconds) for CSRF tokens
+    csrf_ttl_seconds: 3600
 
 templates:
   directory: templates
@@ -15,4 +20,3 @@ routers:
       - path: /blog/new
         method: POST
       - path: /blog/{slug}
-

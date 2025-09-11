@@ -139,7 +139,9 @@ class Serv:
             e.set_config_path(config_path)
             raise
 
-        provider = auth_config.credential_provider()
+        # Instantiate the credential provider with provider-specific config kwargs
+        kwargs = auth_config.config or {}
+        provider = auth_config.credential_provider(**kwargs)
         self.container.add(CredentialProvider, provider)
 
     def _load_configuration(self, working_directory: str | Path | None) -> None:

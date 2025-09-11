@@ -24,8 +24,9 @@ environment: dev
 
 auth:
   credential_provider: myapp.auth:MyProvider
-  csrf_secret: dev-secret
-  csrf_ttl_seconds: 3600
+  config:
+    csrf_secret: dev-secret
+    csrf_ttl_seconds: 3600
 
 routers:
   - entrypoint: myapp.web:app

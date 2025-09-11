@@ -35,9 +35,10 @@ auth:
   # Implement your own provider; see guides/custom-auth-provider.md
   credential_provider: myapp.auth:MyProvider
   # Required for CSRF protection
-  csrf_secret: "change-me-long-random-string"
-  # Optional: validity window for time-bound CSRF tokens
-  csrf_ttl_seconds: 3600
+  config:
+    csrf_secret: "change-me-long-random-string"
+    # Optional: validity window for time-bound CSRF tokens
+    csrf_ttl_seconds: 3600
 
 routers:
   - entrypoint: myapp.web:app

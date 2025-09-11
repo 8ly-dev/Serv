@@ -5,7 +5,7 @@ import secrets
 from dataclasses import dataclass
 import time
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable, Any
 
 from bevy import Inject, auto_inject, injectable
 
@@ -49,11 +49,13 @@ class CredentialProvider(Protocol):
 
 @dataclass
 class AuthConfig(ConfigModel, model_key="auth"):
-    """Configuration for authentication."""
+    """Configuration for authentication.
+
+    - credential_provider: Provider class to instantiate
+    - config: Provider-specific configuration passed as keyword args on instantiation
+    """
     credential_provider: type[CredentialProvider]
-    csrf_secret: str | None = None
-    # Lifetime for CSRF tokens in seconds (used by time-bound providers)
-    csrf_ttl_seconds: int | None = 3600
+    config: dict[str, Any] | None = None
 
     @classmethod
     def from_dict(cls, config: dict) -> "AuthConfig":
@@ -78,8 +80,7 @@ class AuthConfig(ConfigModel, model_key="auth"):
 
         return cls(
             credential_provider=credential_provider,
-            csrf_secret=config.get("csrf_secret"),
-            csrf_ttl_seconds=config.get("csrf_ttl_seconds", 3600),
+            config=config.get("config"),
         )
 
 
@@ -88,10 +89,10 @@ class AuthConfig(ConfigModel, model_key="auth"):
 class HMACCredentialProvider:
     """Simple HMAC-based credential provider with CSRF support."""
 
-    def __init__(self, config: Inject[AuthConfig]):
-        if not config.csrf_secret:
+    def __init__(self, *, csrf_secret: str):
+        if not csrf_secret:
             raise AuthConfigurationError("CSRF secret not configured")
-        self._secret = config.csrf_secret.encode()
+        self._secret = csrf_secret.encode()
 
     def has_credentials(self, permissions: set[str]) -> bool:  # pragma: no cover - example implementation
         return True
@@ -127,12 +128,12 @@ class TimedHMACCredentialProvider:
 
     @auto_inject
     @injectable
-    def __init__(self, config: Inject[AuthConfig]):
-        if not config.csrf_secret:
+    def __init__(self, *, csrf_secret: str, csrf_ttl_seconds: int | None = 3600):
+        if not csrf_secret:
             raise AuthConfigurationError("CSRF secret not configured")
-        self._secret = config.csrf_secret.encode()
+        self._secret = csrf_secret.encode()
         # Default to 1 hour if not provided
-        self._ttl = int(config.csrf_ttl_seconds or 3600)
+        self._ttl = int(csrf_ttl_seconds or 3600)
 
     def has_credentials(self, permissions: set[str]) -> bool:  # pragma: no cover - example implementation
         return True

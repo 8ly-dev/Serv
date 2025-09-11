@@ -21,7 +21,8 @@ def test_home(tmp_path: Path, monkeypatch):
         environment: test
         auth:
           credential_provider: myapp.auth:MyProvider
-          csrf_secret: test-secret
+          config:
+            csrf_secret: test-secret
         routers:
           - entrypoint: myapp.web:app
             routes:

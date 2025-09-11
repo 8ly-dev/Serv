@@ -21,4 +21,4 @@ These are always enabled by Serv when constructing the Starlette app.
 - Reads `csrf_token` from form body and validates via your `CredentialProvider`
 - Returns 400 if invalid
 
-You must configure `auth.csrf_secret` in your YAML for CSRF to work. If using time-bound tokens, set `auth.csrf_ttl_seconds` to define the validity window.
+You must configure `auth.config.csrf_secret` in your YAML for CSRF to work. If using time-bound tokens, set `auth.config.csrf_ttl_seconds` to define the validity window.

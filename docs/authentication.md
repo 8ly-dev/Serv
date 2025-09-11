@@ -7,12 +7,13 @@ Serv delegates authentication and authorization to a pluggable `CredentialProvid
 ```yaml
 auth:
   credential_provider: myapp.auth:MyProvider  # module:ClassName
-  csrf_secret: "change-me-long-random-string"
-  csrf_ttl_seconds: 3600  # optional; validity window for time-bound CSRF tokens
+  config:
+    csrf_secret: "change-me-long-random-string"
+    csrf_ttl_seconds: 3600  # optional; validity window for time-bound CSRF tokens
 ```
 
 - `credential_provider` must resolve to a class implementing the protocol below
-- `csrf_secret` powers CSRF token signing/validation used by forms and middleware
+- `config` is passed as keyword args to the provider; e.g., `csrf_secret` and `csrf_ttl_seconds` for the built-ins
 
 ## CredentialProvider Protocol
 
@@ -30,7 +31,7 @@ At runtime Serv wraps each route to call `has_credentials(permissions)` with the
 
 ## Built-in Example Provider
 
-`HMACCredentialProvider` demonstrates a simple token signer for CSRF using an HMAC secret. For time-bound tokens that embed creation time and enforce expiry, use `TimedHMACCredentialProvider` or implement your own scheme using `auth.csrf_secret` and `auth.csrf_ttl_seconds`.
+`HMACCredentialProvider` demonstrates a simple token signer for CSRF using an HMAC secret. For time-bound tokens that embed creation time and enforce expiry, use `TimedHMACCredentialProvider` or implement your own scheme using values under `auth.config` (e.g., `csrf_secret`, `csrf_ttl_seconds`).
 
 ```python
 from serving.auth import HMACCredentialProvider, TimedHMACCredentialProvider, AuthConfig

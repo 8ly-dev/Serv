@@ -28,7 +28,7 @@ class MyProvider(CredentialProvider):
         return isinstance(token, str) and len(token) > 0
 ```
 
-You can also compose/extend `HMACCredentialProvider` for robust CSRF token signing using `auth.csrf_secret`.
+You can also compose/extend `HMACCredentialProvider` for robust CSRF token signing using values under `auth.config`.
 
 ## 2) Configure YAML
 
@@ -36,7 +36,8 @@ You can also compose/extend `HMACCredentialProvider` for robust CSRF token signi
 # serving.dev.yaml
 auth:
   credential_provider: myapp.auth:MyProvider
-  csrf_secret: dev-secret
+  config:
+    csrf_secret: dev-secret
 ```
 
 ## 3) Use Route Permissions

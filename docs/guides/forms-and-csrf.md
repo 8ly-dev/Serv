@@ -54,7 +54,8 @@ environment: dev
 
 auth:
   credential_provider: myapp.auth:MyProvider
-  csrf_secret: dev-secret
+  config:
+    csrf_secret: dev-secret
 
 templates:
   directory: templates
@@ -68,4 +69,4 @@ routers:
         method: POST
 ```
 
-Ensure `auth.csrf_secret` is set; CSRF middleware will reject invalid submissions.
+Ensure `auth.config.csrf_secret` is set; CSRF middleware will reject invalid submissions.
