@@ -14,6 +14,7 @@ Serving is a small ASGI web framework built on Starlette with first‑class depe
 - Forms + CSRF with Jinja2 templates
 - Themed error pages with dev‑mode details
 - Simple CLI wrapper around Uvicorn
+- Pluggable sessions with DI‑friendly access
 
 ## 🚀 Quick Start
 
@@ -86,6 +87,38 @@ serv -e dev --reload
 ```
 
 Your app will be available at http://127.0.0.1:8000.
+
+## 🗝️ Sessions
+
+Serving supports pluggable session providers and a dict‑like `Session` mapping bound to each request.
+
+Configure a provider in YAML:
+
+```yaml
+# serving.dev.yaml (add alongside `auth`/`routers`)
+session:
+  session_provider: serving.session:InMemorySessionProvider
+  session_type: serving.session:Session  # optional
+  config: {}
+```
+
+Use the session in routes:
+
+```python
+from serving.session import Session
+from serving.injectors import SessionParam
+
+@app.route("/whoami")
+async def whoami(sess: Session) -> JSON:
+    return {"user": sess.get("user_id")}
+
+@app.route("/feature")
+async def feature(beta: SessionParam[bool] = False) -> JSON:
+    # Uses parameter name as key; default applies if key is missing
+    return {"beta": beta}
+```
+
+See the full guide: [Sessions](docs/sessions.md)
 
 ## 🧭 Return Types
 
