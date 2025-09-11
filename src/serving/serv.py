@@ -29,6 +29,7 @@ from serving.injectors import (
     handle_form_types,
 )
 from serving.router import RouterConfig, Router
+from serving.session import SessionConfig, SessionProvider, Session
 from serving.serv_middleware import ServMiddleware
 from serving.csrf_middleware import CSRFMiddleware
 
@@ -95,6 +96,9 @@ class Serv:
         # Configure authentication
         self._configure_auth()
 
+        # Configure sessions (optional)
+        self._configure_session()
+
         self.templates = Jinja2Templates(directory=self.container.get(TemplatesConfig).directory)
         self.container.add(self.templates)
         
@@ -141,8 +145,23 @@ class Serv:
 
         # Instantiate the credential provider with provider-specific config kwargs
         kwargs = auth_config.config or {}
-        provider = auth_config.credential_provider(**kwargs)
+        provider = self.container.call(auth_config.credential_provider, **kwargs)
         self.container.add(CredentialProvider, provider)
+
+    def _configure_session(self) -> None:
+        """Configure session provider and register session type (if configured)."""
+        try:
+            session_config = self.container.get(SessionConfig)
+        except (KeyError, ValueError, TypeError):
+            # No sessions configured
+            return
+
+        # Instantiate the session provider with provider-specific config kwargs
+        kwargs = session_config.config or {}
+        provider = self.container.call(session_config.session_provider, **kwargs)
+        self.container.add(SessionProvider, provider)
+
+        # Session type will be provided on-demand via injector; no need to pre-register
 
     def _load_configuration(self, working_directory: str | Path | None) -> None:
         """Load configuration from the specified working directory or in the current working directory. Which config

@@ -9,11 +9,13 @@ from tramp.optionals import Optional
 
 from serving.config import Config, ConfigModel
 from serving.forms import Form
+from serving.session import Session, SessionConfig
 
 type Cookie[T] = T
 type Header[T] = T
 type PathParam[T] = T
 type QueryParam[T] = T
+type SessionParam[T] = T
 
 
 def is_annotated(dependency: type, expected_type: TypeAliasType) -> bool:
@@ -117,6 +119,20 @@ async def handle_form_types(container: Container, dependency: type, context: dic
     return Optional.Some(instance)
 
 
+@hooks.HANDLE_UNSUPPORTED_DEPENDENCY
+async def handle_session_types(container: Container, dependency: type, context: dict) -> Optional:
+    try:
+        if not issubclass(dependency, Session):
+            return Optional.Nothing()
+    except (TypeError, AttributeError):
+        return Optional.Nothing()
+
+    # Build or load the request session via classmethod
+    instance = await container.call(dependency.load_session)
+    container.add(dependency, instance)
+    return Optional.Some(instance)
+
+
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY
 def handle_header_types(container: Container, dependency: type, context: dict) -> Optional:
@@ -139,6 +155,34 @@ def handle_header_types(container: Container, dependency: type, context: dict) -
         return Optional.Some(default)  # Return default or None
     
     return Optional.Some(value)
+
+
+@hooks.HANDLE_UNSUPPORTED_DEPENDENCY
+def handle_session_param_types(container: Container, dependency: type, context: dict) -> Optional:
+    name = context["injection_context"].parameter_name if "injection_context" in context else None
+    if is_annotated(dependency, SessionParam):
+        dependency, name = get_args(dependency)
+
+    elif get_origin(dependency) is not SessionParam:
+        return Optional.Nothing()
+
+    if name is None:
+        raise ValueError(f"Missing name for SessionParam dependency: {dependency}")
+
+    # Determine the configured Session type (default to base Session)
+    try:
+        session_config = container.get(SessionConfig)
+        session_type = session_config.session_type or Session
+    except Exception:
+        session_type = Session
+
+    # Ensure session instance exists in container
+    session_instance = container.get(session_type)
+    if name in session_instance:  # type: ignore[operator]
+        return Optional.Some(session_instance[name])  # type: ignore[index]
+
+    default = get_parameter_default(context)
+    return Optional.Some(default)
 
 
 @hooks.HANDLE_UNSUPPORTED_DEPENDENCY

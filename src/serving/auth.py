@@ -46,6 +46,14 @@ class CredentialProvider(Protocol):
         """Validate a CSRF token provided in a request."""
         ...
 
+    def create_session_token(self) -> str:
+        """Generate a new secure session token."""
+        ...
+
+    def validate_session_token(self, token: str) -> bool:
+        """Validate a session token."""
+        ...
+
 
 @dataclass
 class AuthConfig(ConfigModel, model_key="auth"):
@@ -103,6 +111,20 @@ class HMACCredentialProvider:
         return f"{token}.{signature}"
 
     def validate_csrf_token(self, token: str) -> bool:
+        try:
+            raw, signature = token.rsplit(".", 1)
+        except ValueError:
+            return False
+        expected = hmac.new(self._secret, raw.encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, signature)
+
+    # Session tokens use the same HMAC signing strategy as CSRF tokens
+    def create_session_token(self) -> str:
+        token = secrets.token_urlsafe(32)
+        signature = hmac.new(self._secret, token.encode(), hashlib.sha256).hexdigest()
+        return f"{token}.{signature}"
+
+    def validate_session_token(self, token: str) -> bool:
         try:
             raw, signature = token.rsplit(".", 1)
         except ValueError:
@@ -169,4 +191,33 @@ class TimedHMACCredentialProvider:
             # Future timestamp is invalid
             return False
 
+        return (now - ts) <= self._ttl
+
+    # Session tokens include a timestamp and are validated server-side by the session provider
+    def create_session_token(self) -> str:
+        nonce = secrets.token_urlsafe(32)
+        ts = str(int(time.time()))
+        raw = f"{nonce}.{ts}"
+        sig = hmac.new(self._secret, raw.encode(), hashlib.sha256).hexdigest()
+        return f"{raw}.{sig}"
+
+    def validate_session_token(self, token: str) -> bool:
+        try:
+            nonce, ts_str, sig = token.split(".", 3)
+        except ValueError:
+            return False
+
+        raw = f"{nonce}.{ts_str}"
+        expected_sig = hmac.new(self._secret, raw.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected_sig, sig):
+            return False
+
+        try:
+            ts = int(ts_str)
+        except ValueError:
+            return False
+
+        now = int(time.time())
+        if ts > now:
+            return False
         return (now - ts) <= self._ttl
