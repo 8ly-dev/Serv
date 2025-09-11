@@ -15,6 +15,7 @@ Serving loads a single YAML file named `serving.{environment}.yaml` from your wo
 - `auth`: Configure authentication and CSRF
 - `session`: Configure session provider and mapping type
 - `routers`: Declaratively wire routers and permissions
+ - `static`: Configure static asset serving (dev only)
 
 ## Templates
 
@@ -67,6 +68,22 @@ session:
 - `config` is passed as keyword args to your provider constructor
 
 See [Sessions](sessions.md) for details.
+
+## Static Assets (Dev)
+
+Serving mounts a named static route so you can use Starlette’s `url_for('static', path='...')` in templates across all environments.
+
+```yaml
+static:
+  mount: /static       # URL path prefix
+  directory: static    # folder on disk (relative to working dir)
+  name: static         # route name for url_for; default "static"
+  serve: true          # if omitted: true in dev, false otherwise
+```
+
+- In `dev`/`development`, files are served from disk by default (`serve: true`)
+- In other environments, `serve` defaults to `false` (URL generation only); set `serve: true` to have the app serve files
+- Regardless of `serve`, the named route is mounted so `url_for('static', ...)` always works
 
 ```yaml
 routers:

@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 from starlette.routing import Mount, Route
 from starlette.templating import Jinja2Templates
+from starlette.staticfiles import StaticFiles
 
 import serving.types
 from serving.auth import AuthConfig, AuthConfigurationError, CredentialProvider
@@ -40,6 +41,22 @@ from serving.csrf_middleware import CSRFMiddleware
 class TemplatesConfig(ConfigModel, model_key="templates"):
     """Configuration for templates."""
     directory: str = "templates"
+
+
+@dataclass
+class StaticConfig(ConfigModel, model_key="static"):
+    """Configuration for static asset serving in development.
+
+    - mount: URL path prefix to mount static files under (e.g., "/static")
+    - directory: Filesystem directory containing static assets
+    - name: Route name used for `url_for(name, path=...)` compatibility (default: "static")
+    """
+    mount: str = "/static"
+    directory: str = "static"
+    name: str = "static"
+    # Whether the app should serve assets itself. If None, defaults
+    # to True in dev and False otherwise.
+    serve: bool | None = None
 
 
 @dataclass
@@ -195,13 +212,33 @@ class Serv:
             routers = self.container.get(list[RouterConfig])
         except (KeyError, ValueError):
             # No routers configured, return empty list
-            return routes
-            
+            routers = []
+
         for router in routers:
             if router.prefix:
                 routes.append(Mount(router.prefix, routes=list(self._build_routes(router))))
             else:
                 routes.extend(self._build_routes(router))
+
+        # Always mount a named static route so url_for('static', ...) works in all envs.
+        # In dev: serve files from disk. In other envs: mount an empty app as a placeholder
+        # so that reverse proxies/CDNs can serve assets while templates still use url_for.
+        try:
+            static_config = self.container.get(StaticConfig)
+        except (KeyError, TypeError, ValueError):
+            static_config = None
+
+        if static_config and static_config.mount:
+            is_dev = getattr(self, 'environment', 'prod') in ('dev', 'development')
+            serve_assets = static_config.serve if static_config.serve is not None else is_dev
+            static_app = StaticFiles(directory=static_config.directory) if serve_assets else Starlette()
+            routes.append(
+                Mount(
+                    static_config.mount,
+                    app=static_app,
+                    name=static_config.name,
+                )
+            )
 
         return routes
 

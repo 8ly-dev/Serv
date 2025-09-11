@@ -15,6 +15,7 @@ Serving is a small ASGI web framework built on Starlette with first‑class depe
 - Themed error pages with dev‑mode details
 - Simple CLI wrapper around Uvicorn
 - Pluggable sessions with DI‑friendly access
+- Static asset mount in dev compatible with `url_for('static', ...)`
 
 ## 🚀 Quick Start
 
@@ -71,6 +72,13 @@ auth:
 
 templates:
   directory: templates
+
+static:
+  mount: /static
+  directory: static
+  # In dev, assets are served by default; in other envs default is false.
+  # Explicitly enable serving in non-dev if desired:
+  # serve: true
 
 routers:
   - entrypoint: myapp.web:app
