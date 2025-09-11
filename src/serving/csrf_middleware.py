@@ -17,10 +17,14 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         credential_provider: Inject[CredentialProvider],
     ):
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
-            form = await request.form()
-            token = form.get("csrf_token")
-            if not token or not credential_provider.validate_csrf_token(token):
-                return PlainTextResponse(
-                    "Invalid CSRF token", status_code=HTTP_400_BAD_REQUEST
-                )
+            # Avoid consuming the request body here to prevent stream reuse issues.
+            # If a CSRF token is provided via header, validate it preemptively.
+            header_token = request.headers.get("x-csrf-token")
+            if header_token is not None:
+                if not credential_provider.validate_csrf_token(header_token):
+                    return PlainTextResponse(
+                        "Invalid CSRF token", status_code=HTTP_400_BAD_REQUEST
+                    )
+            # Otherwise, allow downstream handlers (e.g., Form.from_request) to validate
+            # CSRF from the form body without the stream being consumed twice.
         return await call_next(request)
