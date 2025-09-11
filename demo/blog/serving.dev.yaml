@@ -1,0 +1,18 @@
+environment: dev
+
+auth:
+  credential_provider: credentials:DemoCredentialProvider
+
+templates:
+  directory: templates
+
+routers:
+  - entrypoint: routes:app
+    routes:
+      - path: /blog
+      - path: /blog/new
+        method: GET
+      - path: /blog/new
+        method: POST
+      - path: /blog/{slug}
+

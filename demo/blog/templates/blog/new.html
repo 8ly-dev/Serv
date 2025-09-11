@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}New Post · Serv Demo{% endblock %}
+{% block content %}
+  <h2>New Post</h2>
+  <form method="post">
+    <label>Title</label>
+    <input name="title" placeholder="Post title" required value="{{ form.title or '' }}">
+
+    <label>Slug (optional)</label>
+    <input name="slug" placeholder="auto-from-title" value="{{ form.slug or '' }}">
+
+    <label>Content (Markdown)</label>
+    <textarea name="content" rows="10" placeholder="# Hello world">{{ form.content or '' }}</textarea>
+
+    {{ csrf() }}
+    <button class="btn" type="submit">Publish</button>
+  </form>
+{% endblock %}
+

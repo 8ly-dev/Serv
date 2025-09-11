@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Serv Blog Demo{% endblock %}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; line-height: 1.6; }
+    header { margin-bottom: 2rem; }
+    nav a { margin-right: 1rem; }
+    input, textarea { width: 100%; padding: .5rem; margin: .25rem 0 1rem; font: inherit; }
+    .post { padding: 1rem; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem; }
+    .content { margin-top: 1rem; }
+    .btn { display: inline-block; background: #111; color: #fff; padding: .5rem .9rem; border-radius: 8px; text-decoration: none; }
+  </style>
+  {% block head %}{% endblock %}
+  </head>
+<body>
+  <header>
+    <h1><a href="/blog" style="text-decoration:none;color:inherit">Serv Blog Demo</a></h1>
+    <nav>
+      <a href="/blog">Home</a>
+      <a href="/blog/new">New Post</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
+

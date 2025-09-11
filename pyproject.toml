@@ -61,6 +61,12 @@ dev = [
     "httpx>=0.28.1",
 ]
 
+# Optional dependencies useful for demos/examples
+demo = [
+    "markdown>=3.6",
+    "python-slugify>=8.0.4",
+]
+
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
