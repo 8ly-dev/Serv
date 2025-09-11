@@ -52,7 +52,9 @@ async def blog_new_post(form: PostForm) -> HTML:
         "content_html": html,
     })
 
-    redirect(f"/blog/{s}")
+    # Use 303 See Other to switch the client to GET for the redirected URL
+    from serving.response import Status
+    redirect(f"/blog/{s}", status_code=Status.SEE_OTHER)
     return "Created"
 
 
@@ -62,4 +64,3 @@ async def blog_post(slug: str) -> Jinja2:
         if post["slug"] == slug:
             return "blog/post.html", {"post": post}
     raise HTTPException(status_code=404, detail="Post not found")
-
