@@ -63,11 +63,11 @@ Serv inspects your endpoint’s return annotation to format responses:
 - `JSON` -> JSON response
 - `Jinja2` -> render `templates/<file>` with context dict
 
-See ./response.md for details and examples.
+See [Response Helpers](response.md) for details and examples.
 
 ## Next Steps
 
-- Add routes and path params: ./routing.md
-- Configure auth and permissions: ./authentication.md
-- Use forms with CSRF: ./forms.md
-- Customize error pages: ./error-handling.md
+- Add routes and path params: [Routing](routing.md)
+- Configure auth and permissions: [Authentication](authentication.md)
+- Use forms with CSRF: [Forms & CSRF](forms.md)
+- Customize error pages: [Error Handling & Theming](error-handling.md)

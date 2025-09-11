@@ -4,10 +4,10 @@ Serv uses the Bevy DI container to wire request-scoped dependencies into your ro
 
 ## What You Can Inject
 
-- `Config`: your loaded YAML configuration (see ./configuration.md)
+- `Config`: your loaded YAML configuration (see [Configuration](configuration.md))
 - `ConfigModel` subclasses: typed config sections
 - `Request`: Starlette `Request`
-- Form instances: subclasses of `serving.forms.Form` (see ./forms.md)
+- Form instances: subclasses of `serving.forms.Form` (see [Forms & CSRF](forms.md))
 - Request parameters: `QueryParam[T]`, `Header[T]`, `Cookie[T]`, `PathParam[T]`
 
 ## Injecting Config Models
@@ -84,13 +84,13 @@ async def agent(user_agent: Header[str]):  # header name becomes "user-agent"
     ...
 ```
 
-You can also override the key using `Annotated`, e.g. `Annotated[str, QueryParam("query")]`.
+You can also override the key using `Annotated`, e.g. `Annotated[QueryParam[str], "query"]`.
 
 ## Request-Scoped Container
 
 For each request, Serv creates a container branch and preloads:
 
 - `Request`
-- a response accumulator (see ./response.md)
+- a response accumulator (see [Response Helpers](response.md))
 
 This ensures helpers like `redirect()` and `set_header()` only run during a request lifecycle.

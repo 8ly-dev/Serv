@@ -42,6 +42,6 @@ Visit http://127.0.0.1:8000/ and you should see your greeting.
 
 ## Next
 
-- Add more routes and return types: ../routing.md
-- Set up forms & CSRF: ../forms.md
-- Customize error pages: ../error-handling.md
+- Add more routes and return types: [Routing](../routing.md)
+- Set up forms & CSRF: [Forms & CSRF](../forms.md)
+- Customize error pages: [Error Handling & Theming](../error-handling.md)

@@ -34,7 +34,7 @@ theming:
   default_error_template: errors/error.html
 ```
 
-See ./error-handling.md for details and the fallback template used by Serv.
+See [Error Handling & Theming](error-handling.md) for details and the fallback template used by Serv.
 
 ## Authentication
 

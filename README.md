@@ -96,15 +96,15 @@ Your app will be available at http://127.0.0.1:8000.
 
 ## 🔐 Authentication & Permissions
 
-Configure an auth provider in YAML (`auth.credential_provider`). Serv calls `has_credentials(permissions)` before invoking a route; if denied, a themed 401 page is rendered. See docs/authentication.md for the `CredentialProvider` protocol and examples.
+Configure an auth provider in YAML (`auth.credential_provider`). Serv calls `has_credentials(permissions)` before invoking a route; if denied, a themed 401 page is rendered. See [Authentication](docs/authentication.md) for the `CredentialProvider` protocol and examples.
 
 ## 🧾 Forms & CSRF
 
-Use `serving.forms.Form` with Jinja2. When CSRF is enabled (default), templates must call `{{ csrf() }}`; invalid tokens are rejected by `CSRFMiddleware`. See docs/forms.md.
+Use `serving.forms.Form` with Jinja2. When CSRF is enabled (default), templates must call `{{ csrf() }}`; invalid tokens are rejected by `CSRFMiddleware`. See [Forms & CSRF](docs/forms.md).
 
 ## 🎨 Error Pages & Theming
 
-Customize error templates via the `theming` section in YAML. Dev mode can include extra details (stack traces, missing path). See docs/error-handling.md.
+Customize error templates via the `theming` section in YAML. Dev mode can include extra details (stack traces, missing path). See [Error Handling & Theming](docs/error-handling.md).
 
 ## 🧰 CLI
 
@@ -118,21 +118,21 @@ serv [-d DIR] [-e ENV] [uvicorn options...]
 
 ## 📚 Documentation
 
-See the docs/ directory for detailed guides and references:
+See the [docs/](docs/README.md) directory for detailed guides and references:
 
-- docs/getting-started.md — install and minimal setup
-- docs/configuration.md — YAML layout, templates, theming, routers, auth
-- docs/routing.md — router decorator, params, permissions
-- docs/dependency-injection.md — Bevy DI and `ConfigModel`s
-- docs/forms.md — forms + CSRF
-- docs/error-handling.md — exceptions and theming
-- docs/authentication.md — provider protocol and configuration
-- docs/middleware.md — default middleware stack
-- docs/response.md — response helpers (`set_header`, `redirect`, etc.)
-- docs/cli.md — CLI flags and examples
-- docs/testing.md — testing patterns
+- [Getting Started](docs/getting-started.md) — install and minimal setup
+- [Configuration](docs/configuration.md) — YAML layout, templates, theming, routers, auth
+- [Routing](docs/routing.md) — router decorator, params, permissions
+- [Dependency Injection](docs/dependency-injection.md) — Bevy DI and `ConfigModel`s
+- [Forms & CSRF](docs/forms.md) — forms + CSRF
+- [Error Handling](docs/error-handling.md) — exceptions and theming
+- [Authentication](docs/authentication.md) — provider protocol and configuration
+- [Middleware](docs/middleware.md) — default middleware stack
+- [Response Helpers](docs/response.md) — `set_header`, `redirect`, etc.
+- [CLI](docs/cli.md) — CLI flags and examples
+- [Testing](docs/testing.md) — testing patterns
 
-Also see the demo/ directory for a runnable example.
+Also see the [demo/blog](demo/blog/README.md) demo for a runnable example.
 
 ## 🤝 Contributing
 

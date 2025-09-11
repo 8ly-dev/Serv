@@ -72,7 +72,7 @@ async def visit(session_id: Cookie[str] = None) -> JSON:
 ```
 
 - By default the parameter name is used as the key (e.g., `q`, `user_agent`, `session_id`).
-- Advanced: you can override the key name using `typing.Annotated`, e.g. `Annotated[str, QueryParam("query")]`.
+- Advanced: you can override the key name using `typing.Annotated`, e.g. `Annotated[QueryParam[str], "query"]`.
 
 ## Wire the Router in YAML
 
