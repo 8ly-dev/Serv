@@ -82,6 +82,15 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             
         except HTTPException as exc:
             # Handle HTTP exceptions with themed error pages
+            # Log server error HTTPExceptions with stacktraces in all environments
+            try:
+                status = int(getattr(exc, 'status_code', 500))
+            except Exception:
+                status = 500
+            if status >= 500:
+                logging.getLogger('serving.app').error(
+                    "HTTPException %s for %s: %s", status, request.url.path, exc.detail, exc_info=True
+                )
             return self.serv.error_handler.render_error(
                 request,
                 error_code=exc.status_code,
@@ -90,7 +99,10 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             )
             
         except Exception as exc:
-            # Handle general exceptions as 500 errors
+            # Handle general exceptions as 500 errors; log stacktraces in all environments
+            logging.getLogger('serving.app').error(
+                "Unhandled exception for %s", request.url.path, exc_info=True
+            )
             # Only show details in development mode
             details = None
             if hasattr(self.serv, 'environment') and self.serv.environment in ('dev', 'development'):

@@ -154,8 +154,8 @@ class Serv:
                 },
             )
 
-            # Store serv instance in app state for exception handlers
-            self.app.state.serv = self
+        # Store serv instance in app state for exception handlers
+        self.app.state.serv = self
 
     def _configure_auth(self) -> None:
         """Configure authentication based on the configuration."""
@@ -199,7 +199,7 @@ class Serv:
             ConfigurationError: When config file cannot be found or loaded
         """
         config_path = self.get_config_path(working_directory, self.environment)
-        
+
         # Load the configuration
         try:
             self.config = Config.load_config(config_path.name, str(config_path.parent))
@@ -209,7 +209,7 @@ class Serv:
                 config_path.name,
                 config_path.parent,
             ) from e
-        
+
         # Add Config to container for dependency injection
         self.container.add(self.config)
 
@@ -221,6 +221,7 @@ class Serv:
             # No routers configured, return empty list
             routers = []
 
+        # Add configured routers first
         for router in routers:
             if router.prefix:
                 routes.append(Mount(router.prefix, routes=list(self._build_routes(router))))
@@ -250,7 +251,19 @@ class Serv:
             if not dir_path.is_absolute():
                 dir_path = base_dir / dir_path
 
-            static_app = StaticFiles(directory=str(dir_path)) if serve_assets else Starlette()
+            # When serving assets directly, set Cache-Control on all responses under the mount.
+            if serve_assets:
+                async def static_app(*args):
+                    try:
+                        result = await StaticFiles(directory=str(dir_path))(*args)
+                        print("RESULT", result.status_code)
+                        return result
+                    except Exception as e:
+                        print(e)
+                    finally:
+                        print("Static app done")
+            else:
+                static_app = Starlette()
             routes.append(
                 Mount(
                     static_config.mount,
@@ -290,9 +303,9 @@ class Serv:
                 details = None
                 if hasattr(self, 'environment') and self.environment in ('dev', 'development'):
                     details = f"Required permissions: {permissions}" if permissions else "Authentication required"
-                
+
                 return self.error_handler.render_error(
-                    request, 
+                    request,
                     error_code=401,
                     error_message="Unauthorized",
                     details=details
