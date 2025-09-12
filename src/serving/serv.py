@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Generator
 
 import starlette.responses
-from bevy import get_container
-from bevy.registries import Registry
+from bevy import get_container, get_registry
 from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
@@ -100,7 +99,7 @@ class Serv:
         Raises:
             ConfigurationError: When config file cannot be found or loaded
         """
-        self.registry = Registry()
+        self.registry = get_registry()
 
         # Register the config model handler
         handle_config_model_types.register_hook(self.registry)
@@ -113,50 +112,50 @@ class Serv:
         handle_session_param_types.register_hook(self.registry)
 
         self.container = self.registry.create_container()
+        with self.container:
+            # Determine environment
+            self.environment = self._get_environment(environment)
+            self.working_directory = working_directory
 
-        # Determine environment
-        self.environment = self._get_environment(environment)
-        self.working_directory = working_directory
+            # Load configuration (will raise if not found)
+            self._load_configuration(working_directory)
 
-        # Load configuration (will raise if not found)
-        self._load_configuration(working_directory)
+            # Configure authentication
+            self._configure_auth()
 
-        # Configure authentication
-        self._configure_auth()
+            # Configure sessions (optional)
+            self._configure_session()
 
-        # Configure sessions (optional)
-        self._configure_session()
+            self.templates = Jinja2Templates(directory=self.container.get(TemplatesConfig).directory)
+            self.container.add(self.templates)
 
-        self.templates = Jinja2Templates(directory=self.container.get(TemplatesConfig).directory)
-        self.container.add(self.templates)
-        
-        # Configure error handler with theming support
-        try:
-            theming_config = self.container.get(ThemingConfig)
-        except (KeyError, TypeError):
-            theming_config = None
-        
-        self.error_handler = ErrorHandler(
-            theming_config=theming_config,
-            templates=self.templates if theming_config else None
-        )
-        
-        self.app = Starlette(
-            routes=self._load_routes(),
-            middleware=[
-                Middleware(ExceptionMiddleware, serv=self),
-                Middleware(ServMiddleware, serv=self),
-                Middleware(CSRFMiddleware),
-            ],
-            exception_handlers={
-                HTTPException: http_exception_handler,
-                404: not_found_handler,
-                500: general_exception_handler,
-            },
-        )
-        
-        # Store serv instance in app state for exception handlers
-        self.app.state.serv = self
+            # Configure error handler with theming support
+            try:
+                theming_config = self.container.get(ThemingConfig)
+            except (KeyError, TypeError):
+                theming_config = None
+
+            self.error_handler = ErrorHandler(
+                theming_config=theming_config,
+                templates=self.templates if theming_config else None
+            )
+
+            self.app = Starlette(
+                routes=self._load_routes(),
+                middleware=[
+                    Middleware(ExceptionMiddleware, serv=self),
+                    Middleware(ServMiddleware, serv=self),
+                    Middleware(CSRFMiddleware),
+                ],
+                exception_handlers={
+                    HTTPException: http_exception_handler,
+                    404: not_found_handler,
+                    500: general_exception_handler,
+                },
+            )
+
+            # Store serv instance in app state for exception handlers
+            self.app.state.serv = self
 
     def _configure_auth(self) -> None:
         """Configure authentication based on the configuration."""
@@ -184,8 +183,9 @@ class Serv:
             # No sessions configured
             return
 
-        # Instantiate the session provider with provider-specific config kwargs
-        kwargs = session_config.config or {}
+        # Instantiate the session provider with provider-specific config kwargs.
+        # Rely on DI for dependencies like CredentialProvider.
+        kwargs = dict(session_config.config or {})
         provider = self.container.call(session_config.session_provider, **kwargs)
         self.container.add(SessionProvider, provider)
 

@@ -16,7 +16,7 @@ class ServMiddleware(BaseHTTPMiddleware):
         self.serv = serv
 
     async def dispatch(self, request, call_next):
-        with self.serv.container.branch() as container:
+        with self.serv.registry, self.serv.container.branch() as container:
             container.add(Request, request)
             container.add(
                 _response := ServResponse()

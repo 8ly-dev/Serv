@@ -77,8 +77,6 @@ class SessionConfig(ConfigModel, model_key="session"):
         )
 
 
-@auto_inject
-@injectable
 class InMemorySessionProvider:
     """Simple in-memory session provider for development and tests."""
 
@@ -100,14 +98,9 @@ class InMemorySessionProvider:
 
     def get_session(self, token: str) -> dict[str, Any] | None:
         # Validate the token format/signature if the provider supports it
-        try:
-            validator = getattr(self._cred, "validate_session_token")
-        except AttributeError:
-            validator = None
-
-        if validator is not None and not validator(token):
+        validator = getattr(self._cred, "validate_session_token", None)
+        if callable(validator) and not validator(token):
             return None
-
         return self._sessions.get(token)
 
 

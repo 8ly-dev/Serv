@@ -270,9 +270,8 @@ port: 9000
             assert serv2.config.get("instance") == "second"
             assert serv2.config.get("port") == 9000
             
-            # Each should have its own container
+            # Each should have its own container (registry may be shared when using a global registry)
             assert serv1.container is not serv2.container
-            assert serv1.registry is not serv2.registry
 
     def test_error_message_includes_cwd(self):
         """Test that error message includes current working directory for context."""

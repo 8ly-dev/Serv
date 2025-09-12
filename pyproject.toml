@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "getserving"
-version = "0.1.1a5"
+version = "0.1.1a6"
 description = "A powerful, dependency-injection-driven ASGI web framework for Python with first-class support for configuration management, type-safe routing, and extensible middleware."
 readme = "README.md"
 requires-python = ">=3.13"

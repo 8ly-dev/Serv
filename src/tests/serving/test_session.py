@@ -1,11 +1,12 @@
 from typing import Annotated
 
-from bevy import auto_inject, injectable
+from bevy import auto_inject, injectable, get_registry
 from bevy.registries import Registry
 from starlette.requests import Request
 
 from serving.response import ServResponse
 from serving.session import InMemorySessionProvider, Session, SessionProvider
+from serving.auth import CredentialProvider
 from serving.injectors import (
     handle_session_types,
     handle_session_param_types,
@@ -39,8 +40,11 @@ def make_request_with_cookies(cookie_header: str | None = None) -> Request:
 
 
 def test_inmemory_session_provider_create_update_invalidate():
-    cred = DummyCredentialProvider()
-    provider = InMemorySessionProvider(credential_provider=cred)
+    # Use a DI container so method calls can resolve dependencies
+    registry = get_registry()
+    container = registry.create_container()
+    container.add(CredentialProvider, DummyCredentialProvider())
+    provider = container.call(InMemorySessionProvider)
 
     token = provider.create_session()
     assert token.startswith("tok-")
@@ -54,7 +58,7 @@ def test_inmemory_session_provider_create_update_invalidate():
 
 
 def test_session_load_save_invalidate_sets_cookie_and_persists():
-    registry = Registry()
+    registry = get_registry()
     handle_session_types.register_hook(registry)
     container = registry.create_container()
 
@@ -64,7 +68,8 @@ def test_session_load_save_invalidate_sets_cookie_and_persists():
     container.add(Request, request)
 
     # Provider dependency
-    provider = InMemorySessionProvider(credential_provider=DummyCredentialProvider())
+    container.add(CredentialProvider, DummyCredentialProvider())
+    provider = container.call(InMemorySessionProvider)
     container.add(SessionProvider, provider)
 
     session = container.call(Session.load_session)
@@ -78,11 +83,11 @@ def test_session_load_save_invalidate_sets_cookie_and_persists():
     session["user_id"] = "u123"
     session["maybe_none"] = None
     session.save()
-    assert provider.get_session(session.token) == {"user_id": "u123", "maybe_none": None}
+    assert container.call(provider.get_session, session.token) == {"user_id": "u123", "maybe_none": None}
 
     # Invalidate clears provider storage
     session.invalidate()
-    assert provider.get_session(session.token) is None
+    assert container.call(provider.get_session, session.token) is None
 
 
 # Additional integration of Session via injector is exercised in runtime tests.
